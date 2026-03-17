@@ -66,8 +66,22 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
 .wtable th{text-align:left;font-weight:600;font-size:12px;color:#888;padding:6px 10px;border-bottom:1px solid #e0ddd6}
 .wtable td{padding:8px 10px;border-bottom:1px solid #f0ede6;color:#1a1a1a}
 .wtable tr:last-child td{border:none}
-.period-row{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
-.period-row label{font-size:13px;color:#888}
+.preset-btn{font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;transition:all 0.12s}
+.preset-btn:hover{border-color:#aaa;color:#1a1a1a}
+.preset-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.cal-grid{display:grid;grid-template-columns:repeat(7,32px);gap:2px}
+.cal-day{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:12px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:#1a1a1a}
+.cal-day:hover{background:#f0f0ee}
+.cal-day.today{font-weight:700;color:#185FA5}
+.cal-day.selected{background:#185FA5;color:#fff}
+.cal-day.in-range{background:#E6F1FB;color:#185FA5}
+.cal-day.other-month{color:#ccc}
+.cal-day.ph{color:#A32D2D}
+.cal-day.weekend{color:#888}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-nav button{font-size:14px;padding:2px 8px;border:none;background:none;cursor:pointer;color:#666}
+.cal-nav span{font-size:13px;font-weight:600;color:#1a1a1a}
+.cal-dow{width:32px;height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa;font-weight:500}
 select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;color:#1a1a1a;cursor:pointer}
 .log-filters{display:flex;gap:6px;margin-bottom:0.75rem;flex-wrap:wrap}
 .fbtn{font-size:12px;padding:4px 10px;border-radius:20px}
@@ -141,15 +155,28 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
   </div>
 
   <div class="panel" id="tab-summary">
-    <div class="period-row">
-      <label>Period</label>
-      <select id="periodSel" onchange="renderSummary()">
-        <option value="today">Today</option>
-        <option value="week">This week</option>
-        <option value="month">This month</option>
-        <option value="all">All time</option>
-      </select>
-      <button class="btn-exp" onclick="exportCSV()">Export CSV</button>
+    <div style="margin-bottom:1rem">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <button class="preset-btn active" onclick="setPreset('today',this)">Today</button>
+        <button class="preset-btn" onclick="setPreset('week',this)">This week</button>
+        <button class="preset-btn" onclick="setPreset('month',this)">This month</button>
+        <button class="preset-btn" onclick="setPreset('all',this)">All time</button>
+        <button class="preset-btn" onclick="setPreset('custom',this)" id="customBtn">Custom range</button>
+        <button class="btn-exp" onclick="exportCSV()" style="margin-left:auto">Export CSV</button>
+      </div>
+      <div id="calendarPicker" style="display:none;background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:1rem;margin-top:4px">
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+          <div>
+            <div style="font-size:12px;color:#888;margin-bottom:6px">From</div>
+            <div id="calFrom"></div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:#888;margin-bottom:6px">To</div>
+            <div id="calTo"></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:#888" id="rangeLabel"></div>
+      </div>
     </div>
     <div id="summaryContent"></div>
   </div>
@@ -201,7 +228,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, set, push, update, remove, onValue, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDcQPugR_CAX4nlQIZmk52R-peA9dV1dHs",
+  apiKey: "AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",
   authDomain: "attendance-20d6a.firebaseapp.com",
   databaseURL: "https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "attendance-20d6a",
@@ -264,8 +291,7 @@ async function initData() {
   const pinSnap = await get(ref(db, 'config/pin'));
   if (!pinSnap.exists()) await set(ref(db, 'config/pin'), '1234');
 
-  let workersReady = false;
-  let logReady = false;
+  let workersReady = false, logReady = false;
   function checkReady() {
     if (workersReady && logReady) {
       document.getElementById('loadingScreen').classList.add('hide');
@@ -501,13 +527,134 @@ function lastSeen(w) {
   return e ? new Date(e.time).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Never';
 }
 
-function periodRange(p) {
+// Calendar state
+let calState = {
+  preset: 'today',
+  fromDate: null, // Date object - start of custom range
+  toDate: null,   // Date object - end of custom range
+  selecting: 'from', // which end we're picking
+  fromViewMonth: new Date(),
+  toViewMonth: new Date(new Date().getFullYear(), new Date().getMonth()+1, 1)
+};
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return d.toLocaleDateString([], {day:'2-digit', month:'short', year:'numeric'});
+}
+
+function setPreset(p, el) {
+  calState.preset = p;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  if (p === 'custom') {
+    document.getElementById('calendarPicker').style.display = 'block';
+    // Default to current month if no range set
+    if (!calState.fromDate) {
+      const now = new Date();
+      calState.fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      calState.toDate = new Date(now);
+      calState.fromViewMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      calState.toViewMonth = new Date(now.getFullYear(), now.getMonth()+1, 1);
+    }
+    renderCalendars();
+  } else {
+    document.getElementById('calendarPicker').style.display = 'none';
+  }
+  renderSummary();
+}
+window.setPreset = setPreset;
+
+function periodRange() {
   const now = new Date();
+  const p = calState.preset;
   if (p === 'today') { const s = new Date(now); s.setHours(0,0,0,0); return {start:s, end:now}; }
   if (p === 'week') { const s = new Date(now); s.setDate(s.getDate()-s.getDay()); s.setHours(0,0,0,0); return {start:s, end:now}; }
   if (p === 'month') return {start: new Date(now.getFullYear(), now.getMonth(), 1), end: now};
+  if (p === 'custom' && calState.fromDate && calState.toDate) {
+    const s = new Date(calState.fromDate); s.setHours(0,0,0,0);
+    const e = new Date(calState.toDate); e.setHours(23,59,59,999);
+    return {start:s, end:e};
+  }
   return {start: new Date(0), end: now};
 }
+
+function renderCalendars() {
+  renderCal('calFrom', calState.fromViewMonth, 'from');
+  renderCal('calTo', calState.toViewMonth, 'to');
+  const label = calState.fromDate && calState.toDate
+    ? `${fmtDate(calState.fromDate)} → ${fmtDate(calState.toDate)}`
+    : 'Select start date';
+  document.getElementById('rangeLabel').textContent = label;
+}
+
+function renderCal(containerId, viewMonth, side) {
+  const container = document.getElementById(containerId);
+  const year = viewMonth.getFullYear(), month = viewMonth.getMonth();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let html = `<div class="cal-nav">
+    <button onclick="calNav('${side}',-1)">&#8249;</button>
+    <span>${monthNames[month]} ${year}</span>
+    <button onclick="calNav('${side}',1)">&#8250;</button>
+  </div>
+  <div class="cal-grid">`;
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => {
+    html += `<div class="cal-dow">${d}</div>`;
+  });
+  // Empty cells before first day
+  for (let i = 0; i < firstDay; i++) html += '<div class="cal-day other-month"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d);
+    const key = dateKey(date);
+    const dow = date.getDay();
+    const isToday = date.getTime() === today.getTime();
+    const isPH = SG_PUBLIC_HOLIDAYS.has(key);
+    const isWeekend = dow === 0 || dow === 6;
+    const isSelected = (calState.fromDate && date.getTime()===new Date(calState.fromDate).setHours(0,0,0,0)) ||
+                       (calState.toDate && date.getTime()===new Date(calState.toDate).setHours(0,0,0,0));
+    const inRange = calState.fromDate && calState.toDate && date > calState.fromDate && date < calState.toDate;
+    let cls = 'cal-day';
+    if (isSelected) cls += ' selected';
+    else if (inRange) cls += ' in-range';
+    else if (isPH) cls += ' ph';
+    else if (isWeekend) cls += ' weekend';
+    if (isToday) cls += ' today';
+    html += `<button class="${cls}" onclick="calSelect(${year},${month},${d})">${d}</button>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function calNav(side, dir) {
+  if (side === 'from') {
+    calState.fromViewMonth = new Date(calState.fromViewMonth.getFullYear(), calState.fromViewMonth.getMonth()+dir, 1);
+  } else {
+    calState.toViewMonth = new Date(calState.toViewMonth.getFullYear(), calState.toViewMonth.getMonth()+dir, 1);
+  }
+  renderCalendars();
+}
+window.calNav = calNav;
+
+function calSelect(year, month, day) {
+  const clicked = new Date(year, month, day);
+  if (!calState.fromDate || (calState.fromDate && calState.toDate)) {
+    // Start fresh selection
+    calState.fromDate = clicked;
+    calState.toDate = null;
+  } else if (clicked < calState.fromDate) {
+    // Clicked before start — make it the new start
+    calState.fromDate = clicked;
+    calState.toDate = null;
+  } else {
+    // Set end date
+    calState.toDate = clicked;
+    renderSummary();
+  }
+  renderCalendars();
+}
+window.calSelect = calSelect;
 
 // Singapore Public Holidays 2025 & 2026 (including observed substitutes)
 const SG_PUBLIC_HOLIDAYS = new Set([
@@ -578,8 +725,7 @@ function calcOTMinutes(inTime, outTime) {
 }
 
 function renderSummary() {
-  const p = document.getElementById('periodSel').value;
-  const {start, end} = periodRange(p);
+  const {start, end} = periodRange();
   const now = new Date();
   const entries = log.filter(e => new Date(e.time) >= start && new Date(e.time) <= end);
   const stats = WORKERS.map(w => {
