@@ -80,7 +80,7 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, set, push, update, onValue, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 const firebaseConfig = {
-  apiKey: "AIzaSyDcQPugR_CAX4nlQIZmk52R-peA9dV1dHs",
+  apiKey: "AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",
   authDomain: "attendance-20d6a.firebaseapp.com",
   databaseURL: "https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "attendance-20d6a",
@@ -246,6 +246,27 @@ window.doAction = async function(type) {
 
 function liveClock(){
   document.getElementById('liveClock').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function debug(msg){
+  const d=document.getElementById('debugPanel');
+  if(!d)return;
+  const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.innerHTML=`[${t}] ${msg}<br>`+d.innerHTML;
+  const lines=d.innerHTML.split('<br>');
+  if(lines.length>6)d.innerHTML=lines.slice(0,6).join('<br>');
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+function resetPanel(){
+  sel=null;
+  document.getElementById('panelTitle').textContent='Select your name';
+  document.getElementById('panelSub').textContent='Tap your initials above, then clock in or out';
+  document.getElementById('btnIn').disabled=true;
+  document.getElementById('btnOut').disabled=true;
+  renderWorkers();
 }
 WORKERS.forEach(async w=>{
   const snap=await get(ref(db,'workers/'+w));
