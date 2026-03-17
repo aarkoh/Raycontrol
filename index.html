@@ -39,6 +39,11 @@ button:active{transform:scale(0.97)}
 button:disabled{opacity:0.35;cursor:default;transform:none}
 .btn-in{border-color:#185FA5;color:#185FA5;font-weight:500}.btn-in:hover{background:#E6F1FB}
 .btn-out{border-color:#A32D2D;color:#A32D2D;font-weight:500}.btn-out:hover{background:#FCEBEB}
+.job-field{margin-bottom:1rem}
+.job-field label{font-size:12px;color:#888;display:block;margin-bottom:5px;font-weight:500}
+.job-field input{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;color:#1a1a1a;background:#f9f9f7;transition:border-color 0.12s}
+.job-field input:focus{outline:none;border-color:#185FA5;background:#fff}
+.job-req{font-size:11px;color:#A32D2D;margin-top:4px;display:none}
 .geost{font-size:12px;color:#888;margin-top:10px;display:flex;align-items:center;gap:6px;min-height:18px}
 .gdot{width:7px;height:7px;border-radius:50%;background:#ccc;flex-shrink:0}
 .gdot.ok{background:#639922}.gdot.err{background:#E24B4A}.gdot.pulse{background:#BA7517;animation:pulse 1s infinite}
@@ -64,6 +69,11 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
   <div class="apanel">
     <h2 id="panelTitle">Select your name</h2>
     <p class="sub" id="panelSub">Tap your initials above, then clock in or out</p>
+    <div class="job-field" id="jobField" style="display:none">
+      <label for="jobInput">Job number</label>
+      <input type="text" id="jobInput" placeholder="Enter job number e.g. JOB-001" autocomplete="off" oninput="document.getElementById('jobReq').style.display='none'">
+      <div class="job-req" id="jobReq">Job number is required</div>
+    </div>
     <div class="brow">
       <button class="btn-in" id="btnIn" disabled onclick="doAction('in')">Clock in</button>
       <button class="btn-out" id="btnOut" disabled onclick="doAction('out')">Clock out</button>
@@ -109,14 +119,15 @@ function getGeo(cb){if(!navigator.geolocation){cb(null,'Not supported');return;}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 function debug(msg){const d=document.getElementById('debugPanel');if(!d)return;const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});d.innerHTML=`[${t}] ${msg}<br>`+d.innerHTML;const lines=d.innerHTML.split('<br>');if(lines.length>5)d.innerHTML=lines.slice(0,5).join('<br>');}
 function liveClock(){document.getElementById('liveClock').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
-function resetPanel(){sel=null;renderWorkers();document.getElementById('panelTitle').textContent='Select your name';document.getElementById('panelSub').textContent='Tap your initials above, then clock in or out';document.getElementById('btnIn').disabled=true;document.getElementById('btnOut').disabled=true;}
+function resetPanel(){sel=null;renderWorkers();document.getElementById('panelTitle').textContent='Select your name';document.getElementById('panelSub').textContent='Tap your initials above, then clock in or out';document.getElementById('btnIn').disabled=true;document.getElementById('btnOut').disabled=true;document.getElementById('jobField').style.display='none';document.getElementById('jobInput').value='';}
 
 // ── Render ────────────────────────────────────────────────────
 function renderWorkers(){
   document.getElementById('workerGrid').innerHTML=WORKERS.map((w,i)=>{
     const wd=workers[w]||{},isSel=sel===w,isIn=wd.status==='in';
     const since=wd.since?new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-    return `<div class="wcard${isSel?' sel':''}${isIn?' ci':''}" onclick="selectW('${w}')"><div class="wav">${w}</div><div class="wnum">${i+1}</div><div class="wstat${isIn?' in':''}">${isIn?'In · '+since:'Off'}</div></div>`;
+    const job=wd.job?` · ${wd.job}`:'';
+    return `<div class="wcard${isSel?' sel':''}${isIn?' ci':''}" onclick="selectW('${w}')"><div class="wav">${w}</div><div class="wnum">${i+1}</div><div class="wstat${isIn?' in':''}">${isIn?'In · '+since+job:'Off'}</div></div>`;
   }).join('');
 }
 window.selectW=function(w){
@@ -125,12 +136,22 @@ window.selectW=function(w){
   document.getElementById('panelSub').textContent=isIn?`Clocked in at ${new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}. Ready to clock out.`:'Not clocked in. Ready to clock in.';
   document.getElementById('btnIn').disabled=isIn;
   document.getElementById('btnOut').disabled=!isIn;
+  // Show job field, pre-fill with current job if clocked in
+  document.getElementById('jobField').style.display='block';
+  document.getElementById('jobInput').value=wd.job||'';
+  document.getElementById('jobReq').style.display='none';
   renderWorkers();
 };
 
 // ── Action ────────────────────────────────────────────────────
 window.doAction=async function(type){
   if(!sel)return;
+  const jobNum=document.getElementById('jobInput').value.trim();
+  if(!jobNum){
+    document.getElementById('jobReq').style.display='block';
+    document.getElementById('jobInput').focus();
+    return;
+  }
   const w=sel;
   document.getElementById('btnIn').disabled=true;
   document.getElementById('btnOut').disabled=true;
@@ -138,8 +159,8 @@ window.doAction=async function(type){
     if(err)setGeoUI('err',err);
     const now=new Date().toISOString();
     const coordStr=geo?`${geo.lat.toFixed(5)}, ${geo.lon.toFixed(5)}`:'';
-    await update(ref(db,'workers/'+w),{status:type,since:type==='in'?now:null,lastTime:now,loc:type==='in'?coordStr:''});
-    const entry={worker:w,type,time:now,lat:geo?geo.lat:null,lon:geo?geo.lon:null,acc:geo?geo.acc:null,loc:coordStr};
+    await update(ref(db,'workers/'+w),{status:type,since:type==='in'?now:null,lastTime:now,loc:type==='in'?coordStr:'',job:type==='in'?jobNum:''});
+    const entry={worker:w,type,time:now,lat:geo?geo.lat:null,lon:geo?geo.lon:null,acc:geo?geo.acc:null,loc:coordStr,job:jobNum};
     try{
       debug(`Writing ${type} for ${w}…`);
       const newRef=await push(ref(db,'log'),entry);
