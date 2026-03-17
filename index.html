@@ -157,10 +157,18 @@ window.doAction=async function(type){
   document.getElementById('btnOut').disabled=true;
   getGeo(async(geo,err)=>{
     if(err)setGeoUI('err',err);
-    const now=new Date().toISOString();
+    const nowUTC = new Date();
+    const nowISO = nowUTC.toISOString(); // UTC — used for sorting/calculations
+    // Also save device local time so the log displays in worker's local time
+    const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Singapore';
+    const localTimeStr = nowUTC.toLocaleString('en-GB', {
+      timeZone: localTZ,
+      day:'2-digit', month:'short', year:'numeric',
+      hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+    });
     const coordStr=geo?`${geo.lat.toFixed(5)}, ${geo.lon.toFixed(5)}`:'';
-    await update(ref(db,'workers/'+w),{status:type,since:type==='in'?now:null,lastTime:now,loc:type==='in'?coordStr:'',job:type==='in'?jobNum:''});
-    const entry={worker:w,type,time:now,lat:geo?geo.lat:null,lon:geo?geo.lon:null,acc:geo?geo.acc:null,loc:coordStr,job:jobNum};
+    await update(ref(db,'workers/'+w),{status:type,since:type==='in'?nowISO:null,lastTime:nowISO,loc:type==='in'?coordStr:'',job:type==='in'?jobNum:'',tz:localTZ});
+    const entry={worker:w,type,time:nowISO,localTime:localTimeStr,tz:localTZ,lat:geo?geo.lat:null,lon:geo?geo.lon:null,acc:geo?geo.acc:null,loc:coordStr,job:jobNum};
     try{
       debug(`Writing ${type} for ${w}…`);
       const newRef=await push(ref(db,'log'),entry);
