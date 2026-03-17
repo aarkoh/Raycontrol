@@ -264,7 +264,8 @@ async function initData() {
   const pinSnap = await get(ref(db, 'config/pin'));
   if (!pinSnap.exists()) await set(ref(db, 'config/pin'), '1234');
 
-  let workersReady = false, logReady = false;
+  let workersReady = false;
+  let logReady = false;
   function checkReady() {
     if (workersReady && logReady) {
       document.getElementById('loadingScreen').classList.add('hide');
