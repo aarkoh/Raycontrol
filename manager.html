@@ -247,6 +247,21 @@ const auth = getAuth(fbApp);
 
 const WORKERS = ['HS','TM','RG','MU','AY','IL','SA','AN'];
 let sel = null, logTypeFilter = 'all', pinTarget = null, unlocked = {}, settingNew = false;
+// OT rates per worker (SGD/hr), persisted in localStorage
+let otRates = {};
+function loadOTRates() {
+  try { otRates = JSON.parse(localStorage.getItem('wt_ot_rates') || '{}'); } catch(e) { otRates = {}; }
+}
+function saveOTRates() {
+  try { localStorage.setItem('wt_ot_rates', JSON.stringify(otRates)); } catch(e) {}
+}
+function setOTRate(w, val) {
+  const n = parseFloat(val);
+  otRates[w] = isNaN(n) ? 0 : n;
+  saveOTRates();
+  renderSummary();
+}
+loadOTRates();
 let workers = {}, log = [], pin = '1234';
 
 // Sign in anonymously first - required for Firebase security rules
@@ -679,6 +694,7 @@ function calSelect(year, month, day) {
   renderCalendars();
 }
 window.calSelect = calSelect;
+window.setOTRate = setOTRate;
 
 // Singapore Public Holidays 2025 & 2026 (including observed substitutes)
 // Worker birthdays (month is 0-indexed: 0=Jan, 11=Dec)
@@ -819,10 +835,17 @@ function renderSummary() {
     const locs = [...new Set(allWorkerLocs)];
     return {w, shifts: periodShifts, hours: (mins / 60).toFixed(1), otHours: (otMins / 60).toFixed(1), normalHours: ((mins - otMins) / 60).toFixed(1), locs, isIn};
   });
+  // Attach OT cost to each stat
+  stats.forEach(s => {
+    const rate = otRates[s.w] || 0;
+    s.otRate = rate;
+    s.otCost = (parseFloat(s.otHours) * rate);
+  });
   const ts = stats.reduce((a, s) => a + s.shifts, 0);
   const th = stats.reduce((a, s) => a + parseFloat(s.hours), 0).toFixed(1);
   const tot = stats.reduce((a, s) => a + parseFloat(s.otHours), 0).toFixed(1);
   const tnh = stats.reduce((a, s) => a + parseFloat(s.normalHours), 0).toFixed(1);
+  const totalOTCost = stats.reduce((a, s) => a + s.otCost, 0);
   const currentlyIn = WORKERS.filter(w => (workers[w] || {}).status === 'in').length;
   const activeCount = stats.filter(s => s.shifts > 0 || s.isIn).length;
   document.getElementById('summaryContent').innerHTML = `
@@ -832,9 +855,10 @@ function renderSummary() {
       <div class="scard"><div class="sc-label">Normal hours</div><div class="sc-val">${tnh}h</div><div class="sc-sub">Mon–Fri 08:00–18:00</div></div>
       <div class="scard"><div class="sc-label">OT hours</div><div class="sc-val" style="color:#A32D2D">${tot}h</div><div class="sc-sub">After 18:00, weekends & PH</div></div>
       <div class="scard"><div class="sc-label">Clocked in now</div><div class="sc-val">${currentlyIn}</div><div class="sc-sub">of ${WORKERS.length} workers</div></div>
+      <div class="scard"><div class="sc-label">Total OT cost</div><div class="sc-val" style="color:#A32D2D">S$${totalOTCost.toFixed(2)}</div><div class="sc-sub">based on entered rates</div></div>
     </div>
     <table class="wtable">
-      <thead><tr><th>Worker</th><th>Status</th><th>Shifts</th><th>Total</th><th>Normal</th><th>OT</th><th>Locations</th></tr></thead>
+      <thead><tr><th>Worker</th><th>Status</th><th>Shifts</th><th>Total</th><th>Normal</th><th>OT</th><th>OT Rate (S$/hr)</th><th>OT Cost</th><th>Locations</th></tr></thead>
       <tbody>${stats.map(s => `<tr>
         <td>${s.w}</td>
         <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:${s.isIn?'#EAF3DE':'#eee'};color:${s.isIn?'#3B6D11':'#888'}">${s.isIn ? 'In' : 'Off'}</span></td>
@@ -842,6 +866,12 @@ function renderSummary() {
         <td>${s.hours}h</td>
         <td>${s.normalHours}h</td>
         <td style="color:${parseFloat(s.otHours)>0?'#A32D2D':'#888'};font-weight:${parseFloat(s.otHours)>0?'600':'400'}">${s.otHours}h</td>
+        <td><input type="number" min="0" step="0.50" value="${s.otRate||''}" placeholder="0.00"
+          onchange="setOTRate('${s.w}',this.value)"
+          style="width:80px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;text-align:right"></td>
+        <td style="font-weight:${s.otCost>0?'600':'400'};color:${s.otCost>0?'#A32D2D':'#888'}">
+          ${s.otCost>0?'S$'+s.otCost.toFixed(2):'—'}
+        </td>
         <td style="font-size:12px;color:#888">${s.locs.length ? s.locs[0] : (workers[s.w] && workers[s.w].loc ? workers[s.w].loc : '—')}</td>
       </tr>`).join('')}</tbody>
     </table>`;
@@ -1002,6 +1032,7 @@ window.clearAndRebuildLog = clearAndRebuildLog;
 window.setPreset = setPreset;
 window.calNav = calNav;
 window.calSelect = calSelect;
+window.setOTRate = setOTRate;
 
 initData();
 
