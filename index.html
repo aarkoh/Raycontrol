@@ -493,14 +493,17 @@ function renderLog() {
   }).join('');
 }
 
-function clearAndRebuildLog() {
-  if (!confirm('This will delete ALL log entries and rebuild clean ones from current worker status. Continue?')) return;
+async function clearAndRebuildLog() {
+  if (!confirm('This will delete ALL log entries and rebuild clean ones. Continue?')) return;
   const btn = document.getElementById('clearLogBtn');
   btn.disabled = true; btn.textContent = 'Clearing…';
-  // Delete entire log node
-  remove(ref(db, 'log')).then(() => {
+  try {
+    // Use REST API DELETE to force-delete the log node regardless of size
+    const dbUrl = 'https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app/log.json';
+    const res = await fetch(dbUrl, {method: 'DELETE'});
+    if (!res.ok) throw new Error('REST delete failed: ' + res.status);
     // Rebuild one clean entry per worker currently clocked in
-    const promises = WORKERS.map(w => {
+    const rebuilds = WORKERS.map(w => {
       const wd = workers[w] || {};
       if (wd.status !== 'in' || !wd.since) return Promise.resolve();
       return push(ref(db, 'log'), {
@@ -508,15 +511,22 @@ function clearAndRebuildLog() {
         lat: null, lon: null, acc: null, loc: wd.loc || ''
       });
     });
-    return Promise.all(promises);
-  }).then(() => {
+    await Promise.all(rebuilds);
     backfillDone = true;
     btn.disabled = false; btn.textContent = 'Clear duplicate logs';
-    toast('Log cleared and rebuilt');
-  }).catch(err => {
-    btn.disabled = false; btn.textContent = 'Clear duplicate logs';
-    toast('Error: ' + err.message);
-  });
+    toast('Log cleared and rebuilt ✓');
+  } catch(err) {
+    // Fallback: try SDK remove
+    try {
+      await remove(ref(db, 'log'));
+      btn.disabled = false; btn.textContent = 'Clear duplicate logs';
+      toast('Log cleared ✓');
+    } catch(e) {
+      btn.disabled = false; btn.textContent = 'Clear duplicate logs';
+      toast('Error — try deleting log in Firebase console');
+      console.error(err, e);
+    }
+  }
 }
 
 function exportCSV() {
