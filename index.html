@@ -468,30 +468,50 @@ function renderSummary() {
   const stats = WORKERS.map(w => {
     const wd = workers[w] || {};
     const isIn = wd.status === 'in';
-    // Clock-ins within the period from log
-    const ins = entries.filter(e => e.worker === w && e.type === 'in');
-    // Ongoing shift before period window (from log)
-    const ongoingFromBefore = isIn && wd.since && new Date(wd.since) < start;
-    // Worker is clocked in but has NO log entry at all (clocked in via old app / Firebase directly)
-    const hasNoLogEntry = isIn && wd.since && !log.find(e => e.worker === w && e.type === 'in');
-    const totalShifts = ins.length + (ongoingFromBefore ? 1 : 0) + (hasNoLogEntry ? 1 : 0);
-    let mins = 0;
-    ins.forEach(ci => {
-      const ciTime = new Date(ci.time);
-      const co = log.find(o => o.worker === w && o.type === 'out' && new Date(o.time) > ciTime);
-      mins += co ? (new Date(co.time) - ciTime) / 60000 : isIn ? (now - ciTime) / 60000 : 0;
-    });
-    if (ongoingFromBefore) mins += (now - start) / 60000;
-    // No log entry at all — use workers[w].since directly
+    // Get ALL events for this worker sorted chronologically
+    const allEvents = log
+      .filter(e => e.worker === w)
+      .sort((a, b) => new Date(a.time) - new Date(b.time));
+    // Build proper shift pairs: each IN paired with the very next OUT
+    const shifts = [];
+    let openIn = null;
+    for (const e of allEvents) {
+      if (e.type === 'in') {
+        openIn = e; // start a new shift
+      } else if (e.type === 'out' && openIn) {
+        shifts.push({ in: openIn, out: e }); // close the shift
+        openIn = null;
+      }
+    }
+    // If still clocked in with no matching out
+    if (openIn) shifts.push({ in: openIn, out: null });
+    // Count shifts and minutes that overlap with the selected period
+    let periodShifts = 0, mins = 0;
+    for (const s of shifts) {
+      const inTime = new Date(s.in.time);
+      const outTime = s.out ? new Date(s.out.time) : (isIn ? now : null);
+      if (!outTime) continue;
+      // Check if this shift overlaps with the selected period at all
+      if (outTime < start || inTime > end) continue;
+      periodShifts++;
+      // Clamp to period boundaries for hour calculation
+      const effectiveIn = inTime < start ? start : inTime;
+      const effectiveOut = outTime > end ? end : outTime;
+      mins += (effectiveOut - effectiveIn) / 60000;
+    }
+    // Handle workers clocked in with no log entry
+    const hasNoLogEntry = isIn && wd.since && allEvents.filter(e => e.type === 'in').length === 0;
     if (hasNoLogEntry && wd.since) {
+      periodShifts++;
       const sinceTime = new Date(wd.since);
-      mins += (now - (sinceTime < start ? start : sinceTime)) / 60000;
+      const effectiveIn = sinceTime < start ? start : sinceTime;
+      mins += (now - effectiveIn) / 60000;
     }
     // Collect ALL known locations for this worker: from any log entry ever + current workers node
     const allWorkerLocs = log.filter(e => e.worker === w && e.loc).map(e => e.loc);
     if (wd.loc) allWorkerLocs.push(wd.loc);
     const locs = [...new Set(allWorkerLocs)];
-    return {w, shifts: totalShifts, hours: (mins / 60).toFixed(1), locs, isIn};
+    return {w, shifts: periodShifts, hours: (mins / 60).toFixed(1), locs, isIn};
   });
   const ts = stats.reduce((a, s) => a + s.shifts, 0);
   const th = stats.reduce((a, s) => a + parseFloat(s.hours), 0).toFixed(1);
