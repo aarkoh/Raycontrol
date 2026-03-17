@@ -280,7 +280,10 @@ function debug(msg) {
 
 async function fetchLog() {
   try {
-    const res = await fetch('https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app/log.json');
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken() : '';
+    const url = 'https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app/log.json' + (token ? `?auth=${token}` : '');
+    const res = await fetch(url);
     const data = await res.json();
     log = [];
     if (data) {
@@ -873,7 +876,9 @@ async function clearAndRebuildLog() {
   btn.disabled = true; btn.textContent = 'Clearing…';
   try {
     // Use REST API DELETE to force-delete the log node regardless of size
-    const dbUrl = 'https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app/log.json';
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken() : '';
+    const dbUrl = 'https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app/log.json' + (token ? `?auth=${token}` : '');
     const res = await fetch(dbUrl, {method: 'DELETE'});
     if (!res.ok) throw new Error('REST delete failed: ' + res.status);
     // Rebuild one clean entry per worker currently clocked in
@@ -972,11 +977,15 @@ function liveClock() {
   document.getElementById('liveClock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
 }
 
-} // end initApp
-
-// Expose functions called from HTML onclick attributes
-window._app = { selectW, switchTab, doAction, setFilter, renderSummary, renderLog, exportCSV, openPin, closePinModal, pinInput, submitPin, saveNewPin };
-// Also expose top-level for inline onclicks
+// Start data loading and clock
+WORKERS.forEach(w => {
+  const o = document.createElement('option'); o.value = w; o.textContent = w;
+  document.getElementById('logWFilter').appendChild(o);
+});
+renderWorkers();
+setGeoUI('', 'Geolocation ready');
+liveClock(); setInterval(liveClock, 1000);
+// Expose all functions to window so HTML onclicks work
 window.switchTab = switchTab;
 window.doAction = doAction;
 window.setFilter = setFilter;
@@ -989,37 +998,13 @@ window.pinInput = pinInput;
 window.submitPin = submitPin;
 window.saveNewPin = saveNewPin;
 window.clearAndRebuildLog = clearAndRebuildLog;
+window.setPreset = setPreset;
+window.calNav = calNav;
+window.calSelect = calSelect;
 
-// Boot
-// Check if already authenticated this session
-if (sessionStorage.getItem('wt_auth') === 'ok') {
-  document.getElementById('passwordGate').style.display = 'none';
-  document.getElementById('loadingScreen').style.display = 'flex';
-  initData();
-}
-
-WORKERS.forEach(w => {
-  const o = document.createElement('option'); o.value = w; o.textContent = w;
-  document.getElementById('logWFilter').appendChild(o);
-});
-renderWorkers();
-setGeoUI('', 'Geolocation ready');
-liveClock(); setInterval(liveClock, 1000);
 initData();
-window.checkAppPassword = function() {
-  const APP_PASSWORD = 'worktracker2026'; // ← change this to your password
-  const val = document.getElementById('appPasswordInput').value;
-  if (val === APP_PASSWORD) {
-    sessionStorage.setItem('wt_auth', 'ok');
-    document.getElementById('passwordGate').style.display = 'none';
-    document.getElementById('loadingScreen').style.display = 'flex';
-    initData();
-  } else {
-    document.getElementById('appPasswordErr').textContent = 'Incorrect password';
-    document.getElementById('appPasswordInput').value = '';
-    document.getElementById('appPasswordInput').focus();
-  }
-};
+
+} // end initApp
 
 </script>
 </body>
