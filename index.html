@@ -460,6 +460,74 @@ function periodRange(p) {
   return {start: new Date(0), end: now};
 }
 
+// Singapore Public Holidays 2025 & 2026 (including observed substitutes)
+const SG_PUBLIC_HOLIDAYS = new Set([
+  // 2025
+  '2025-01-01', // New Year's Day
+  '2025-01-29', // CNY Day 1
+  '2025-01-30', // CNY Day 2
+  '2025-03-31', // Hari Raya Puasa
+  '2025-04-18', // Good Friday
+  '2025-05-01', // Labour Day
+  '2025-05-12', // Vesak Day
+  '2025-06-06', // Hari Raya Haji
+  '2025-08-09', // National Day (Sat) → observed Mon
+  '2025-08-11', // National Day observed
+  '2025-10-20', // Deepavali (Sun) → observed Mon
+  '2025-10-21', // Deepavali observed  
+  '2025-12-25', // Christmas
+  // 2026
+  '2026-01-01', // New Year's Day
+  '2026-02-17', // CNY Day 1
+  '2026-02-18', // CNY Day 2
+  '2026-03-21', // Hari Raya Puasa (Sat) → no sub needed as Sat is already OT
+  '2026-04-03', // Good Friday
+  '2026-05-01', // Labour Day
+  '2026-05-27', // Hari Raya Haji
+  '2026-05-31', // Vesak Day (Sun) → observed Mon
+  '2026-06-01', // Vesak Day observed
+  '2026-08-09', // National Day (Sun) → observed Mon
+  '2026-08-10', // National Day observed
+  '2026-11-08', // Deepavali (Sun) → observed Mon
+  '2026-11-09', // Deepavali observed
+  '2026-12-25', // Christmas
+]);
+
+function dateKey(d) {
+  // Returns 'YYYY-MM-DD' in local time
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function isOTTime(dt) {
+  // Returns true if this moment counts as OT
+  const dow = dt.getDay(); // 0=Sun, 6=Sat
+  const key = dateKey(dt);
+  // Weekend or public holiday = full OT day
+  if (dow === 0 || dow === 6 || SG_PUBLIC_HOLIDAYS.has(key)) return true;
+  // Weekday: OT before 08:00 or from 18:00 onwards
+  const hours = dt.getHours() + dt.getMinutes() / 60;
+  return hours < 8 || hours >= 18;
+}
+
+function calcOTMinutes(inTime, outTime) {
+  // Walk through the shift minute by minute and count OT minutes
+  // Use 5-minute chunks for performance
+  const CHUNK = 5 * 60 * 1000; // 5 minutes in ms
+  let otMins = 0;
+  let t = new Date(inTime);
+  while (t < outTime) {
+    const next = new Date(Math.min(t.getTime() + CHUNK, outTime.getTime()));
+    if (isOTTime(t)) {
+      otMins += (next - t) / 60000;
+    }
+    t = next;
+  }
+  return otMins;
+}
+
 function renderSummary() {
   const p = document.getElementById('periodSel').value;
   const {start, end} = periodRange(p);
@@ -486,18 +554,17 @@ function renderSummary() {
     // If still clocked in with no matching out
     if (openIn) shifts.push({ in: openIn, out: null });
     // Count shifts and minutes that overlap with the selected period
-    let periodShifts = 0, mins = 0;
+    let periodShifts = 0, mins = 0, otMins = 0;
     for (const s of shifts) {
       const inTime = new Date(s.in.time);
       const outTime = s.out ? new Date(s.out.time) : (isIn ? now : null);
       if (!outTime) continue;
-      // Check if this shift overlaps with the selected period at all
       if (outTime < start || inTime > end) continue;
       periodShifts++;
-      // Clamp to period boundaries for hour calculation
       const effectiveIn = inTime < start ? start : inTime;
       const effectiveOut = outTime > end ? end : outTime;
       mins += (effectiveOut - effectiveIn) / 60000;
+      otMins += calcOTMinutes(effectiveIn, effectiveOut);
     }
     // Handle workers clocked in with no log entry
     const hasNoLogEntry = isIn && wd.since && allEvents.filter(e => e.type === 'in').length === 0;
@@ -506,31 +573,37 @@ function renderSummary() {
       const sinceTime = new Date(wd.since);
       const effectiveIn = sinceTime < start ? start : sinceTime;
       mins += (now - effectiveIn) / 60000;
+      otMins += calcOTMinutes(effectiveIn, now);
     }
     // Collect ALL known locations for this worker: from any log entry ever + current workers node
     const allWorkerLocs = log.filter(e => e.worker === w && e.loc).map(e => e.loc);
     if (wd.loc) allWorkerLocs.push(wd.loc);
     const locs = [...new Set(allWorkerLocs)];
-    return {w, shifts: periodShifts, hours: (mins / 60).toFixed(1), locs, isIn};
+    return {w, shifts: periodShifts, hours: (mins / 60).toFixed(1), otHours: (otMins / 60).toFixed(1), normalHours: ((mins - otMins) / 60).toFixed(1), locs, isIn};
   });
   const ts = stats.reduce((a, s) => a + s.shifts, 0);
   const th = stats.reduce((a, s) => a + parseFloat(s.hours), 0).toFixed(1);
+  const tot = stats.reduce((a, s) => a + parseFloat(s.otHours), 0).toFixed(1);
+  const tnh = stats.reduce((a, s) => a + parseFloat(s.normalHours), 0).toFixed(1);
   const currentlyIn = WORKERS.filter(w => (workers[w] || {}).status === 'in').length;
   const activeCount = stats.filter(s => s.shifts > 0 || s.isIn).length;
   document.getElementById('summaryContent').innerHTML = `
     <div class="scard-grid">
       <div class="scard"><div class="sc-label">Total shifts</div><div class="sc-val">${ts}</div></div>
       <div class="scard"><div class="sc-label">Total hours</div><div class="sc-val">${th}h</div></div>
+      <div class="scard"><div class="sc-label">Normal hours</div><div class="sc-val">${tnh}h</div><div class="sc-sub">Mon–Fri 08:00–18:00</div></div>
+      <div class="scard"><div class="sc-label">OT hours</div><div class="sc-val" style="color:#A32D2D">${tot}h</div><div class="sc-sub">After 18:00, weekends & PH</div></div>
       <div class="scard"><div class="sc-label">Clocked in now</div><div class="sc-val">${currentlyIn}</div><div class="sc-sub">of ${WORKERS.length} workers</div></div>
-      <div class="scard"><div class="sc-label">Active this period</div><div class="sc-val">${activeCount}</div></div>
     </div>
     <table class="wtable">
-      <thead><tr><th>Worker</th><th>Status</th><th>Shifts</th><th>Hours</th><th>Locations</th></tr></thead>
+      <thead><tr><th>Worker</th><th>Status</th><th>Shifts</th><th>Total</th><th>Normal</th><th>OT</th><th>Locations</th></tr></thead>
       <tbody>${stats.map(s => `<tr>
         <td>${s.w}</td>
         <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:${s.isIn?'#EAF3DE':'#eee'};color:${s.isIn?'#3B6D11':'#888'}">${s.isIn ? 'In' : 'Off'}</span></td>
         <td>${s.shifts}</td>
         <td>${s.hours}h</td>
+        <td>${s.normalHours}h</td>
+        <td style="color:${parseFloat(s.otHours)>0?'#A32D2D':'#888'};font-weight:${parseFloat(s.otHours)>0?'600':'400'}">${s.otHours}h</td>
         <td style="font-size:12px;color:#888">${s.locs.length ? s.locs[0] : (workers[s.w] && workers[s.w].loc ? workers[s.w].loc : '—')}</td>
       </tr>`).join('')}</tbody>
     </table>`;
