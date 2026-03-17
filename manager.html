@@ -300,6 +300,67 @@ const BDAYS = {HS:{m:7,d:18},TM:{m:5,d:16},SA:{m:5,d:14},RG:{m:11,d:5},MU:{m:4,d
 function getBdays(month,day){return Object.entries(BDAYS).filter(([,b])=>b.m===month&&b.d===day).map(([w])=>w);}
 
 function dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+
+// Get a Date object shifted to a specific IANA timezone for local hour/day checks
+function inTZ(dt, tz) {
+  if (!tz) return dt;
+  try {
+    // Use Intl to get the local time parts in the target timezone
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+    });
+    const parts = Object.fromEntries(fmt.formatToParts(dt).map(p=>[p.type,p.value]));
+    // Build a local Date using those parts (treated as local time)
+    return new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour==='24'?'00':parts.hour}:${parts.minute}:${parts.second}`);
+  } catch(e) { return dt; }
+}
+
+// Lookup timezone from country name in location string
+function tzFromLoc(locStr) {
+  if (!locStr) return null;
+  const s = locStr.toLowerCase();
+  // Common countries workers might visit
+  const TZ_MAP = [
+    ['singapore', 'Asia/Singapore'],
+    ['malaysia', 'Asia/Kuala_Lumpur'],
+    ['indonesia', 'Asia/Jakarta'],
+    ['thailand', 'Asia/Bangkok'],
+    ['vietnam', 'Asia/Ho_Chi_Minh'],
+    ['philippines', 'Asia/Manila'],
+    ['myanmar', 'Asia/Rangoon'],
+    ['cambodia', 'Asia/Phnom_Penh'],
+    ['laos', 'Asia/Vientiane'],
+    ['china', 'Asia/Shanghai'],
+    ['hong kong', 'Asia/Hong_Kong'],
+    ['taiwan', 'Asia/Taipei'],
+    ['japan', 'Asia/Tokyo'],
+    ['korea', 'Asia/Seoul'],
+    ['india', 'Asia/Kolkata'],
+    ['bangladesh', 'Asia/Dhaka'],
+    ['sri lanka', 'Asia/Colombo'],
+    ['pakistan', 'Asia/Karachi'],
+    ['uae', 'Asia/Dubai'],
+    ['dubai', 'Asia/Dubai'],
+    ['saudi', 'Asia/Riyadh'],
+    ['qatar', 'Asia/Qatar'],
+    ['kuwait', 'Asia/Kuwait'],
+    ['australia', 'Australia/Sydney'],
+    ['new zealand', 'Pacific/Auckland'],
+    ['uk', 'Europe/London'],
+    ['united kingdom', 'Europe/London'],
+    ['france', 'Europe/Paris'],
+    ['germany', 'Europe/Berlin'],
+    ['usa', 'America/New_York'],
+    ['united states', 'America/New_York'],
+    ['canada', 'America/Toronto'],
+  ];
+  for (const [key, tz] of TZ_MAP) {
+    if (s.includes(key)) return tz;
+  }
+  return null; // unknown — will fall back to device local time
+}
 // Singapore detection: coords first, fallback to address string
 function isInSingapore(lat, lon) {
   if (lat != null && lon != null) return lat >= 1.15 && lat <= 1.48 && lon >= 103.59 && lon <= 104.10;
@@ -310,8 +371,24 @@ function isLocSingapore(locStr) {
   return locStr.toLowerCase().includes('singapore');
 }
 
-function isOT(dt){const dow=dt.getDay(),key=dateKey(dt);if(dow===0||dow===6||SG_PH.has(key))return true;const h=dt.getHours()+dt.getMinutes()/60;return h<8||h>=18;}
-function calcOTMins(inT,outT){const CHUNK=5*60*1000;let ot=0,t=new Date(inT);while(t<outT){const n=new Date(Math.min(t.getTime()+CHUNK,outT.getTime()));if(isOT(t))ot+=(n-t)/60000;t=n;}return ot;}
+function isOT(dt, tz) {
+  // Convert timestamp to local time in the given timezone before checking hour/day
+  const local = tz ? inTZ(dt, tz) : dt;
+  const dow = local.getDay(), key = dateKey(local);
+  if (dow === 0 || dow === 6 || SG_PH.has(key)) return true;
+  const h = local.getHours() + local.getMinutes() / 60;
+  return h < 8 || h >= 18;
+}
+function calcOTMins(inT, outT, tz) {
+  const CHUNK = 5 * 60 * 1000;
+  let ot = 0, t = new Date(inT);
+  while (t < outT) {
+    const n = new Date(Math.min(t.getTime() + CHUNK, outT.getTime()));
+    if (isOT(t, tz)) ot += (n - t) / 60000;
+    t = n;
+  }
+  return ot;
+}
 
 // ── Geo ───────────────────────────────────────────────────────
 function setGeoUI(cls,msg){document.getElementById('geoDot').className='gdot '+cls;document.getElementById('geoText').textContent=msg;}
@@ -496,10 +573,12 @@ function renderSummary(){
       if(!outT||outT<start||inT>end)continue;
       const eIn=inT<start?start:inT,eOut=outT>end?end:outT;
       mins+=(eOut-eIn)/60000;
-      otMins+=calcOTMins(eIn,eOut);
-      // OVS: count each calendar day within this shift if it's overseas
       const lat=s.in.lat,lon=s.in.lon,loc=s.in.loc||'';
       const overseas=lat!=null?(isInSingapore(lat,lon)===false):(isLocSingapore(loc)===false);
+      // Use local timezone of the work location for OT calculation
+      const shiftTZ = overseas ? tzFromLoc(loc) : 'Asia/Singapore';
+      otMins+=calcOTMins(eIn,eOut,shiftTZ);
+      // OVS: count each calendar day within this shift if it's overseas
       if(overseas){
         // Walk each calendar day in this shift
         let d=new Date(eIn);d.setHours(0,0,0,0);
@@ -509,7 +588,10 @@ function renderSummary(){
     const hasNoLog=isIn&&wd.since&&!allEvents.find(e=>e.type==='in');
     if(hasNoLog&&wd.since){
       const sT=new Date(wd.since),eIn=sT<start?start:sT;
-      mins+=(now-eIn)/60000;otMins+=calcOTMins(eIn,now);
+      mins+=(now-eIn)/60000;
+      const noLogOverseas=wd.lat!=null?(isInSingapore(wd.lat,wd.lon)===false):(isLocSingapore(wd.loc)===false);
+      const noLogTZ=noLogOverseas?tzFromLoc(wd.loc||''):'Asia/Singapore';
+      otMins+=calcOTMins(eIn,now,noLogTZ);
       const overseas=wd.lat!=null?(isInSingapore(wd.lat,wd.lon)===false):(isLocSingapore(wd.loc)===false);
       if(overseas){let d=new Date(eIn);d.setHours(0,0,0,0);while(d<=now){ovsDaySet.add(dateKey(d));d.setDate(d.getDate()+1);}}
     }
