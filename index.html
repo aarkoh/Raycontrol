@@ -129,6 +129,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
         <button class="btn-out" id="btnOut" disabled onclick="doAction('out')">Clock out</button>
       </div>
       <div class="geost"><span class="gdot" id="geoDot"></span><span id="geoText">Geolocation ready</span></div>
+      <div id="debugPanel" style="margin-top:10px;font-size:11px;color:#aaa;font-family:monospace;line-height:1.6"></div>
     </div>
   </div>
 
@@ -227,6 +228,16 @@ onValue(ref(db, '.info/connected'), snap => {
 });
 
 // Init
+function debug(msg) {
+  const d = document.getElementById('debugPanel');
+  if (!d) return;
+  const t = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  d.innerHTML = `[${t}] ${msg}<br>` + d.innerHTML;
+  // Keep only last 5 lines
+  const lines = d.innerHTML.split('<br>');
+  if (lines.length > 6) d.innerHTML = lines.slice(0, 6).join('<br>');
+}
+
 async function initData() {
   for (const w of WORKERS) {
     const snap = await get(ref(db, 'workers/' + w));
@@ -259,8 +270,8 @@ async function initData() {
     log = [];
     if (snap.exists()) snap.forEach(child => log.unshift({id: child.key, ...child.val()}));
     log.sort((a, b) => new Date(b.time) - new Date(a.time));
+    debug(`Firebase log update: ${log.length} entries`);
     logReady = true; checkReady();
-
     renderLog();
     if (document.getElementById('tab-summary').classList.contains('active')) renderSummary();
   });
@@ -366,10 +377,11 @@ async function doAction(type) {
       loc: coordStr
     };
     try {
+      debug(`Writing ${type} for ${w}...`);
       const newRef = await push(ref(db, 'log'), entry);
+      debug(`✓ Written to Firebase key: ${newRef.key}`);
       if (geo) {
         setGeoUI('ok', `${geo.lat.toFixed(4)}, ${geo.lon.toFixed(4)} (±${geo.acc}m)`);
-        // Upgrade to full address in background
         revGeo(geo.lat, geo.lon, loc => {
           update(newRef, {loc});
           if (type === 'in') update(ref(db, 'workers/' + w), {loc});
@@ -380,9 +392,9 @@ async function doAction(type) {
       toast(`${w} clocked ${type === 'in' ? 'in' : 'out'}`);
     } catch(e) {
       console.error('Log write failed:', e);
-      setGeoUI('err', 'Write failed — check Firebase rules');
-      toast('Error saving — check Firebase rules');
-      // Re-enable buttons so user can try again
+      debug(`✗ WRITE FAILED: ${e.message}`);
+      setGeoUI('err', 'Write failed: ' + e.message);
+      toast('Write failed: ' + e.message);
       document.getElementById('btnIn').disabled = type === 'in';
       document.getElementById('btnOut').disabled = type !== 'in';
     }
