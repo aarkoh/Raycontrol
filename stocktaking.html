@@ -172,8 +172,9 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
         </div>
       </div>
       <div class="field">
-        <label>Job number <span style="color:#aaa;font-weight:400">(optional)</span></label>
-        <input type="text" id="jobInput" placeholder="e.g. JOB-001">
+        <label id="jobLabel">Job number <span style="color:#A32D2D">*</span></label>
+        <input type="text" id="jobInput" placeholder="e.g. JOB-001" oninput="document.getElementById('jobReqMsg').style.display='none';checkSubmit();">
+        <div id="jobReqMsg" style="display:none;font-size:11px;color:#A32D2D;margin-top:3px">This field is required</div>
       </div>
       <div class="field">
         <label>Notes <span style="color:#aaa;font-weight:400">(optional)</span></label>
@@ -282,6 +283,18 @@ window.setType=function(t){
   const btn=document.getElementById('submitBtn');
   btn.className='submit '+t;
   btn.textContent='Record Stock '+(t==='in'?'IN':'OUT');
+  // Update label and placeholder based on type
+  const label=document.getElementById('jobLabel');
+  const input=document.getElementById('jobInput');
+  document.getElementById('jobReqMsg').style.display='none';
+  if(t==='in'){
+    label.innerHTML='Vendor invoice number <span style="color:#A32D2D">*</span>';
+    input.placeholder='e.g. INV-2026-001';
+  } else {
+    label.innerHTML='Job number <span style="color:#A32D2D">*</span>';
+    input.placeholder='e.g. JOB-001';
+  }
+  input.value='';
   checkSubmit();
 };
 
@@ -354,7 +367,8 @@ window.saveNewItem=async function(){
 // ── Submit ────────────────────────────────────────────────────
 function checkSubmit(){
   if(!selItem){const q=document.getElementById('itemSearch').value.trim().toLowerCase();const m=Object.entries(items).find(([,i])=>i.name.toLowerCase()===q||(i.sku||'').toLowerCase()===q);if(m)window.selectItem(m[0]);}
-  const ok=sel&&selItem&&parseFloat(document.getElementById('qtyInput').value)>0;
+  const jobVal=document.getElementById('jobInput').value.trim();
+  const ok=sel&&selItem&&parseFloat(document.getElementById('qtyInput').value)>0&&jobVal.length>0;
   document.getElementById('submitBtn').disabled=!ok;
 }
 document.getElementById('qtyInput').addEventListener('input',checkSubmit);
@@ -365,6 +379,14 @@ window.submitMovement=async function(){
   if(!sel){toast('Please select your name');return;}
   const qty=parseFloat(document.getElementById('qtyInput').value);
   if(!qty||qty<=0){toast('Enter a valid quantity');return;}
+  const jobVal=document.getElementById('jobInput').value.trim();
+  if(!jobVal){
+    document.getElementById('jobReqMsg').style.display='block';
+    document.getElementById('jobInput').focus();
+    const fieldName=moveType==='in'?'Vendor invoice number':'Job number';
+    toast(fieldName+' is required');
+    return;
+  }
   if(!auth.currentUser){toast('Not connected — please wait and try again');return;}
   const job=document.getElementById('jobInput').value.trim();
   const notes=document.getElementById('notesInput').value.trim();
@@ -571,6 +593,9 @@ onAuthStateChanged(auth,user=>{
   });
 });
 renderWorkers();
+// Set initial label for Stock IN
+document.getElementById('jobLabel').innerHTML='Vendor invoice number <span style="color:#A32D2D">*</span>';
+document.getElementById('jobInput').placeholder='e.g. INV-2026-001';
 setTimeout(()=>document.getElementById('loadingScreen').classList.add('hide'),6000);
 </script>
 </body>
