@@ -15,8 +15,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .conn.online{background:#EAF3DE;color:#3B6D11}
 .conn.offline{background:#FCEBEB;color:#A32D2D}
 .conn.syncing{background:#FAEEDA;color:#854F0B}
-.worker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem}
-@media(max-width:420px){.worker-grid{grid-template-columns:repeat(2,1fr)}}
+.worker-grid{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:8px;margin-bottom:1.25rem}
+
 .wcard{border:1px solid #ddd;border-radius:12px;padding:1rem 0.5rem;cursor:pointer;background:#fff;text-align:center;transition:border-color 0.12s,background 0.12s;-webkit-tap-highlight-color:transparent;user-select:none;min-height:90px}
 .wcard:hover{border-color:#aaa;background:#fafafa}
 .wcard.sel{border:2px solid #185FA5;background:#E6F1FB}
@@ -70,7 +70,7 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
     <span class="liveclock" id="liveClock"></span>
     <a href="https://aarkoh.github.io/Raycontrol/" style="font-size:11px;color:#aaa;text-decoration:none;padding:4px 8px;border:1px solid #eee;border-radius:8px;white-space:nowrap">&#8962; Hub</a>
   </div>
-  <div class="worker-grid" id="workerGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem"></div>
+  <div class="worker-grid" id="workerGrid" style="display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:8px"></div>
   <div class="apanel">
     <h2 id="panelTitle">Select your name</h2>
     <p class="sub" id="panelSub">Tap your initials above, then clock in or out</p>
@@ -138,7 +138,7 @@ function renderWorkers(){
     const job=wd.job?' · '+wd.job:'';
     const locked=sessionStaff&&w!==sessionStaff;
     const attrs=locked
-      ? 'style="opacity:0.25;filter:grayscale(1);cursor:default"'
+      ? 'style="opacity:0.35;cursor:default"'
       : "onclick='selectW(\"" + w + "\")'";
     return '<div class="wcard'+(isSel?' sel':'')+(isIn?' ci':'')+'" '+attrs+'>'
       +'<div class="wav">'+w+'</div>'
