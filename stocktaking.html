@@ -344,6 +344,7 @@ window.submitMovement=async function(){
     const itemName=selItem.name,unit=selItem.unit||'pcs',minQty=selItem.minQty||0;
     if(newQty<=minQty&&minQty>0)toast('⚠ Low stock: '+itemName+' at '+newQty+' '+unit);
     else toast(itemName+' '+(moveType==='in'?'IN':'OUT')+' recorded ✓');
+    setTimeout(fetchMovements, 1000); // refresh log immediately
     selItem=null;
     document.getElementById('itemSearch').value='';
     document.getElementById('selectedItem').style.display='none';
@@ -429,6 +430,21 @@ function updateLogFilters(){
 }
 
 // ── Auth & Init ───────────────────────────────────────────────
+async function fetchMovements(){
+  try{
+    const user=auth.currentUser;
+    const token=user?await user.getIdToken():'';
+    const url='https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app/stock/movements.json'+(token?'?auth='+token:'');
+    const res=await fetch(url);
+    const data=await res.json();
+    movements=[];
+    if(data)Object.entries(data).forEach(([k,v])=>movements.push({id:k,...v}));
+    movements.sort((a,b)=>new Date(b.time)-new Date(a.time));
+    updateLogFilters();
+    renderLog();
+  }catch(e){console.error('fetchMovements:',e);}
+}
+
 signInAnonymously(auth).catch(e=>console.error(e));
 onAuthStateChanged(auth,user=>{
   if(!user)return;
@@ -444,13 +460,16 @@ onAuthStateChanged(auth,user=>{
     document.getElementById('itemSearch').placeholder=count?'Search '+count+' items…':'No items yet — tap + to add';
     document.getElementById('loadingScreen').classList.add('hide');
     updateOvCatFilter();updateLogFilters();
-    if(document.getElementById('tab-overview').classList.contains('active'))renderOverview();
+    renderOverview();
   });
+  // Use REST fetch for movements (more reliable than SDK onValue for this node)
+  fetchMovements();
+  setInterval(fetchMovements, 15000); // poll every 15s for updates
   onValue(ref(db,'stock/movements'),snap=>{
     movements=[];
     if(snap.exists())snap.forEach(c=>movements.unshift({id:c.key,...c.val()}));
     updateLogFilters();
-    if(document.getElementById('tab-log').classList.contains('active'))renderLog();
+    renderLog(); // always update so log is fresh when tab is opened
   });
 });
 renderWorkers();
