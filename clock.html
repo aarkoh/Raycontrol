@@ -132,20 +132,35 @@ function resetPanel(){sel=null;renderWorkers();document.getElementById('panelTit
 // ── Render ────────────────────────────────────────────────────
 function renderWorkers(){
   const sessionStaff=sessionStorage.getItem('rc_staff');
-  document.getElementById('workerGrid').innerHTML=WORKERS.map((w,i)=>{
-    const wd=workers[w]||{},isSel=sel===w,isIn=wd.status==='in';
+  const grid=document.getElementById('workerGrid');
+  if(sessionStaff && WORKERS.includes(sessionStaff)){
+    const w=sessionStaff;
+    const wd=workers[w]||{};
+    const isIn=wd.status==='in';
     const since=wd.since?new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
     const job=wd.job?' · '+wd.job:'';
-    const locked=sessionStaff&&w!==sessionStaff;
-    const attrs=locked
-      ? 'style="opacity:0.35;cursor:default"'
-      : "onclick='selectW(\"" + w + "\")'";
-    return '<div class="wcard'+(isSel?' sel':'')+(isIn?' ci':'')+'" '+attrs+'>'
-      +'<div class="wav">'+w+'</div>'
-      +'<div class="wnum">'+(i+1)+'</div>'
-      +'<div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since+job:'Off')+'</div>'
-      +'</div>';
-  }).join('');
+    grid.style.cssText='display:flex;justify-content:center;margin-bottom:1.25rem';
+    const card=document.createElement('div');
+    card.className='wcard'+(sel===w?' sel':'')+(isIn?' ci':'');
+    card.style.width='140px';
+    card.onclick=function(){selectW(w);};
+    card.innerHTML='<div class="wav">'+w+'</div><div class="wnum">'+(WORKERS.indexOf(w)+1)+'</div><div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since+job:'Off')+'</div>';
+    grid.innerHTML='';
+    grid.appendChild(card);
+  } else {
+    grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem';
+    grid.innerHTML='';
+    WORKERS.forEach((w,i)=>{
+      const wd=workers[w]||{};
+      const isIn=wd.status==='in';
+      const since=wd.since?new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+      const card=document.createElement('div');
+      card.className='wcard'+(sel===w?' sel':'')+(isIn?' ci':'');
+      card.onclick=function(){selectW(w);};
+      card.innerHTML='<div class="wav">'+w+'</div><div class="wnum">'+(i+1)+'</div><div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since:'Off')+'</div>';
+      grid.appendChild(card);
+    });
+  }
 }
 window.selectW=function(w){
   sel=w;const wd=workers[w]||{},isIn=wd.status==='in';
