@@ -38,7 +38,7 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
 .field-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .form-section{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
 .form-section h2{font-size:14px;font-weight:600;margin-bottom:1rem}
-.item-table-wrap{overflow-x:auto}
+.item-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;display:block}
 .item-table{width:100%;border-collapse:collapse;font-size:13px}
 .item-table th{text-align:left;font-size:11px;font-weight:600;color:#888;padding:8px 10px;border-bottom:1px solid #e0ddd6;white-space:nowrap}
 .item-table td{padding:8px 10px;border-bottom:1px solid #f0ede6;vertical-align:middle}
@@ -104,7 +104,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
         <button class="btn-primary" onclick="openItemModal()">+ Add item</button>
       </div>
     </div>
-    <div class="item-table-wrap">
+    <div class="item-table-wrap" style="max-height:60vh;overflow-y:auto;overflow-x:auto">
       <table class="item-table">
         <thead><tr><th>Item</th><th>SKU</th><th>Make/Model</th><th>Category</th><th>Stock</th><th>Unit</th><th>Min</th><th>Location</th><th>Cost</th><th>Sell</th><th>Actions</th></tr></thead>
         <tbody id="itemsBody"></tbody>
@@ -329,6 +329,9 @@ window.deleteItem=async function(id,name){
 
 // ── History ────────────────────────────────────────────────────
 window.setMovFilter=function(f,el){movFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderHistory();};
+// Expose to window for inline HTML handlers
+window.renderItems=function(){renderItems();};
+window.renderHistory=function(){renderHistory();};
 function renderHistory(){
   const itemF=document.getElementById('histItemFilter').value;
   const workerF=document.getElementById('histWorkerFilter').value;
