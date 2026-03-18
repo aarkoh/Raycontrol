@@ -210,7 +210,7 @@ function getPin(){return[0,1,2,3].map(i=>document.getElementById('p'+i).value).j
 window.pinInput=function(i){if(document.getElementById('p'+i).value&&i<3)setTimeout(()=>document.getElementById('p'+(i+1)).focus(),10);if(getPin().length===4)setTimeout(submitPin,100);};
 window.submitPin=function(){
   const p=getPin();
-  if(p===pin){unlocked=true;document.getElementById('pinModal').classList.remove('show');document.getElementById('loadingScreen').classList.add('hide');}
+  if(p===pin){unlocked=true;document.getElementById('pinModal').classList.remove('show');}
   else{document.getElementById('pinErr').textContent='Incorrect PIN';clearPin();document.getElementById('p0').focus();}
 };
 
@@ -428,10 +428,11 @@ onAuthStateChanged(auth,user=>{
   // Init worker filter
   const wf=document.getElementById('histWorkerFilter');
   WORKERS.forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w;wf.appendChild(o);});
-  // Show PIN gate
-  if(!unlocked)showPin();
+  // Show PIN gate after data loads
+  if(!unlocked) showPin();
 });
-setTimeout(()=>{if(!unlocked&&document.getElementById('pinModal').classList.contains('show')){}else document.getElementById('loadingScreen').classList.add('hide');},8000);
+// Hide loading screen immediately, let PIN modal show on top
+document.getElementById('loadingScreen').classList.add('hide');
 </script>
 </body>
 </html>

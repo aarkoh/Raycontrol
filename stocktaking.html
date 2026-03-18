@@ -98,6 +98,11 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
 .loading-screen p{font-size:13px;color:#888}
 .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-size:13px;padding:9px 20px;border-radius:8px;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:999;white-space:nowrap}
 .toast.show{opacity:1}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:100;padding:1rem}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;border:1px solid #e0ddd6}
+.modal h2{font-size:15px;font-weight:600;margin-bottom:1rem}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ddd6}
 </style>
 </head>
 <body>
@@ -201,6 +206,33 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <select id="logWorkerFilter" onchange="renderLog()" style="font-size:12px;padding:5px 8px"><option value="">All workers</option></select>
     </div>
     <div id="logList"></div>
+  </div>
+</div>
+<!-- Edit Item Modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <h2>Edit item</h2>
+    <div class="field"><label>Item name *</label><input type="text" id="ei_name"></div>
+    <div class="field-row">
+      <div class="field"><label>SKU</label><input type="text" id="ei_sku"></div>
+      <div class="field"><label>Category</label><input type="text" id="ei_cat"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Make</label><input type="text" id="ei_make"></div>
+      <div class="field"><label>Model</label><input type="text" id="ei_model"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Current qty</label><input type="number" id="ei_qty" min="0" step="any"></div>
+      <div class="field"><label>Unit</label><input type="text" id="ei_unit"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Min stock alert</label><input type="number" id="ei_min" min="0" step="any"></div>
+      <div class="field"><label>Location</label><input type="text" id="ei_loc"></div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeEditModal()">Cancel</button>
+      <button onclick="saveEditItem()" style="background:#185FA5;color:#fff;border-color:#185FA5;font-weight:600">Save changes</button>
+    </div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -391,6 +423,9 @@ function renderOverview(){
       +'<div><span class="ov-qty">'+( i.qty||0)+'</span><span class="ov-unit">'+( i.unit||'pcs')+'</span>'
       +' <span class="stock-badge '+sc+'">'+st+'</span></div>'
       +(i.location?'<div class="ov-loc">'+i.location+'</div>':'')
+      +'<div style="margin-top:8px;display:flex;gap:6px">'
+      +'<button onclick="openEditItem(\"'+id+'\")" style="font-size:11px;padding:4px 10px;border-color:#185FA5;color:#185FA5;background:#E6F1FB">Edit</button>'
+      +'</div>'
       +'</div>';
   }).join('');
 }
@@ -428,6 +463,45 @@ function updateLogFilters(){
   const wSel=document.getElementById('logWorkerFilter');const curW=wSel.value;
   if(wSel.options.length<=1) WORKERS.forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w;wSel.appendChild(o);});
 }
+
+// ── Edit item ─────────────────────────────────────────────────
+let editItemId=null;
+window.openEditItem=function(id){
+  editItemId=id;
+  const i=items[id]||{};
+  document.getElementById('ei_name').value=i.name||'';
+  document.getElementById('ei_sku').value=i.sku||'';
+  document.getElementById('ei_cat').value=i.category||'';
+  document.getElementById('ei_make').value=i.make||'';
+  document.getElementById('ei_model').value=i.model||'';
+  document.getElementById('ei_qty').value=i.qty??'';
+  document.getElementById('ei_unit').value=i.unit||'';
+  document.getElementById('ei_min').value=i.minQty??'';
+  document.getElementById('ei_loc').value=i.location||'';
+  document.getElementById('editModal').classList.add('show');
+};
+window.closeEditModal=function(){document.getElementById('editModal').classList.remove('show');editItemId=null;};
+window.saveEditItem=async function(){
+  const name=document.getElementById('ei_name').value.trim();
+  if(!name){toast('Item name required');return;}
+  if(!auth.currentUser){toast('Not connected');return;}
+  const data={
+    name,sku:document.getElementById('ei_sku').value.trim(),
+    category:document.getElementById('ei_cat').value.trim(),
+    make:document.getElementById('ei_make').value.trim(),
+    model:document.getElementById('ei_model').value.trim(),
+    qty:parseFloat(document.getElementById('ei_qty').value)||0,
+    unit:document.getElementById('ei_unit').value.trim()||'pcs',
+    minQty:parseFloat(document.getElementById('ei_min').value)||0,
+    location:document.getElementById('ei_loc').value.trim(),
+    updatedAt:new Date().toISOString(),updatedBy:sel||'unknown'
+  };
+  try{
+    await update(ref(db,'stock/items/'+editItemId),data);
+    toast(name+' updated ✓');
+    closeEditModal();
+  }catch(e){toast('Error: '+e.message);}
+};
 
 // ── Auth & Init ───────────────────────────────────────────────
 async function fetchMovements(){
