@@ -159,14 +159,7 @@ button:active{transform:scale(0.97)}
         <label class="check-opt" id="opt-vendor"><input type="checkbox" value="vendor" onchange="updateTypeOpt(this)"> Vendor</label>
       </div>
     </div>
-    <div class="field-row">
-      <div class="field"><label>Full name *</label><input type="text" id="f_name" placeholder="e.g. John Tan"></div>
-      <div class="field"><label>Company</label><input type="text" id="f_company" placeholder="e.g. ABC Pte Ltd"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Phone</label><input type="tel" id="f_phone" placeholder="+65 9123 4567"></div>
-      <div class="field"><label>Email</label><input type="email" id="f_email" placeholder="john@abc.com"></div>
-    </div>
+    <div class="field"><label>Company *</label><input type="text" id="f_company" placeholder="e.g. ABC Pte Ltd"></div>
     <div class="field"><label>Address</label><input type="text" id="f_address" placeholder="Street, unit, postal code"></div>
     <div class="field">
       <label>Payment terms</label>
@@ -373,10 +366,7 @@ window.backToList=function(){
 window.openAddContact=function(){
   editContactId=null;
   document.getElementById('modalTitle').textContent='Add contact';
-  document.getElementById('f_name').value='';
   document.getElementById('f_company').value='';
-  document.getElementById('f_phone').value='';
-  document.getElementById('f_email').value='';
   document.getElementById('f_address').value='';
   document.getElementById('f_notes').value='';
   document.getElementById('f_gst').checked=false;
@@ -386,16 +376,13 @@ window.openAddContact=function(){
   clearPersonRows();
   clearPersonRows();
   document.getElementById('contactModal').classList.add('show');
-  setTimeout(()=>document.getElementById('f_name').focus(),80);
+  setTimeout(()=>document.getElementById('f_company').focus(),80);
 };
 window.openEditContact=function(id){
   editContactId=id;
   const c=contacts[id]||{};
   document.getElementById('modalTitle').textContent='Edit contact';
-  document.getElementById('f_name').value=c.name||'';
-  document.getElementById('f_company').value=c.company||'';
-  document.getElementById('f_phone').value=c.phone||'';
-  document.getElementById('f_email').value=c.email||'';
+  document.getElementById('f_company').value=c.company||c.name||'';
   document.getElementById('f_address').value=c.address||'';
   document.getElementById('f_notes').value=c.notes||'';
   document.getElementById('f_gst').checked=!!c.gst;
@@ -443,15 +430,15 @@ function clearPersonRows(){
 }
 
 window.saveContact=async function(){
-  const name=document.getElementById('f_name').value.trim();
-  if(!name){toast('Name is required');return;}
+  const name=document.getElementById('f_company').value.trim()||document.getElementById('f_company').value.trim();
+  if(!name){toast('Company name is required');return;}
   const types=[...(document.querySelectorAll('#typeGroup input:checked'))].map(i=>i.value);
   if(!types.length){toast('Select at least one type (Customer or Vendor)');return;}
   const termsEl=document.querySelector('#termsGroup input:checked');
+  const company=document.getElementById('f_company').value.trim();
   const data={
-    name,company:document.getElementById('f_company').value.trim(),
-    phone:document.getElementById('f_phone').value.trim(),
-    email:document.getElementById('f_email').value.trim(),
+    name:company,company,
+    phone:'',email:'',
     address:document.getElementById('f_address').value.trim(),
     notes:document.getElementById('f_notes').value.trim(),
     types,paymentTerms:termsEl?termsEl.value:'',
