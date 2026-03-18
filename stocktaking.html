@@ -514,6 +514,10 @@ window.saveEditItem=async function(){
   }catch(e){toast('Error: '+e.message);}
 };
 
+// Expose functions used in HTML attributes to window scope
+window.renderOverview = function() { renderOverview(); };
+window.renderLog = function() { renderLog(); };
+
 // Event delegation for edit buttons - avoids inline onclick quote issues
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('.ov-edit-btn');
