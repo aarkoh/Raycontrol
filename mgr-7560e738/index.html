@@ -54,9 +54,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .section-box p{font-size:12px;color:#888;margin-bottom:1rem}
 .btn-save{font-family:inherit;font-size:13px;font-weight:600;padding:10px 20px;border:none;border-radius:8px;background:#1a1a1a;color:#fff;cursor:pointer}
 .btn-save:hover{background:#333}
+
+/* Manager login */
+.mgr-login{position:fixed;top:0;left:0;right:0;bottom:0;background:#f5f5f3;display:none;align-items:center;justify-content:center;z-index:600;padding:1rem}
+.mgr-login-card{background:#fff;border:1px solid #e0ddd6;border-radius:16px;padding:2rem;width:100%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.1)}
+.mgr-login-card h2{font-size:18px;font-weight:600;margin-bottom:6px}
+.mgr-login-card p{font-size:13px;color:#888;margin-bottom:1.5rem;line-height:1.5}
+.mgr-pin-row{display:flex;gap:8px;justify-content:center;margin-bottom:1rem}
+.mgr-pin-row input{width:52px;height:60px;text-align:center;font-size:22px;font-weight:700;border:2px solid #ddd;border-radius:10px;background:#f9f9f7;font-family:inherit;color:#1a1a1a}
+.mgr-pin-row input:focus{outline:none;border-color:#185FA5;background:#fff}
+.mgr-pin-err{font-size:12px;color:#A32D2D;min-height:16px;margin-bottom:0.75rem}
+.mgr-login-btn{width:100%;padding:12px;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;background:#1a1a1a;color:#fff;cursor:pointer}
+.mgr-login-btn:disabled{opacity:0.35;cursor:default}
 </style>
 </head>
 <body>
+<div class="mgr-login" id="mgrLogin">
+  <div class="mgr-login-card">
+    <h2>&#128202; Manager Access</h2>
+    <p>Enter your 4-digit manager PIN<br>to access this dashboard</p>
+    <div class="mgr-pin-row">
+      <input type="password" maxlength="1" inputmode="numeric" id="mp0" oninput="mgrPinInput(0)">
+      <input type="password" maxlength="1" inputmode="numeric" id="mp1" oninput="mgrPinInput(1)">
+      <input type="password" maxlength="1" inputmode="numeric" id="mp2" oninput="mgrPinInput(2)">
+      <input type="password" maxlength="1" inputmode="numeric" id="mp3" oninput="mgrPinInput(3)">
+    </div>
+    <div class="mgr-pin-err" id="mgrPinErr"></div>
+    <button class="mgr-login-btn" id="mgrLoginBtn" onclick="mgrDoLogin()">Unlock</button>
+  </div>
+</div>
 <div class="loading-screen" id="loadingScreen"><div class="spinner"></div><p>Loading…</p></div>
 <div class="app">
   <div class="topbar">
@@ -146,6 +172,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
 
+<script>
+var mgrPin='1234';
+function mgrInitLogin(){
+  if(sessionStorage.getItem('rc_manager')==='1'){return;}
+  document.getElementById('mgrLogin').style.display='flex';
+  setTimeout(function(){var el=document.getElementById('mp0');if(el)el.focus();},200);
+}
+function mgrPinInput(i){
+  var el=document.getElementById('mp'+i);
+  if(el.value&&i<3) setTimeout(function(){document.getElementById('mp'+(i+1)).focus();},10);
+  var pin=[0,1,2,3].map(function(j){return document.getElementById('mp'+j).value;}).join('');
+  if(pin.length===4) setTimeout(mgrDoLogin,100);
+}
+function mgrDoLogin(){
+  var pin=[0,1,2,3].map(function(j){return document.getElementById('mp'+j).value;}).join('');
+  if(pin===mgrPin){
+    sessionStorage.setItem('rc_manager','1');
+    document.getElementById('mgrLogin').style.display='none';
+  } else {
+    document.getElementById('mgrPinErr').textContent='Incorrect PIN — try again';
+    [0,1,2,3].forEach(function(j){document.getElementById('mp'+j).value='';});
+    document.getElementById('mp0').focus();
+  }
+}
+// Show login immediately using default PIN, Firebase will update
+mgrInitLogin();
+</script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, onValue, set } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
@@ -245,7 +298,9 @@ onAuthStateChanged(auth,user=>{
     document.getElementById('statIn').textContent=inCount;
     document.getElementById('statOff').textContent=WORKERS.length-inCount;
   });
-  onValue(ref(db,'config/pin'),snap=>{if(snap.exists())managerPin=snap.val();});
+  onValue(ref(db,'config/pin'),snap=>{
+    if(snap.exists()){managerPin=snap.val();mgrPin=snap.val();}
+  });
   onValue(ref(db,'config/staffPins'),snap=>{
     if(snap.exists()) staffPins={...staffPins,...snap.val()};
     renderStaffPins();
