@@ -665,12 +665,7 @@ onAuthStateChanged(auth,async user=>{
   // Use REST fetch for movements (more reliable than SDK onValue for this node)
   fetchMovements();
   setInterval(fetchMovements, 15000); // poll every 15s for updates
-  onValue(ref(db,'stock/movements'),snap=>{
-    movements=[];
-    if(snap.exists())snap.forEach(c=>movements.unshift({id:c.key,...c.val()}));
-    updateLogFilters();
-    renderLog(); // always update so log is fresh when tab is opened
-  });
+  // Movements loaded via REST fetch only (avoids SDK caching issues)
 });
 renderWorkers();
 // Full reset on page load - clear any cached state
