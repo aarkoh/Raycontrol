@@ -426,36 +426,48 @@ onAuthStateChanged(auth,user=>{
   if(!user)return;
   onValue(ref(db,'.info/connected'),snap=>{const b=document.getElementById('connBadge');b.textContent=snap.val()?'Live':'Offline';b.className='conn '+(snap.val()?'online':'offline');});
   onValue(ref(db,'config/pin'),snap=>{if(snap.exists())pin=snap.val();});
-  onValue(ref(db,'stock/items'),snap=>{
-    items=snap.val()||{};
-    renderStats();
-    renderItems();
-    updateCatFilter();
-    // Update history item filter
-    const iSel=document.getElementById('histItemFilter');
-    const curVal=iSel.value;
-    iSel.innerHTML='<option value="">All items</option>'+Object.entries(items).map(([id,i])=>'<option value="'+id+'"'+(id===curVal?' selected':'')+'>'+i.name+'</option>').join('');
-    if(document.getElementById('tab-reports').classList.contains('active')) renderReports();
-    if(document.getElementById('tab-history').classList.contains('active')) renderHistory();
-  });
-  onValue(ref(db,'stock/movements'),snap=>{
-    movements=[];
-    if(snap.exists()) snap.forEach(c=>movements.unshift({id:c.key,...c.val()}));
-    // Update history item filter dropdown with latest items
-    const iSel=document.getElementById('histItemFilter');
-    const curVal=iSel.value;
-    iSel.innerHTML='<option value="">All items</option>'+Object.entries(items).map(([id,i])=>'<option value="'+id+'"'+(id===curVal?' selected':'')+'>'+i.name+'</option>').join('');
-    // Always re-render if on history tab
-    if(document.getElementById('tab-history').classList.contains('active')) renderHistory();
-  });
-  // Init worker filter
+  // Init worker filter once
   const wf=document.getElementById('histWorkerFilter');
   WORKERS.forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w;wf.appendChild(o);});
-  // Show PIN gate after data loads
-  // Hide loading screen and show PIN
+  // Use REST API polling to bypass SDK caching
+  fetchAllData();
+  setInterval(fetchAllData, 10000);
+  // Show PIN gate
   document.getElementById('loadingScreen').classList.add('hide');
   if(!unlocked) showPin();
 });
+
+const DB_URL='https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+async function fetchAllData(){
+  try{
+    const user=auth.currentUser;
+    const token=user?await user.getIdToken():'';
+    const qs=token?'?auth='+token:'';
+    // Fetch items and movements in parallel
+    const [itemsRes, movRes] = await Promise.all([
+      fetch(DB_URL+'/stock/items.json'+qs),
+      fetch(DB_URL+'/stock/movements.json'+qs)
+    ]);
+    const itemsData=await itemsRes.json();
+    const movData=await movRes.json();
+    // Update items
+    items=itemsData||{};
+    renderStats();
+    renderItems();
+    updateCatFilter();
+    const iSel=document.getElementById('histItemFilter');
+    const curVal=iSel.value;
+    iSel.innerHTML='<option value="">All items</option>'+Object.entries(items).map(([id,i])=>'<option value="'+id+'"'+(id===curVal?' selected':'')+'>'+i.name+'</option>').join('');
+    // Update movements
+    movements=[];
+    if(movData) Object.entries(movData).forEach(([k,v])=>movements.push({id:k,...v}));
+    movements.sort((a,b)=>new Date(b.time)-new Date(a.time));
+    if(document.getElementById('tab-history').classList.contains('active')) renderHistory();
+    if(document.getElementById('tab-reports').classList.contains('active')) renderReports();
+  }catch(e){console.error('fetchAllData error',e);}
+}
+
 // Safety timeout
 setTimeout(()=>document.getElementById('loadingScreen').classList.add('hide'), 8000);
 </script>
