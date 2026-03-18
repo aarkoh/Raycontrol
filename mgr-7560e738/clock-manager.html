@@ -177,15 +177,9 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
     <div class="sec-title">Current status</div>
     <div class="mgrid" id="managerGrid"></div>
     <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ddd6;display:flex;gap:8px;flex-wrap:wrap">
-      <button onclick="openPin('change')">Change manager PIN</button>
       <button class="btn-danger" id="clearLogBtn" onclick="clearAndRebuildLog()">Clear duplicate logs</button>
     </div>
-    <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid #e0ddd6">
-      <div style="font-size:14px;font-weight:600;margin-bottom:0.75rem">Staff Login Codes</div>
-      <div style="font-size:12px;color:#888;margin-bottom:0.85rem">Each staff member uses their 1-digit code to log in to the clock and stocktaking pages.</div>
-      <div id="staffPinGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px"></div>
-      <button onclick="saveStaffPins()" style="margin-top:0.85rem;background:#1a1a1a;color:#fff;border-color:#1a1a1a;font-weight:600">Save staff codes</button>
-    </div>
+
   </div>
 
   <!-- SUMMARY -->
@@ -555,7 +549,7 @@ window.switchTab=function(tab,el){
   el.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
-  if(tab==='manager'){renderManager();renderStaffPins();}
+  if(tab==='manager')renderManager();
   if(tab==='summary')renderSummary();
   if(tab==='log')renderLog();
 };
@@ -844,37 +838,7 @@ window.saveNewPin=saveNewPin;
 
 // ── Auth & Init ───────────────────────────────────────────────
 // ── Staff PIN management ──────────────────────────────────────
-let staffPins={HS:'1',TM:'2',RG:'3',MU:'4',AY:'5',IL:'6',SA:'7',AN:'8'};
-
-function renderStaffPins(){
-  document.getElementById('staffPinGrid').innerHTML=WORKERS.map(w=>`
-    <div style="background:#fff;border:1px solid #e0ddd6;border-radius:8px;padding:10px 12px">
-      <div style="font-size:12px;font-weight:600;color:#888;margin-bottom:6px">${w}</div>
-      <input type="text" id="sp_${w}" value="${staffPins[w]||''}" maxlength="1" inputmode="numeric"
-        style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:16px;font-weight:600;text-align:center;font-family:inherit"
-        placeholder="0-9">
-    </div>`).join('');
-}
-window.saveStaffPins=async function(){
-  const newPins={};
   let valid=true;
-  for(const w of WORKERS){
-    const val=document.getElementById('sp_'+w).value.trim();
-    if(!val||!/^[0-9]$/.test(val)){toast('Code for '+w+' must be a single digit 0-9');valid=false;break;}
-    newPins[w]=val;
-  }
-  if(!valid) return;
-  // Check for duplicates
-  const vals=Object.values(newPins);
-  const unique=new Set(vals);
-  if(unique.size!==vals.length){toast('Each staff member must have a unique code');return;}
-  try{
-    await set(ref(db,'config/staffPins'),newPins);
-    staffPins={...newPins};
-    toast('Staff codes saved ✓');
-  }catch(e){toast('Error: '+e.message);}
-};
-
 signInAnonymously(auth).catch(e=>{
   document.getElementById('loadingScreen').innerHTML='<p style="color:#A32D2D;padding:2rem;text-align:center">Connection failed. Please refresh.</p>';
 });
@@ -894,10 +858,6 @@ onAuthStateChanged(auth,async user=>{
   if(!pinSnap.exists())await set(ref(db,'config/pin'),'1234');
 
   onValue(ref(db,'config/pin'),snap=>{if(snap.exists())pin=snap.val();});
-  onValue(ref(db,'config/staffPins'),snap=>{
-    if(snap.exists()) staffPins={...staffPins,...snap.val()};
-    if(document.getElementById('tab-manager').classList.contains('active')) renderStaffPins();
-  });
 
   onValue(ref(db,'workers'),snap=>{
     workers=snap.val()||{};
