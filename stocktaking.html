@@ -342,6 +342,27 @@ function doLogout(){
   setTimeout(function(){var el=document.getElementById('staffPin');if(el)el.focus();},200);
 }
 </script>
+<script>
+// Show login immediately on page load using default PINs
+// Firebase will update pins in background when ready
+(function(){
+  var saved = sessionStorage.getItem('rc_staff');
+  if(saved && WORKERS_LIST.indexOf(saved) >= 0){
+    loggedInStaff = saved;
+    var ls = document.getElementById('loadingScreen');
+    if(ls) ls.classList.add('hide');
+    var lb = document.getElementById('logoutBtn');
+    if(lb) lb.classList.add('visible');
+  } else {
+    // Show login right away - no waiting for Firebase
+    document.getElementById('loginOverlay').style.display = 'flex';
+    setTimeout(function(){
+      var el = document.getElementById('staffPin');
+      if(el) el.focus();
+    }, 100);
+  }
+})();
+</script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, onValue, push, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
@@ -693,12 +714,11 @@ onAuthStateChanged(auth,async user=>{
     b.textContent=snap.val()?'Live':'Offline';
     b.className='conn '+(snap.val()?'online':'offline');
   });
-  // Load staff pins (non-blocking - items load regardless)
+  // Update staff pins from Firebase in background (overlay already showing)
   try{
     const pinsSnap=await get(ref(db,'config/staffPins'));
     if(pinsSnap.exists()) staffPins={...staffPins,...pinsSnap.val()};
   }catch(e){console.warn('Pins not set yet, using defaults');}
-  initStaffLogin();
   onValue(ref(db,'stock/items'),snap=>{
     items=snap.val()||{};
     if(selItem&&selItem.id&&items[selItem.id]){
@@ -733,7 +753,6 @@ document.getElementById('jobInput').placeholder='e.g. INV-2026-001';
 // Safety timeout - hide loading if auth takes too long
 setTimeout(()=>{
   document.getElementById('loadingScreen').classList.add('hide');
-  if(!loggedInStaff) initStaffLogin();
 },6000);
 </script>
 </body>

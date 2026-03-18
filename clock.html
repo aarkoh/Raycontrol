@@ -127,6 +127,27 @@ function doLogout(){
   setTimeout(function(){var el=document.getElementById('staffPin');if(el)el.focus();},200);
 }
 </script>
+<script>
+// Show login immediately on page load using default PINs
+// Firebase will update pins in background when ready
+(function(){
+  var saved = sessionStorage.getItem('rc_staff');
+  if(saved && WORKERS_LIST.indexOf(saved) >= 0){
+    loggedInStaff = saved;
+    var ls = document.getElementById('loadingScreen');
+    if(ls) ls.classList.add('hide');
+    var lb = document.getElementById('logoutBtn');
+    if(lb) lb.classList.add('visible');
+  } else {
+    // Show login right away - no waiting for Firebase
+    document.getElementById('loginOverlay').style.display = 'flex';
+    setTimeout(function(){
+      var el = document.getElementById('staffPin');
+      if(el) el.focus();
+    }, 100);
+  }
+})();
+</script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, set, push, update, onValue, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
@@ -289,9 +310,10 @@ onAuthStateChanged(auth,async user=>{
   });
   WORKERS.forEach(async w=>{const s=await get(ref(db,'workers/'+w));if(!s.exists())await set(ref(db,'workers/'+w),{status:'out',since:null,loc:'',lastTime:null});});
   // Load staff pins
-  const pinsSnap=await get(ref(db,'config/staffPins'));
-  if(pinsSnap.exists()) staffPins={...staffPins,...pinsSnap.val()};
-  initStaffLogin();
+  try{
+    const pinsSnap=await get(ref(db,'config/staffPins'));
+    if(pinsSnap.exists()) staffPins={...staffPins,...pinsSnap.val()};
+  }catch(e){}
 });
 renderWorkers();
 setGeoUI('','Geolocation ready');

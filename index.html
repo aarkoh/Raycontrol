@@ -164,6 +164,27 @@ function doLogout(){
   document.getElementById('loginErr').textContent='';
 }
 </script>
+<script>
+// Show login immediately on page load using default PINs
+// Firebase will update pins in background when ready
+(function(){
+  var saved = sessionStorage.getItem('rc_staff');
+  if(saved && WORKERS_LIST.indexOf(saved) >= 0){
+    loggedInStaff = saved;
+    var ls = document.getElementById('loadingScreen');
+    if(ls) ls.classList.add('hide');
+    var lb = document.getElementById('logoutBtn');
+    if(lb) lb.classList.add('visible');
+  } else {
+    // Show login right away - no waiting for Firebase
+    document.getElementById('loginOverlay').style.display = 'flex';
+    setTimeout(function(){
+      var el = document.getElementById('staffPin');
+      if(el) el.focus();
+    }, 100);
+  }
+})();
+</script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, onValue, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
