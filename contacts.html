@@ -131,7 +131,7 @@ button:active{transform:scale(0.97)}
   <!-- DIRECTORY TAB -->
   <div class="panel active" id="tab-list">
     <div class="search-bar">
-      <input type="text" id="searchInput" placeholder="Search name, company, phone…" oninput="renderList()">
+      <input type="text" id="searchInput" placeholder="Search name, company, phone…" oninput="renderList()" onkeyup="renderList()" onchange="renderList()" autocomplete="off" autocorrect="off" autocapitalize="off">
       <button class="btn-primary" onclick="openAddContact()">+ Add contact</button>
     </div>
     <div class="chips">
@@ -595,6 +595,14 @@ function getPersonRows(){
   })).filter(p=>p.name);
 }
 
+
+// Search input event listener (more reliable on mobile than oninput attr)
+const searchEl=document.getElementById('searchInput');
+if(searchEl){
+  ['input','keyup','change','compositionend'].forEach(evt=>
+    searchEl.addEventListener(evt,()=>renderList())
+  );
+}
 
 // Close modals on bg click
 document.getElementById('contactModal').addEventListener('click',e=>{if(e.target===document.getElementById('contactModal'))closeContactModal();});
