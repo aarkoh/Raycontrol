@@ -770,6 +770,9 @@ signInAnonymously(auth).catch(e=>{
 // Check session immediately on page load (before Firebase)
 if(sessionStorage.getItem('rc_manager')!=='1'){
   window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';
+} else {
+  // Session valid - hide loading screen immediately
+  document.getElementById('loadingScreen').classList.add('hide');
 }
 
 onAuthStateChanged(auth,async user=>{
