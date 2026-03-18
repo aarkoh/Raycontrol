@@ -15,14 +15,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .conn.online{background:#EAF3DE;color:#3B6D11}
 .conn.offline{background:#FCEBEB;color:#A32D2D}
 .conn.syncing{background:#FAEEDA;color:#854F0B}
-.worker-grid{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:8px;margin-bottom:1.25rem}
+.worker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
 
-.wcard{border:1px solid #ddd;border-radius:12px;padding:1rem 0.5rem;cursor:pointer;background:#fff;text-align:center;transition:border-color 0.12s,background 0.12s;-webkit-tap-highlight-color:transparent;user-select:none;min-height:90px}
+.wcard{border:1px solid #ddd;border-radius:10px;padding:0.75rem 0.4rem;cursor:pointer;background:#fff;text-align:center;transition:all 0.12s;user-select:none;-webkit-tap-highlight-color:transparent}
 .wcard:hover{border-color:#aaa;background:#fafafa}
 .wcard.sel{border:2px solid #185FA5;background:#E6F1FB}
 .wcard.ci{border-color:#3B6D11}
 .wcard.sel.ci{border:2px solid #3B6D11;background:#EAF3DE}
-.wav{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;margin:0 auto 8px;background:#eee;color:#555}
+.wav{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;margin:0 auto 5px;background:#eee;color:#555}
 .wcard.sel .wav{background:#B5D4F4;color:#185FA5}
 .wcard.ci .wav{background:#C0DD97;color:#3B6D11}
 .wcard.sel.ci .wav{background:#C0DD97;color:#3B6D11}
@@ -70,7 +70,7 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
     <span class="liveclock" id="liveClock"></span>
     <a href="https://aarkoh.github.io/Raycontrol/" style="font-size:11px;color:#aaa;text-decoration:none;padding:4px 8px;border:1px solid #eee;border-radius:8px;white-space:nowrap">&#8962; Hub</a>
   </div>
-  <div class="worker-grid" id="workerGrid" style="display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:8px"></div>
+  <div class="worker-grid" id="workerGrid"></div>
   <div class="apanel">
     <h2 id="panelTitle">Select your name</h2>
     <p class="sub" id="panelSub">Tap your initials above, then clock in or out</p>
@@ -133,34 +133,25 @@ function resetPanel(){sel=null;renderWorkers();document.getElementById('panelTit
 function renderWorkers(){
   const sessionStaff=sessionStorage.getItem('rc_staff');
   const grid=document.getElementById('workerGrid');
-  if(sessionStaff && WORKERS.includes(sessionStaff)){
-    const w=sessionStaff;
+  grid.innerHTML='';
+  grid.style.cssText='';
+  WORKERS.forEach((w,i)=>{
     const wd=workers[w]||{};
     const isIn=wd.status==='in';
     const since=wd.since?new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
     const job=wd.job?' · '+wd.job:'';
-    grid.style.cssText='display:flex;justify-content:center;margin-bottom:1.25rem';
+    const locked=sessionStaff&&w!==sessionStaff;
     const card=document.createElement('div');
     card.className='wcard'+(sel===w?' sel':'')+(isIn?' ci':'');
-    card.style.width='140px';
-    card.onclick=function(){selectW(w);};
-    card.innerHTML='<div class="wav">'+w+'</div><div class="wnum">'+(WORKERS.indexOf(w)+1)+'</div><div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since+job:'Off')+'</div>';
-    grid.innerHTML='';
-    grid.appendChild(card);
-  } else {
-    grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem';
-    grid.innerHTML='';
-    WORKERS.forEach((w,i)=>{
-      const wd=workers[w]||{};
-      const isIn=wd.status==='in';
-      const since=wd.since?new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
-      const card=document.createElement('div');
-      card.className='wcard'+(sel===w?' sel':'')+(isIn?' ci':'');
+    if(locked){
+      card.style.opacity='0.3';
+      card.style.cursor='default';
+    } else {
       card.onclick=function(){selectW(w);};
-      card.innerHTML='<div class="wav">'+w+'</div><div class="wnum">'+(i+1)+'</div><div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since:'Off')+'</div>';
-      grid.appendChild(card);
-    });
-  }
+    }
+    card.innerHTML='<div class="wav">'+w+'</div><div class="wnum">'+(i+1)+'</div><div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since+job:'Off')+'</div>';
+    grid.appendChild(card);
+  });
 }
 window.selectW=function(w){
   sel=w;const wd=workers[w]||{},isIn=wd.status==='in';
