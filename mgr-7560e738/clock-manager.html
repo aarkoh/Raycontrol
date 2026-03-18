@@ -763,24 +763,23 @@ window.pinInput=pinInput;
 window.submitPin=submitPin;
 
 // ── Auth & Init ───────────────────────────────────────────────
-// ── Staff PIN management ──────────────────────────────────────
-  let valid=true;
 signInAnonymously(auth).catch(e=>{
   document.getElementById('loadingScreen').innerHTML='<p style="color:#A32D2D;padding:2rem;text-align:center">Connection failed. Please refresh.</p>';
 });
 
+// Check session immediately on page load (before Firebase)
+if(sessionStorage.getItem('rc_manager')!=='1'){
+  window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';
+}
+
 onAuthStateChanged(auth,async user=>{
   if(!user)return;
-  // Check manager session - redirect if not logged in
-  if(sessionStorage.getItem('rc_manager')!=='1'){
-    window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';
-    return;
-  }
 
   onValue(ref(db,'.info/connected'),snap=>{
     const online=snap.val(),b=document.getElementById('connBadge');
     b.textContent=online?'Live':'Offline';
     b.className='conn '+(online?'online':'offline');
+    if(online) document.getElementById('loadingScreen').classList.add('hide');
   });
 
   // Init worker nodes

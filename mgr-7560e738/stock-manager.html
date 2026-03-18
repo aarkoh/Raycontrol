@@ -400,15 +400,20 @@ window.exportCSV=function(){
 };
 
 // ── Auth & Init ────────────────────────────────────────────────
+// Check session immediately before Firebase
+if(sessionStorage.getItem('rc_manager')!=='1'){
+  window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';
+}
+
 signInAnonymously(auth).catch(e=>console.error(e));
 onAuthStateChanged(auth,user=>{
   if(!user)return;
-  // Check manager session
-  if(sessionStorage.getItem('rc_manager')!=='1'){
-    window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';
-    return;
-  }
-  onValue(ref(db,'.info/connected'),snap=>{const b=document.getElementById('connBadge');b.textContent=snap.val()?'Live':'Offline';b.className='conn '+(snap.val()?'online':'offline');});
+  onValue(ref(db,'.info/connected'),snap=>{
+    const b=document.getElementById('connBadge');
+    b.textContent=snap.val()?'Live':'Offline';
+    b.className='conn '+(snap.val()?'online':'offline');
+    if(snap.val()) document.getElementById('loadingScreen').classList.add('hide');
+  });
   onValue(ref(db,'config/pin'),snap=>{if(snap.exists())pin=snap.val();});
   // Init worker filter once
   const wf=document.getElementById('histWorkerFilter');
