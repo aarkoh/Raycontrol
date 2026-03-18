@@ -136,9 +136,14 @@ function renderWorkers(){
     const since=wd.since?new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
     const job=wd.job?' · '+wd.job:'';
     const locked=sessionStaff&&w!==sessionStaff;
-    const click=locked?'':('onclick="selectW(\'' + w + '\')"');
-    const style=locked?'style="opacity:0.25;cursor:default;pointer-events:none"':'';
-    return '<div class="wcard'+(isSel?' sel':'')+(isIn?' ci':'')+'" '+click+' '+style+'><div class="wav">'+w+'</div><div class="wnum">'+(i+1)+'</div><div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since+job:'Off')+'</div></div>';
+    const attrs=locked
+      ? 'style="opacity:0.25;filter:grayscale(1);cursor:default"'
+      : "onclick='selectW(\"" + w + "\")'";
+    return '<div class="wcard'+(isSel?' sel':'')+(isIn?' ci':'')+'" '+attrs+'>'
+      +'<div class="wav">'+w+'</div>'
+      +'<div class="wnum">'+(i+1)+'</div>'
+      +'<div class="wstat'+(isIn?' in':'')+'>'+(isIn?'In · '+since+job:'Off')+'</div>'
+      +'</div>';
   }).join('');
 }
 window.selectW=function(w){

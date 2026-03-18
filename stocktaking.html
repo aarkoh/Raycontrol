@@ -274,9 +274,13 @@ function renderWorkers(){
   const sessionStaff=sessionStorage.getItem('rc_staff');
   document.getElementById('workerGrid').innerHTML=WORKERS.map(w=>{
     const locked=sessionStaff&&w!==sessionStaff;
-    const click=locked?'':('onclick="selectW(\'' + w + '\')"');
-    const style=locked?'style="opacity:0.25;cursor:default;pointer-events:none"':'';
-    return '<div class="wcard'+(sel===w?' sel':'')+'" '+click+' '+style+'><div class="wav">'+w+'</div><div class="wlabel">'+w+'</div></div>';
+    const attrs=locked
+      ? 'style="opacity:0.25;filter:grayscale(1);cursor:default"'
+      : "onclick='selectW(\"" + w + "\")'";
+    return '<div class="wcard'+(sel===w?' sel':'')+'" '+attrs+'>'
+      +'<div class="wav">'+w+'</div>'
+      +'<div class="wlabel">'+w+'</div>'
+      +'</div>';
   }).join('');
 }
 window.selectW=function(w){
