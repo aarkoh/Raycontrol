@@ -275,7 +275,8 @@ window.switchTab=function(tab,el){
 function renderWorkers(){
   const sessionStaff=sessionStorage.getItem('rc_staff');
   document.getElementById('workerGrid').innerHTML=WORKERS.map(w=>{
-    const locked=sessionStaff&&w!==sessionStaff;
+    const isAdmin=sessionStaff==='ADMIN';
+    const locked=sessionStaff&&!isAdmin&&w!==sessionStaff;
     const attrs=locked
       ? 'style="opacity:0.25;filter:grayscale(1);cursor:default"'
       : "onclick='selectW(\"" + w + "\")'";
@@ -607,6 +608,7 @@ onAuthStateChanged(auth,async user=>{
   // Check session - redirect to hub if not logged in
   const sessionStaff=sessionStorage.getItem('rc_staff');
   if(!sessionStaff){window.location.href='https://aarkoh.github.io/Raycontrol/';return;}
+  // ADMIN has full access
   onValue(ref(db,'.info/connected'),snap=>{
     const b=document.getElementById('connBadge');
     b.textContent=snap.val()?'Live':'Offline';
@@ -632,7 +634,7 @@ onAuthStateChanged(auth,async user=>{
 renderWorkers();
 // Auto-select logged-in staff
 const _ss=sessionStorage.getItem('rc_staff');
-if(_ss&&WORKERS.includes(_ss)){sel=_ss;renderWorkers();}
+if(_ss&&_ss!=='ADMIN'&&WORKERS.includes(_ss)){sel=_ss;renderWorkers();} else if(_ss) renderWorkers();
 // Full reset on page load - clear any cached state
 document.getElementById('itemSearch').value='';
 document.getElementById('selectedItem').style.display='none';

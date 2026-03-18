@@ -140,7 +140,7 @@ function renderWorkers(){
     const isIn=wd.status==='in';
     const since=wd.since?new Date(wd.since).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
     const job=wd.job?' · '+wd.job:'';
-    const locked=sessionStaff&&w!==sessionStaff;
+    const locked=sessionStaff&&sessionStaff!=='ADMIN'&&w!==sessionStaff;
     const card=document.createElement('div');
     card.className='wcard'+(sel===w?' sel':'')+(isIn?' ci':'');
     if(locked){
@@ -230,10 +230,10 @@ onAuthStateChanged(auth,async user=>{
     window.location.href='https://aarkoh.github.io/Raycontrol/';
     return;
   }
-  sel = sessionStaff;
+  sel = sessionStaff==='ADMIN' ? null : sessionStaff;
   // Show logged-in staff tag
   const tag=document.getElementById('staffTag');
-  if(tag){tag.textContent='👤 '+sessionStaff;tag.style.display='inline';}
+  if(tag){tag.textContent=sessionStaff==='ADMIN'?'🔑 Admin':'👤 '+sessionStaff;tag.style.display='inline';}
 
   onValue(ref(db,'workers'),snap=>{
     workers=snap.val()||{};
