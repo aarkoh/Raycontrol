@@ -114,6 +114,19 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<script>
+function doLogout(){
+  if(!confirm('Log out of this device?')) return;
+  sessionStorage.removeItem('rc_staff');
+  var lb=document.getElementById('logoutBtn');if(lb)lb.classList.remove('visible');
+  var pin=document.getElementById('staffPin');if(pin)pin.value='';
+  var n=document.getElementById('loginName');if(n)n.textContent='';
+  var e=document.getElementById('loginErr');if(e)e.textContent='';
+  var b=document.getElementById('loginBtn');if(b){b.disabled=true;b.style.opacity='0.35';}
+  document.getElementById('loginOverlay').style.display='flex';
+  setTimeout(function(){var el=document.getElementById('staffPin');if(el)el.focus();},200);
+}
+</script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, set, push, update, onValue, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
@@ -218,24 +231,6 @@ window.doAction=async function(type){
       document.getElementById('btnOut').disabled=type!=='in';
     }
   });
-};
-
-window.doLogout=function(){
-  if(!confirm('Log out of this device?')) return;
-  sessionStorage.removeItem('rc_staff');
-  loggedInStaff=null;
-  sel=null;renderWorkers();
-  document.getElementById('panelTitle').textContent='Select your name';
-  document.getElementById('panelSub').textContent='Tap your initials above, then clock in or out';
-  document.getElementById('btnIn').disabled=true;
-  document.getElementById('btnOut').disabled=true;
-  document.getElementById('jobField').style.display='none';
-  document.getElementById('logoutBtn').classList.remove('visible');
-  document.getElementById('loginOverlay').style.display='flex';
-  setTimeout(()=>document.getElementById('staffPin').focus(),200);
-  document.getElementById('loginName').textContent='';
-  document.getElementById('loginBtn').disabled=true;
-  document.getElementById('loginErr').textContent='';
 };
 
 // ── Auth & Init ───────────────────────────────────────────────

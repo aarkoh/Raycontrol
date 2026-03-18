@@ -320,6 +320,20 @@ function doStaffLogin(){
   document.getElementById('loginOverlay').style.display='none';
   var lb=document.getElementById('logoutBtn');if(lb)lb.classList.add('visible');
 }
+
+function doLogout(){
+  if(!confirm('Log out of this device?')) return;
+  sessionStorage.removeItem('rc_staff');
+  loggedInStaff=null;
+  var lb=document.getElementById('logoutBtn');if(lb)lb.classList.remove('visible');
+  var pin=document.getElementById('staffPin');if(pin)pin.value='';
+  document.getElementById('loginName').textContent='';
+  document.getElementById('loginErr').textContent='';
+  document.getElementById('loginBtn').disabled=true;
+  document.getElementById('loginBtn').style.opacity='0.35';
+  document.getElementById('loginOverlay').style.display='flex';
+  setTimeout(function(){var el=document.getElementById('staffPin');if(el)el.focus();},200);
+}
 </script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
