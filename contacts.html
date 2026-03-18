@@ -251,7 +251,7 @@ window.setFilter=function(f,el){
 };
 
 // ── List ──────────────────────────────────────────────────────
-function renderList(){
+window.renderList=function renderList(){
   const q=(document.getElementById('searchInput').value||'').toLowerCase();
   const list=Object.entries(contacts).filter(([,c])=>{
     if(filterType!=='all'&&!(c.types||[]).includes(filterType)) return false;
