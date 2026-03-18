@@ -375,19 +375,15 @@ function renderReports(){
   html+=cats.map(cat=>{
     const catItems=list.filter(i=>(i.category||'Uncategorised')===cat);
     const catVal=catItems.reduce((a,i)=>a+(i.qty||0)*(i.cost||0),0);
-    return `<div style="margin-bottom:1rem">
-      <div style="font-size:12px;font-weight:600;color:#aaa;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">${cat} — S$${catVal.toFixed(2)}</div>
-      <div class="item-table-wrap"><table class="item-table">
-        <thead><tr><th>Item</th><th>Make/Model</th><th>Stock</th><th>Unit</th><th>Cost</th><th>Sell</th><th>Value</th></tr></thead>
-        <tbody>${catItems.map(i=>{
-          const sc=i.qty<=0?'stock-empty':i.minQty>0&&i.qty<=i.minQty?'stock-low':'stock-ok';
-          return `<tr><td>${i.name}${i.sku?'<span style="color:#aaa;font-size:11px"> · '+i.sku+'</span>':''}</td>
-            <td style="color:#888">${[i.make,i.model].filter(Boolean).join(' ')||'—'}</td>
-            <td><b>${i.qty||0}</b> <span class="stock-badge ${sc}">${i.qty<=0?'Empty':i.qty<=i.minQty&&i.minQty>0?'Low':'OK'}</span></td>
-            <td>${i.unit||'pcs'}</td><td>S$${(i.cost||0).toFixed(2)}</td><td>S$${(i.sell||0).toFixed(2)}</td>
-            <td>S$${((i.qty||0)*(i.cost||0)).toFixed(2)}</td></tr>`;
-        }).join('')}</tbody>
-      </table></div></div>`;
+    const catRows=catItems.map(i=>{
+      const sc=i.qty<=0?'stock-empty':i.minQty>0&&i.qty<=i.minQty?'stock-low':'stock-ok';
+      const stockTxt=i.qty<=0?'Empty':i.qty<=i.minQty&&i.minQty>0?'Low':'OK';
+      const nameTd='<td>'+i.name+(i.sku?'<span style="color:#aaa;font-size:11px"> · '+i.sku+'</span>':'')+'</td>';
+      const makeTd='<td style="color:#888">'+(([i.make,i.model].filter(Boolean).join(' '))||'—')+'</td>';
+      const stockTd='<td><b>'+(i.qty||0)+'</b> <span class="stock-badge '+sc+'">'+stockTxt+'</span></td>';
+      return '<tr>'+nameTd+makeTd+stockTd+'<td>'+(i.unit||'pcs')+'</td><td>S$'+(i.cost||0).toFixed(2)+'</td><td>S$'+(i.sell||0).toFixed(2)+'</td><td>S$'+((i.qty||0)*(i.cost||0)).toFixed(2)+'</td></tr>';
+    }).join('');
+    return '<div style="margin-bottom:1rem"><div style="font-size:12px;font-weight:600;color:#aaa;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">'+cat+' — S$'+catVal.toFixed(2)+'</div><div class="item-table-wrap"><table class="item-table"><thead><tr><th>Item</th><th>Make/Model</th><th>Stock</th><th>Unit</th><th>Cost</th><th>Sell</th><th>Value</th></tr></thead><tbody>'+catRows+'</tbody></table></div></div>';
   }).join('');
   document.getElementById('reportContent').innerHTML=html;
 }

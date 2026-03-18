@@ -202,10 +202,7 @@ window.selectItem=function(id){
   const si=document.getElementById('selectedItem');
   const stockCls=selItem.qty<=0?'stock-empty':selItem.minQty>0&&selItem.qty<=selItem.minQty?'stock-low':'stock-ok';
   si.style.display='block';
-  si.innerHTML=`<b>${selItem.name}</b>${selItem.sku?' <span style="color:#888">· '+selItem.sku+'</span>':''}<br>
-    <span style="color:#888">Current stock: </span><b>${selItem.qty||0} ${selItem.unit||'pcs'}</b>
-    <span class="stock-badge ${stockCls}">${selItem.qty<=0?'Empty':selItem.qty<=selItem.minQty?'Low stock':'OK'}</span>
-    ${selItem.location?'<br><span style="color:#888">Location: '+selItem.location+'</span>':''}`;
+  si.innerHTML='<b>'+selItem.name+'</b>'+(selItem.sku?' <span style="color:#888">· '+selItem.sku+'</span>':'')+'<br>'+'<span style="color:#888">Current stock: </span><b>'+(selItem.qty||0)+' '+(selItem.unit||'pcs')+'</b> <span class="stock-badge '+stockCls+'">'+(selItem.qty<=0?'Empty':selItem.qty<=selItem.minQty?'Low stock':'OK')+'</span>'+(selItem.location?'<br><span style="color:#888">Location: '+selItem.location+'</span>':'');
   checkSubmit();
 };
 document.addEventListener('click',e=>{if(!e.target.closest('.item-search'))document.getElementById('itemDropdown').style.display='none';});
