@@ -575,7 +575,10 @@ onAuthStateChanged(auth,user=>{
   });
   onValue(ref(db,'stock/items'),snap=>{
     items=snap.val()||{};
-    if(selItem&&items[selItem.id])selItem={...selItem,...items[selItem.id]};
+    // Only silently update selItem data if one is actively selected
+    if(selItem&&selItem.id&&items[selItem.id]){
+      selItem={...selItem,...items[selItem.id]};
+    }
     const count=Object.keys(items).length;
     document.getElementById('itemSearch').placeholder=count?'Search '+count+' items…':'No items yet — tap + to add';
     document.getElementById('loadingScreen').classList.add('hide');
@@ -593,6 +596,16 @@ onAuthStateChanged(auth,user=>{
   });
 });
 renderWorkers();
+// Full reset on page load - clear any cached state
+document.getElementById('itemSearch').value='';
+document.getElementById('selectedItem').style.display='none';
+document.getElementById('itemDropdown').style.display='none';
+document.getElementById('qtyInput').value='';
+document.getElementById('jobInput').value='';
+document.getElementById('notesInput').value='';
+document.getElementById('unitLabel').textContent='—';
+document.getElementById('newItemBanner').style.display='none';
+document.getElementById('newItemForm').style.display='none';
 // Set initial label for Stock IN
 document.getElementById('jobLabel').innerHTML='Vendor invoice number <span style="color:#A32D2D">*</span>';
 document.getElementById('jobInput').placeholder='e.g. INV-2026-001';
