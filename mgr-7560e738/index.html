@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -163,6 +164,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <div id="pinChangeMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
     </div>
+    <div class="section-box" style="margin-bottom:0.75rem">
+      <h2>&#128272; Admin PIN (staff dashboard)</h2>
+      <p>This PIN grants full access to the staff dashboard without being tied to a specific worker. Currently: <strong id="adminPinDisplay">•</strong></p>
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-top:0.75rem;flex-wrap:wrap">
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px;font-weight:500">New admin PIN (1 digit)</div>
+          <input type="text" id="newAdminPin" maxlength="1" inputmode="numeric" placeholder="0-9"
+            style="width:70px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:20px;font-weight:700;text-align:center;font-family:inherit;background:#f9f9f7">
+        </div>
+        <button class="btn-save" onclick="changeAdminPin()">Update admin PIN</button>
+      </div>
+      <div id="adminPinMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
+    </div>
     <div class="section-box">
       <h2>&#128100; Staff login codes</h2>
       <p>Each staff member uses their 1-digit code to log in to Clock and Stocktaking. Codes must be unique (0–9).</p>
@@ -254,6 +268,24 @@ window.saveStaffPins=async function(){
 };
 
 let managerPin='1234';
+let adminPin='9';
+
+window.changeAdminPin=async function(){
+  const n=document.getElementById('newAdminPin').value.trim();
+  const msg=document.getElementById('adminPinMsg');
+  if(!n||!/^[0-9]$/.test(n)){msg.style.color='#A32D2D';msg.textContent='Must be a single digit 0–9';return;}
+  // Make sure it doesn't clash with a staff PIN
+  const clash=Object.entries(staffPins).find(([,v])=>v===n);
+  if(clash){msg.style.color='#A32D2D';msg.textContent='That digit is already used by '+clash[0];return;}
+  try{
+    await set(ref(db,'config/adminPin'),n);
+    adminPin=n;
+    document.getElementById('newAdminPin').value='';
+    document.getElementById('adminPinDisplay').textContent=n;
+    msg.style.color='#3B6D11';msg.textContent='✓ Admin PIN updated to '+n;
+    setTimeout(()=>msg.textContent='',3000);
+  }catch(e){msg.style.color='#A32D2D';msg.textContent='Error: '+e.message;}
+};
 
 window.togglePinFolder=function(){
   const folder=document.getElementById('pinFolder');
@@ -306,6 +338,9 @@ onAuthStateChanged(auth,user=>{
   });
   onValue(ref(db,'config/pin'),snap=>{
     if(snap.exists()){managerPin=snap.val();mgrPin=snap.val();}
+  });
+  onValue(ref(db,'config/adminPin'),snap=>{
+    if(snap.exists()){adminPin=snap.val();const d=document.getElementById('adminPinDisplay');if(d)d.textContent=snap.val();}
   });
   onValue(ref(db,'config/staffPins'),snap=>{
     if(snap.exists()) staffPins={...staffPins,...snap.val()};
