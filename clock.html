@@ -219,7 +219,20 @@ signInAnonymously(auth).catch(e=>{
 onAuthStateChanged(auth,async user=>{
   if(!user)return;
 
-  // Force logout if worker was removed by manager
+  // Force logout if worker was removed by manager (check immediately + realtime)
+  const _checkRemoved=async()=>{
+    try{
+      const snap=await get(ref(db,'config/removedWorkers'));
+      const removed=snap.exists()?snap.val():[];
+      const staff=sessionStorage.getItem('rc_staff');
+      if(staff&&staff!=='ADMIN'&&removed.includes(staff)){
+        sessionStorage.removeItem('rc_staff');
+        window.location.href='https://aarkoh.github.io/Raycontrol/';
+        return;
+      }
+    }catch(e){}
+  };
+  await _checkRemoved();
   onValue(ref(db,'config/removedWorkers'),snap=>{
     const removed=snap.exists()?snap.val():[];
     const staff=sessionStorage.getItem('rc_staff');
