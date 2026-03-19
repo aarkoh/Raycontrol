@@ -174,13 +174,14 @@ button:hover{background:#f0f0ee}
     <table class="lit">
       <thead><tr>
         <th style="width:30px">#</th>
-        <th style="min-width:160px">Description</th>
-        <th style="width:48px">Qty</th>
-        <th style="width:52px">Unit</th>
-        <th style="width:80px;text-align:right">Unit Price</th>
-        <th style="width:80px;text-align:right">Amount</th>
-        <th style="width:80px;text-align:right;color:#854F0B" title="Internal cost price - not printed">Cost *</th>
-        <th style="width:100px">Vendor</th>
+        <th style="min-width:150px">Description</th>
+        <th style="width:44px">Qty</th>
+        <th style="width:48px">Unit</th>
+        <th style="width:76px;text-align:right">Unit Price</th>
+        <th style="width:76px;text-align:right">Amount</th>
+        <th style="width:72px;text-align:right;color:#854F0B" title="Internal cost price - not printed">Cost *</th>
+        <th style="width:52px;color:#854F0B" title="Cost currency">Cur *</th>
+        <th style="width:96px">Vendor</th>
         <th style="width:28px"></th>
       </tr></thead>
       <tbody id="liBody"></tbody>
@@ -355,7 +356,7 @@ window.openDetail=function(id){
       +"<td>"+(it.unit||"")+"</td>"
       +'<td class="nr">'+fmt(it.unitPrice)+"</td>"
       +'<td class="nr" style="font-weight:500">'+fmt((parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0))+"</td>"
-    +'<td class="nr" style="font-size:11px;color:#854F0B">'+(it.costPrice?fmt(it.costPrice):"")+"</td>"
+    +'<td class="nr" style="font-size:11px;color:#854F0B">'+(it.costPrice?(it.costCur||"SGD")+" "+fmt(it.costPrice):"")+"</td>"
     +'<td style="font-size:11px;color:#888">'+(it.vendorName||"")+"</td>"
     +"</tr>";
   }).join(''):'<tr><td colspan="6" style="text-align:center;color:#aaa;padding:1rem;font-size:12px">No line items</td></tr>';
@@ -457,8 +458,8 @@ window.deleteJob=async function(id){
 };
 
 // Line items
-window.addLI=function(desc,qty,unit,price,vendor,cost){
-  desc=desc||"";qty=qty||"";unit=unit||"JOB";price=price||"";vendor=vendor||"";cost=cost||"";
+window.addLI=function(desc,qty,unit,price,vendor,cost,costCur){
+  desc=desc||"";qty=qty||"";unit=unit||"JOB";price=price||"";vendor=vendor||"";cost=cost||"";costCur=costCur||"SGD";
   liCount++;var n=liCount;
   var tr=document.createElement("tr");tr.id="li_"+n;
   var vopts=selVendors.map(function(v){return '<option value="'+v.id+'"'+(vendor===v.id?' selected':'')+'>'+v.name+'</option>';}).join('');
@@ -468,7 +469,8 @@ window.addLI=function(desc,qty,unit,price,vendor,cost){
     +'<td><input type="text" value="'+unit+'" id="lu_'+n+'" style="width:52px"></td>'
     +'<td><input type="number" value="'+price+'" placeholder="0.00" min="0" step="0.01" id="lp_'+n+'" data-n="'+n+'" oninput="window.calcLI(this.dataset.n)" style="width:82px;text-align:right"></td>'
     +'<td><span class="lamt" id="la_'+n+'">0.00</span></td>'
-    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+n+'" style="width:75px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"></td>'
+    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+n+'" style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"></td>'
+    +'<td><select id="lcc_'+n+'" style="width:48px;font-size:11px;padding:3px 2px;border:1px solid #f0c08a;border-radius:6px;font-family:inherit;background:#FAEEDA">'+'<option value="SGD"'+(costCur==="SGD"?' selected':'')+'>SGD</option>'+'<option value="USD"'+(costCur==="USD"?' selected':'')+'>USD</option>'+'<option value="EUR"'+(costCur==="EUR"?' selected':'')+'>EUR</option>'+'<option value="JPY"'+(costCur==="JPY"?' selected':'')+'>JPY</option>'+'<option value="SEK"'+(costCur==="SEK"?' selected':'')+'>SEK</option>'+'</select></td>'
     +'<td><select id="lv_'+n+'" style="width:100%;font-size:11px;padding:3px 4px;border:1px solid #ddd;border-radius:6px;font-family:inherit;background:#f9f9f7"><option value="">—</option>'+vopts+'</select></td>'
     +'<td style="text-align:center"><button data-n="'+n+'" onclick="window.removeLI(this.dataset.n)" style="font-size:12px;padding:2px 6px;border-color:#ddd;color:#aaa">✕</button></td>';
   document.getElementById("liBody").appendChild(tr);
@@ -483,7 +485,7 @@ window.removeLI=function(n){var tr=document.getElementById("li_"+n);if(tr)tr.rem
 function getLIs(){
   return Array.from(document.querySelectorAll("#liBody tr")).map(function(tr){
     var n=tr.id.replace("li_","");
-    var vsel=document.getElementById("lv_"+n);return{desc:(document.getElementById("ld_"+n)||{value:""}).value.trim(),qty:(document.getElementById("lq_"+n)||{value:""}).value,unit:(document.getElementById("lu_"+n)||{value:""}).value,unitPrice:(document.getElementById("lp_"+n)||{value:""}).value,costPrice:(document.getElementById("lc_"+n)||{value:""}).value,vendorId:vsel?vsel.value:"",vendorName:vsel&&vsel.value?((selVendors.find(function(v){return v.id===vsel.value;})||{}).name||""): ""};
+    var vsel=document.getElementById("lv_"+n);var ccsel=document.getElementById("lcc_"+n);return{desc:(document.getElementById("ld_"+n)||{value:""}).value.trim(),qty:(document.getElementById("lq_"+n)||{value:""}).value,unit:(document.getElementById("lu_"+n)||{value:""}).value,unitPrice:(document.getElementById("lp_"+n)||{value:""}).value,costPrice:(document.getElementById("lc_"+n)||{value:""}).value,costCur:ccsel?ccsel.value:"SGD",vendorId:vsel?vsel.value:"",vendorName:vsel&&vsel.value?((selVendors.find(function(v){return v.id===vsel.value;})||{}).name||""): ""};
   }).filter(function(i){return i.desc;});
 }
 
@@ -587,7 +589,7 @@ window.openEditJob=function(id){
   document.getElementById("j_pay").value=j.payTerms||"30 Days Nett";
   ["courier","packing","freight"].forEach(function(f){document.getElementById("j_"+f+"_w").style.display=j[f]==="amt"?"block":"none";});
   if(j.customerId&&j.customerName){document.getElementById("j_cs_id").value=j.customerId;document.getElementById("j_cs_nm").textContent=j.customerName;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";}
-  (j.lineItems||[]).forEach(function(it){window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"");});
+  (j.lineItems||[]).forEach(function(it){window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"",it.costCur||"SGD");});
   if(!(j.lineItems||[]).length)window.addLI();
   renderVTags();
   document.getElementById("jobModal").classList.add("show");
