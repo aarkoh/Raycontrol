@@ -562,8 +562,10 @@ window.saveJob=async function(){
 
   try{
     if(editJobId){
-      await update(ref(db,'jobs/'+editJobId),data);
-      toast('Job updated ✓');closeJobModal();openDetail(editJobId);
+      const savedId=editJobId;
+      await update(ref(db,'jobs/'+savedId),data);
+      jobs[savedId]={...jobs[savedId],...data}; // update local cache immediately
+      toast('Job updated ✓');closeJobModal();openDetail(savedId);
     } else {
       if(Object.values(jobs).find(j=>j.ref===jref)){toast('Ref '+jref+' already exists');return;}
       data.status='quote';data.createdAt=new Date().toISOString();data.createdBy=rcStaff||'Manager';
@@ -584,7 +586,14 @@ onAuthStateChanged(auth,user=>{
     setupSearch('j_cust_search','j_cust_drop',c=>(c.types||[]).includes('customer'),(id,name)=>{document.getElementById('j_cust_id').value=id;document.getElementById('j_cust_name').textContent=name;document.getElementById('j_cust_sel').style.display='flex';document.getElementById('j_cust_search').style.display='none';});
     setupSearch('j_vend_search','j_vend_drop',c=>(c.types||[]).includes('vendor'),(id,name)=>{if(!selectedVendors.find(v=>v.id===id)){selectedVendors.push({id,name});renderVendorTags();}});
   });
-  onValue(ref(db,'jobs'),snap=>{jobs=snap.val()||{};renderList();if(currentJobId&&jobs[currentJobId])openDetail(currentJobId);});
+  onValue(ref(db,'jobs'),snap=>{
+    jobs=snap.val()||{};
+    renderList();
+    // Only refresh detail if user is already viewing one (not just after saving)
+    if(currentJobId&&jobs[currentJobId]&&document.getElementById('tab-detail').classList.contains('active')){
+      openDetail(currentJobId);
+    }
+  });
 });
 
 const se=document.getElementById('jobSearch');
