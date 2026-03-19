@@ -838,11 +838,12 @@ function amtWords(amount,cur){
 
 window._vpoJobId=null;
 
-window.printVPO=function(id){
-  var jobs=window._jobs||{};
+window.printVPO=function(id,selectedItems){
+  var jobs=window._jobs||{},fmt=window._fmt,fmtD=window._fmtD;
+  if(!jobs||!fmt){alert("Please wait for page to load.");return;}
   var j=jobs[id]||{};
-  var items=(j.lineItems||[]).filter(function(it){return it.vendorId;});
-  if(!items.length){alert("No line items assigned to vendors.");return;}
+  var items=selectedItems||(j.lineItems||[]).filter(function(it){return it.vendorId;});
+  if(!items.length){alert("No items to print.");return;}
   window._vpoJobId=id;
 
   // Group by vendor
