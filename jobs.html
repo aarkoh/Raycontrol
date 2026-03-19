@@ -174,11 +174,12 @@ button:hover{background:#f0f0ee}
     <table class="lit">
       <thead><tr>
         <th style="width:30px">#</th>
-        <th style="min-width:220px">Description</th>
+        <th style="min-width:180px">Description</th>
         <th style="width:52px">Qty</th>
         <th style="width:58px">Unit</th>
         <th style="width:88px;text-align:right">Unit Price</th>
         <th style="width:88px;text-align:right">Amount</th>
+        <th style="width:110px">Vendor</th>
         <th style="width:28px"></th>
       </tr></thead>
       <tbody id="liBody"></tbody>
@@ -352,6 +353,7 @@ window.openDetail=function(id){
       +"<td>"+(it.unit||"")+"</td>"
       +'<td class="nr">'+fmt(it.unitPrice)+"</td>"
       +'<td class="nr" style="font-weight:500">'+fmt((parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0))+"</td>"
+    +'<td style="font-size:11px;color:#888">'+(it.vendorName||"")+"</td>"
     +"</tr>";
   }).join(''):'<tr><td colspan="6" style="text-align:center;color:#aaa;padding:1rem;font-size:12px">No line items</td></tr>';
 
@@ -396,7 +398,7 @@ window.openDetail=function(id){
     +'<div class="sbox"><h3>Vendors</h3>'+vlist+"</div>"
     +'<div class="sbox"><h3>Line Items</h3>'
       +'<div style="overflow-x:auto"><table class="itable">'
-        +'<thead><tr><th style="width:32px">#</th><th>Description</th><th class="nr" style="width:60px">Qty</th><th style="width:60px">Unit</th><th class="nr" style="width:100px">Unit Price</th><th class="nr" style="width:100px">Amount</th></tr></thead>'
+        +'<thead><tr><th style="width:32px">#</th><th>Description</th><th class="nr" style="width:60px">Qty</th><th style="width:60px">Unit</th><th class="nr" style="width:90px">Unit Price</th><th class="nr" style="width:90px">Amount</th><th style="width:80px">Vendor</th></tr></thead>'
         +"<tbody>"+iRows+"</tbody>"
       +"</table></div>"
       +'<div style="display:flex;justify-content:flex-end;margin-top:1rem">'
@@ -452,16 +454,18 @@ window.deleteJob=async function(id){
 };
 
 // Line items
-window.addLI=function(desc,qty,unit,price){
-  desc=desc||"";qty=qty||"";unit=unit||"JOB";price=price||"";
+window.addLI=function(desc,qty,unit,price,vendor){
+  desc=desc||"";qty=qty||"";unit=unit||"JOB";price=price||"";vendor=vendor||"";
   liCount++;var n=liCount;
   var tr=document.createElement("tr");tr.id="li_"+n;
+  var vopts=selVendors.map(function(v){return '<option value="'+v.id+'"'+(vendor===v.id?' selected':'')+'>'+v.name+'</option>';}).join('');
   tr.innerHTML='<td style="text-align:center;color:#888;font-size:11px">'+n+"</td>"
-    +'<td><input type="text" value="'+desc.replace(/"/g,"&quot;")+'" placeholder="Description" id="ld_'+n+'" style="min-width:200px"></td>'
+    +'<td><input type="text" value="'+desc.replace(/"/g,"&quot;")+'" placeholder="Description" id="ld_'+n+'" style="min-width:180px"></td>'
     +'<td><input type="number" value="'+qty+'" placeholder="1" min="0" step="0.01" id="lq_'+n+'" data-n="'+n+'" oninput="window.calcLI(this.dataset.n)" style="width:48px;text-align:right"></td>'
     +'<td><input type="text" value="'+unit+'" id="lu_'+n+'" style="width:52px"></td>'
     +'<td><input type="number" value="'+price+'" placeholder="0.00" min="0" step="0.01" id="lp_'+n+'" data-n="'+n+'" oninput="window.calcLI(this.dataset.n)" style="width:82px;text-align:right"></td>'
     +'<td><span class="lamt" id="la_'+n+'">0.00</span></td>'
+    +'<td><select id="lv_'+n+'" style="width:100%;font-size:11px;padding:3px 4px;border:1px solid #ddd;border-radius:6px;font-family:inherit;background:#f9f9f7"><option value="">—</option>'+vopts+'</select></td>'
     +'<td style="text-align:center"><button data-n="'+n+'" onclick="window.removeLI(this.dataset.n)" style="font-size:12px;padding:2px 6px;border-color:#ddd;color:#aaa">✕</button></td>';
   document.getElementById("liBody").appendChild(tr);
   if(qty||price)setTimeout(function(){window.calcLI(n);},50);
@@ -475,7 +479,7 @@ window.removeLI=function(n){var tr=document.getElementById("li_"+n);if(tr)tr.rem
 function getLIs(){
   return Array.from(document.querySelectorAll("#liBody tr")).map(function(tr){
     var n=tr.id.replace("li_","");
-    return{desc:(document.getElementById("ld_"+n)||{value:""}).value.trim(),qty:(document.getElementById("lq_"+n)||{value:""}).value,unit:(document.getElementById("lu_"+n)||{value:""}).value,unitPrice:(document.getElementById("lp_"+n)||{value:""}).value};
+    var vsel=document.getElementById("lv_"+n);return{desc:(document.getElementById("ld_"+n)||{value:""}).value.trim(),qty:(document.getElementById("lq_"+n)||{value:""}).value,unit:(document.getElementById("lu_"+n)||{value:""}).value,unitPrice:(document.getElementById("lp_"+n)||{value:""}).value,vendorId:vsel?vsel.value:"",vendorName:vsel&&vsel.value?((selVendors.find(function(v){return v.id===vsel.value;})||{}).name||""): ""};
   }).filter(function(i){return i.desc;});
 }
 
@@ -509,10 +513,28 @@ function setupSearch(inpId,dropId,filterFn,onSel){
 function renderVTags(){
   var el=document.getElementById("j_vtags");if(!el)return;
   el.innerHTML=selVendors.map(function(v,i){
-    return '<div style="display:flex;align-items:center;gap:5px;background:#F3E6F3;border:1px solid #d4b8d4;border-radius:20px;padding:3px 10px;font-size:12px;color:#8B1A8B">'+v.name+'<span data-i="'+i+'" onclick="window.removeVendor(this.dataset.i)" style="cursor:pointer;font-weight:700">✕</span></div>';
+    return '<div style="display:flex;align-items:center;gap:8px;background:#F3E6F3;border:1px solid #d4b8d4;border-radius:8px;padding:6px 10px;margin-bottom:4px">'
+      +'<span style="font-size:12px;font-weight:600;color:#8B1A8B;flex:1">'+v.name+'</span>'
+      +'<span style="font-size:11px;color:#888;white-space:nowrap">Cost price:</span>'
+      +'<input type="number" data-i="'+i+'" value="'+(v.cost||'')+'" placeholder="0.00" min="0" step="0.01"'
+        +' oninput="window.updateVendorCost(this.dataset.i,this.value)"'
+        +' style="width:90px;padding:3px 6px;border:1px solid #d4b8d4;border-radius:6px;font-size:12px;font-family:inherit;text-align:right;background:#fff">'
+      +'<span data-i="'+i+'" onclick="window.removeVendor(this.dataset.i)" style="cursor:pointer;font-weight:700;color:#8B1A8B;padding:0 2px">✕</span>'
+    +'</div>';
   }).join("");
 }
-window.removeVendor=function(i){selVendors.splice(parseInt(i),1);renderVTags();};
+window.updateVendorCost=function(i,val){if(selVendors[parseInt(i)])selVendors[parseInt(i)].cost=val;};
+window.removeVendor=function(i){selVendors.splice(parseInt(i),1);renderVTags();refreshLIVendors();};
+function refreshLIVendors(){
+  document.querySelectorAll('#liBody tr').forEach(function(tr){
+    var n=tr.id.replace('li_','');
+    var sel=document.getElementById('lv_'+n);
+    if(!sel)return;
+    var cur=sel.value;
+    var opts='<option value="">— None —</option>'+selVendors.map(function(v){return '<option value="'+v.id+'"'+(cur===v.id?' selected':'')+'>'+v.name+'</option>';}).join('');
+    sel.innerHTML=opts;
+  });
+}
 window.clrCust=function(){document.getElementById("j_cs_id").value="";document.getElementById("j_cs_sel").style.display="none";document.getElementById("j_cs").style.display="";document.getElementById("j_cs").value="";};
 
 function resetModal(){
@@ -557,7 +579,7 @@ window.openEditJob=function(id){
   editJobId=id;var j=jobs[id]||{};
   document.getElementById("mTitle").textContent="Edit Job";
   resetModal();
-  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid};});
+  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,cost:(j.vendorCosts||[])[i]||""};});
   var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_vessel:j.vessel,j_port:j.port,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0",j_courier_a:j.courierAmt,j_packing_a:j.packingAmt,j_freight_a:j.freightAmt};
   Object.entries(flds).forEach(function(e){var el=document.getElementById(e[0]);if(el&&e[1])el.value=e[1];});
   document.getElementById("j_type").value=j.type||"supply";
@@ -569,7 +591,7 @@ window.openEditJob=function(id){
   document.getElementById("j_pay").value=j.payTerms||"30 Days Nett";
   ["courier","packing","freight"].forEach(function(f){document.getElementById("j_"+f+"_w").style.display=j[f]==="amt"?"block":"none";});
   if(j.customerId&&j.customerName){document.getElementById("j_cs_id").value=j.customerId;document.getElementById("j_cs_nm").textContent=j.customerName;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";}
-  (j.lineItems||[]).forEach(function(it){window.addLI(it.desc,it.qty,it.unit,it.unitPrice);});
+  (j.lineItems||[]).forEach(function(it){window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"");});
   if(!(j.lineItems||[]).length)window.addLI();
   renderVTags();
   document.getElementById("jobModal").classList.add("show");
@@ -585,7 +607,7 @@ window.saveJob=async function(){
     ref:jref,date:gv("j_date"),customerId:custId,customerName:custName,
     attn:gv("j_attn"),yourRef:gv("j_yref"),
     vessel:gv("j_vessel"),port:gv("j_port"),equip:gv("j_equip"),make:gv("j_make"),model:gv("j_model"),task:gv("j_task"),
-    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),
+    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorCosts:selVendors.map(function(v){return v.cost||""}),
     type:document.getElementById("j_type").value,currency:document.getElementById("j_cur").value,
     eta:gv("j_eta"),validity:gv("j_validity"),memo:gv("j_memo"),engineer:gv("j_eng"),
     lineItems:getLIs(),
@@ -621,7 +643,7 @@ onAuthStateChanged(auth,function(user){
   onValue(ref(db,"contacts"),function(snap){
     contacts=snap.val()||{};
     setupSearch("j_cs","j_cs_d",function(c){return(c.types||[]).includes("customer");},function(id,nm){document.getElementById("j_cs_id").value=id;document.getElementById("j_cs_nm").textContent=nm;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";});
-    setupSearch("j_vs","j_vs_d",function(c){return(c.types||[]).includes("vendor");},function(id,nm){if(!selVendors.find(function(v){return v.id===id;})){selVendors.push({id:id,name:nm});renderVTags();}});
+    setupSearch("j_vs","j_vs_d",function(c){return(c.types||[]).includes("vendor");},function(id,nm){if(!selVendors.find(function(v){return v.id===id;})){selVendors.push({id:id,name:nm,cost:""});renderVTags();refreshLIVendors();}});
   });
   onValue(ref(db,"jobs"),function(snap){
     jobs=snap.val()||{};
