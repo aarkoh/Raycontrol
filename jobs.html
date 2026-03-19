@@ -710,22 +710,22 @@ window.printQuo=function(id){
   +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}'
   +"</style></head><body>"
   +'<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
-  +'<div class="hdr">'
-    +'<div class="c1">'
+  +'<table class="hdr"><tr>'
+    +'<td class="c1">'
       +'<div style="display:flex;align-items:flex-end;gap:4px">'
         +'<img src="'+LRC+'" style="height:50px;max-width:220px;object-fit:contain;object-position:left">'
         +'<span style="font-family:Arial,sans-serif;font-size:9.5pt;font-weight:700;margin-bottom:3px">PTE LTD</span>'
       +"</div>"
       +'<div class="addr">7 SOON LEE STREET, #05-31, SINGAPORE 627608<br>Tel: +65 88103634 &nbsp; sales@raycontrol.com<br>Reg No: 198602637N &nbsp; GST: M2-0074537-0</div>'
-    +"</div>"
-    +'<div class="c2">'
-      +'<img src="'+LHA+'" style="height:30px;width:85px;object-fit:contain">'
-      +'<img src="'+LKR+'" style="height:24px;width:80px;object-fit:contain">'
-      +'<img src="'+LYO+'" style="height:24px;width:90px;object-fit:contain">'
-      +'<img src="'+LMA+'" style="height:38px;width:58px;object-fit:contain">'
-    +"</div>"
-    +'<div class="c3">BizSAFE4<br>ISO 9001:2015<br>ACCREDITED</div>'
-  +"</div>"
+    +"</td>"
+    +'<td class="c2"><div class="logrid">'
+      +'<img src="'+LHA+'" style="height:30px;max-width:90px;object-fit:contain">'
+      +'<img src="'+LKR+'" style="height:24px;max-width:85px;object-fit:contain">'
+      +'<img src="'+LYO+'" style="height:24px;max-width:90px;object-fit:contain">'
+      +'<img src="'+LMA+'" style="height:38px;max-width:60px;object-fit:contain">'
+    +"</div></td>"
+    +'<td class="c3">BizSAFE4<br>ISO 9001:2015<br>ACCREDITED</td>'
+  +"</tr></table>"
   +'<div class="tb">'
     +'<div class="cb"><div style="font-weight:700">Messrs</div><div style="font-weight:700">'+(j.customerName||"")+"</div>"+(j.attn?'<div style="margin-top:4px"><span style="font-weight:700">ATTN : </span>'+j.attn+"</div>":"")+"</div>"
     +'<div class="di"><table>'
