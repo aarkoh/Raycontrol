@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Vendors</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f3;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}
+.card{background:#fff;border:1px solid #e0ddd6;border-radius:16px;padding:2rem;max-width:500px;width:100%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.06)}
+h1{font-size:18px;font-weight:600;margin-bottom:8px}
+.summary{background:#f9f9f7;border:1px solid #e0ddd6;border-radius:10px;padding:1rem;margin-bottom:1.25rem;text-align:left;font-size:13px;line-height:1.8}
+.summary b{font-weight:600}
+.btn{font-family:inherit;font-size:14px;font-weight:600;padding:12px 24px;border:none;border-radius:8px;background:#1a1a1a;color:#fff;cursor:pointer;width:100%}
+.btn:disabled{opacity:0.4;cursor:default}
+.btn:hover:not(:disabled){background:#333}
+.progress{margin-top:1rem;font-size:13px;color:#555;min-height:20px}
+.bar-wrap{background:#eee;border-radius:8px;height:8px;margin-top:8px;overflow:hidden}
+.bar{height:100%;background:#854F0B;border-radius:8px;width:0%;transition:width 0.3s}
+.done{font-weight:600;font-size:14px;margin-top:1rem;line-height:1.7}
+.warn{font-size:11px;color:#888;margin-top:10px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📦 Import Vendors</h1>
+  <div class="summary">
+    <div>✏️ <b>48</b> existing customers will be upgraded to <b>Customer &amp; Vendor</b></div>
+    <div>➕ <b>255</b> new vendors will be added</div>
+    <div>📋 Total: <b>303</b> vendors processed</div>
+  </div>
+  <button class="btn" id="importBtn" onclick="startImport()">Start Import</button>
+  <div class="progress" id="progress"></div>
+  <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+  <div class="done" id="done"></div>
+  <p class="warn" id="warn"></p>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, get, set, push, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+const firebaseConfig={apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"};
+const fbApp=initializeApp(firebaseConfig);
+const db=getDatabase(fbApp);
+const auth=getAuth(fbApp);
+
+// Names that match both customer and vendor (use customer canonical name)
+const BOTH_NAMES = ["McConnell Dowell S.E.A PTE LTD", "HONEYWELL MARINE", "Aces 3F PTE LTD", "LATCO ENTERPRISES PTE LTD", "RAYCONTROL PTE LTD", "SKS ENGINEERING & TRADING PTE LTD", "THREE LIONS TRADING COMPANY W.L.L", "UNITED PARCEL SERVICE SINGAPORE PTE LTD", "LFA Global PTE LTD", "LIEBHERR-SINGAPORE PTE LTD", "FLO-LINE HYDRAULICS PTE LTD", "TNT EXPRESS WORLDWIDE (SINGAPORE) PTE LTD", "Beng Hui Marine Electrical PTE LTD", "Hakozaki Trading CO, LTD.", "Shancolink PTE LTD", "Atlas Marine Services PTE. LTD.", "CK MARINE PTE. LTD.", "WELFARE SHIPPING INTERNATIONAL S.A", "VEGA INSTRUMENTS (SEA) PTE LTD", "EXXONMOBIL ASIA PACIFIC PTE LTD", "HONGKONG BOTHWIN ENGINEERING CO., LTD", "SCANJET", "MASADA MARINE & OFFSHORE PTE LTD", "YOOWON INDUSTRIES LTD.", "Eaton Industries PTE LTD", "Swift Marine Tech Services PTE LTD", "Emerson Process Management", "OST Refrigeration PTE LTD", "Ansac Technology (S) PTE LTD", "JK MARINE SERVICE CO.,LTD", "BAYWATER SHIPPING & FORWARDING PTE LTD", "JAPAN MARINE UNITED SINGAPORE PTE.LTD.", "HANLA IMS CO., LTD", "Kawasaki Heavy Industries (S) PTE. LTD.", "Flutek, LTD", "NATIONAL OILWELL VARCO - NOV WILSON", "FREIGHT LINKS EXPRESS PTE LTD", "UNITEC FLOW CONTROL PTE LTD", "SHIPSERV LIMITED", "JURONG PORT", "VISTA AUTOMATION PTE LTD", "NEUMART TECHNOLOGY PTE LTD", "Raytheon Anschuetz Singapore PTE. LTD.", "SCL System Enterprise PTE LTD", "Craig International", "AIRPORT EQUIPMENT SERVICE PTE LTD", "Alphine Hydraulics PTE LTD", "GLOBAL MARITIME SUPPLIES PTE LTD"];
+
+// Vendor-only names
+const VENDOR_ONLY = ["Ace Valve Co.,ltd", "AH FOOK MOTOR", "AIK CHIN HIN INDUSTRIAL SUPPLY PTE LTD", "AIRTICKET", "ALLIANZ INSURANCE SINGAPORE PTE LTD", "AM Instrumentering AS", "Anda Hydraulics Asia PTE LTD", "Anda Insurance Agencies PTE LTD", "AP CONTROLS PTE LTD", "ARACKING & SHELVING SOLUTIONS", "ARAMEX INTERNATIONAL LOGICTICS PTE LTD", "AUTO ZOOM PTE LTD", "AUTOBACS", "AUTOBACS MALAYSIA", "Autronica Fire and Security AS", "AVANTA GLOBAL PTE LTD", "BAN CHOON MOTOR WORKS", "BAN JOO TONG MEDICAL HALL", "BAN KEONG TRANSPORT CO.", "BANLY SPARE PARTS (PTE) LTD", "BESI Marine Systems GMBH", "BEST ENGINEERING (SERVICE DIVISION) LTD", "BIG BOX SINGAPORE PTE LTD", "BL TRADING & EXPRESS", "BOND INSTRUMENTATION (S) PTE LTD", "BOON LAY TECHNICAL SUPPLIES", "BOSCH REXROTH PTE LTD", "BOSUNG ENG., CO.", "BOYAL PTE LTD", "BREVINI (S.E.ASIA) PTE LTD", "BREVINI FLUID POWER SOUTH EAST ASIA PTE LTD", "BURKERT SINGAPORE PTE LTD", "BY CONTROLS, INC.", "CALTEX", "CHARLES AUSTEN PUMPS LTD", "CHEERS STORE", "CHEONG SHENG MACHINERY PTE LTD", "CHIN GUAN TRANSPORT & WAREHOUSING PTE LTD", "Choo Chiang Marketing PTE LTD", "Chuan Kok Hardware & Machinery PTE LTD", "CITIBANK CREDIT CARD", "Citimax Stationary Trading", "CITYCAB PTE LTD", "City-Link Express & Logistics (S) PTE LTD", "CJ MARINE & ENG. CO., LTD.", "CKD SINGAPORE PTE. LTD.", "CMS LOGISTICS GROUP (S) PTE LTD", "CODAR(PTE.)LTD", "COMFORT TRANSPORTATION", "COMMONWEALTH FREIGHT SERVICES PTE LTD", "CONCISE TRADING & SERVICES", "Consilium Marine Singapore PTE LTD", "COURTS SINGAPORE", "Crimson (s) PTE LTD", "CROWCON DETECTION INSTRUMENTS LTD", "CYY RECRUITMENT PTE LTD", "D&N Control Technical Services (S) PTE LTD", "Dalian Wanfang Marine Technology CO LTD", "DGPAC", "DHL EXPRESS (SINGAPORE) PTE LTD", "DINTEC (SINGAPORE) PTE. LTD.", "DINTEC CO., LTD", "DLYPONDAERATION", "DOLPHIN HYDRAULICS", "DONJUN MARITIME CO.,LIMITED", "DOTS TECHNOLOGY & TRADING", "Dredging International Asia Pacific", "DRS KOO, TEY & ASSOCIATES PTE LTD", "DS Tankers GMBH & CO. KG", "Ebay", "ELITE SPRINGS INDUSTRIES", "Embassy of the Republic of Korea", "ENG GUAN HARDWARE PTE LTD", "EQ INSURANCE COMPANY LIMITED", "EXMOBIL-GZ1141A", "FAIRPRICE", "FEDERAL EXPRESS (SINGAPORE) PTE LTD", "FILTRATION SOLUTION PTE LTD", "FLOWIN CO., LTD", "FLUID POWER PRIVATE LTD", "FLUID-TEC ENGINEERING & TRADING PTE LTD", "FUKUSHIMA LTD", "GASTRON CO., LTD", "GIANT IMM", "GoGoVan Singapore", "GOLTENS SINGAPORE PTE LTD", "GOODS and SERVICE TAX RETURN", "GUANGZHOU OUSTER HYDRAULIC CO.,LTD", "Haean Machinery Ind. CO., LTD", "HAI KHIM ENGINEERING PTE LTD", "Hamworthy Gas Systems AS", "HANGZHOU RUIYA ELECTRICAL APPLIANCE CO.,LTD.", "HANSA-FLEX SINGAPORE PTE.LTD.", "HANSUN ENGINEERING CO LTD", "HARDWARE STORE", "HARDWARECITY(S) PTE LTD", "HAWE HYDRAULIK SINGAPORE PTE. LTD.", "HENAN DEMALONG FILTRATION EQUIPMENT", "HENG HOE MOTOR CO", "HENG KIAT TRADING", "HENG MOTOR ENTERPRISE", "HIAP CHUAN HARDWARE (PTE) LTD", "HIN SOON WHATT BATTERY SERVICE", "Hirose Valve Industry CO., LTD.", "HL Assurance PTE. LTD.", "HOE HENG PRIVATE LIMITED", "HOE HUAT HARDWARE (S) PTE LTD", "HOE SENG (S.K.) PTE LTD", "HOH LAW CORPORATION", "HONG ENG ELECTRICAL & PLUMBING SERVICES", "HOUSING & DEVELOPMENT BOARD", "Hoyer Motors Asia", "HUAT RUBBER PRODUCTS PTE LTD", "HUNTSMEN (S) PTE LTD", "HUP GEE ENGINEERING SUPPLY", "HYDAC TECHNOLOGY PTE LTD", "HYDRAULICS MART (S) PTE LTD", "Hypax PTE LTD", "INFRATINT PTE LTD", "INLAND REVENUE DEPARTMENT", "JCWC AUTOMOBILE PTE LTD.", "JCWC CREDIT (S) PTE LTD", "JIANGSU MASADA-MITSUBISHI", "JIC INSPECTION SERVICES PTE LTD", "JINSON HARDWARE UNITY (S) PTE LTD", "JINSON TUAS HARDWARE PTE LTD", "JPS ENGINEERS PTE LTD", "JS AUTO AIRCONDITIONING SERVICE", "JURONG HEALTH SERVICES PTE LTD", "JURONG POLYCLINIC", "JURONG SHIPYARD PTE LTD", "K.U.T Diesels (Pte) LTD", "KANLIAN FERRY PTE LTD", "Karcher South East Asia PTE LTD", "KAWASAKI TRADING CO.,LTD.", "Kay Chye Huat", "KDU Marine Equipment Trading & Maintenance LLC", "KEE BENG FILTERS (S) PTE LTD", "KEYSTONE CABLE (S) PTE LTD", "KHENG LEE REPAIR RADIATOR CO.", "KIM TENG WHATT TECH", "KING COFFEE", "Klassic Color PTE LTD", "K-Power PTE LTD", "KRACHT", "LALAMOVE", "LAND TRANSPORT AUTHORITY", "LEE SENG HARDWARE MACHINERY PTE LTD", "LEK AUTO PTE LTD", "LTA", "M1 LIMITED", "MCST 3293", "MCST 4324", "MH ELECTRONICS INC", "MH Hydraulics Singapore PTE.LTD.", "MINISTRY of MANPOWER SINGAPORE", "M-TEK", "Musasino Marine and Offshore PTE LTD", "MUSTAFA SHOPPING CENTRE", "NACHI SINGAPORE PTE LTD", "NAKAKITA SEISAKUSHO CO., LTD", "NANJING SEIMT HYDRAULICS CO.,LTD.", "NATIONAL HEALTHCARE GROUP", "NATIONAL HEALTHCARE GROUP POLYCLINIC", "NATIONAL UNIVERSITY HOSPITAL", "NETS CASHCARD", "Ningbo PHP Hydraulics CO., LTD.", "NTUC FAIR PRICE", "NTUC INCOME INSURANCE COOPERATIVE LTD", "NTUC LEARNINGHUB PTE LTD", "ORANGE COAST PNEUMATICS, INC", "Oriental Inspection & Service CO., LTD", "ORIENTAL PRECISION & ENGINEERING CO.,LTD.", "PANASIA CO.,Ltd", "PAN-ASIA PRECISION&ENG.CO.,LTD", "Pepperl+Fuchs (Mfg) PTE LTD", "POPULAR JURONG EAST", "POWER & MOTION CONTROL PTE LTD", "P-Parking International PTE LTD", "PREMIER TAXIS PTE LTD", "PRIME CAR RENTAL & TAXI SERVICES PTE LTD", "PSA CORPORATION LIMITED", "PV Global PTE LTD", "R K INSTRUMENTS (S) PTE LTD", "R.I.K INDUSTRIES PTE LTD", "RAFFLES TOWN CLUB", "RK INSTRUMENTS (S) PTE LTD", "RS COMPONENTS PTE LTD", "RS MACHINERY PTE LTD", "RWS", "S.E.A HYDRAULIC ENGINEERING PTE LTD", "S.E.A.HYDRAULIC ENGINEERING PTE LTD", "S.F. EXPRESS(SINGAPORE) PTE LTD", "SAN HUP MACHINERY COMPANY PTE LTD", "SATS LTD.", "SAUER-DANFOSS-DAIKIN PTE LTD", "Scana Korea Hydraulic LTD", "SEA NAVIGATION and AUTOMATION PTE LTD", "SEATRIUM (SG) PTE LTD", "SENG HUAT INDUSTRIES PTE LTD", "SERANGOON AIR TRAVEL PTE LTD", "SES ELECTRICAL & ENGINEERING SOLUTIONS PTE LTD", "SHANGHAI RONGDE ENGINEERING EQUIPMENT CO., LIMITED", "SHELL PETROL STATION", "SHENG SIONG SUPERMARKET PTE LTD", "SHENTON CLINIC", "SIEMENS PTE LTD", "SINGAPORE MANUFACTURERS' FEDERATION", "SINGTEL", "SK.MARINE SERVICE", "SKS HYDRAULIC (SINGAPORE) PTE. LTD.", "SLS BEARINGS (S) PTE LTD", "SP ENGINEERING WORKS", "SP SERVICES LTD", "SPECTRAMA MARINE & INDUSTRIAL SUPPLIES", "STARHUB LTD", "STF HYDRAULIC TRANSMISSIONS CO.,LTD.", "STORK SOLUTION", "SUCCESS SAFETY CONSULTANCY PTE LTD", "SUN LIGHT ELECTRONICS", "SWIFT TYRES SERVICES PTE LTD", "TAN TOCK SENG HOSPITAL", "TAN TOCK SENG HOSPITAL for GEORGE'S TAN.", "Taobao Hanla", "TEBAN AUTO PTE LTD", "TECH FLOWER CO., LTD.", "TECHMARINE HYDRAULIC & ENGINEERING PTE.LTD.", "TERASAKI ELECTRIC CO.,(F.E) PTE LTD", "The Indonesian Embassy in Singapore", "THE MANAGEMENT CORPORATION - STRATA TITLE PLAN NO.", "Tokyo Keiso Asia Pacific PTE LTD", "Tools Effektiv PTE LTD", "TOP PARKING PTE LTD", "TRANS CAB", "TTS Marine AS", "TTS MARINE CRANES", "TTS Singapore PTE LTD", "TURKISH EMBASSY SINGAPORE", "TUV SUD PSB PTE LTD", "UNI-DRIVE SYSTEMS (S) PTE LTD", "UNITECH SUPPLIES PTE LTD", "UOB CARD CENTRE", "VALFLON PTE LTD", "VALUTEMP PTE LTD", "VICOM INSPECTION CENTRE PTE LTD", "W2 INDUSTRIAL SERVICES HUB PTE LTD", "WEITAR SERVICES", "WEST COAST INDUSTRIES PTE LTD", "WESTERN ANCHOR PTE LTD", "WILSON PARKING S'PORE PTE LTD", "WKS INDUSTRIAL GAS PTE LTD", "Wuhan Marine Machinery Plant CO., LTD", "Zhenjiang Marine Auxiliary Machinery Co.,Ltd", "ZHOUSHAN GLORYOCEAN SHIPPING AGENCY CO., LTD", "ZHOUSHAN RUITAI OCEAN SHIPPING SUPPCY CO LTD"];
+
+function normalize(name){
+  return name.toLowerCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
+}
+
+window.startImport=async function(){
+  const btn=document.getElementById('importBtn');
+  const progress=document.getElementById('progress');
+  const bar=document.getElementById('bar');
+  const done=document.getElementById('done');
+  const warn=document.getElementById('warn');
+
+  btn.disabled=true;btn.textContent='Importing…';
+  warn.textContent='Do not close this page while importing.';
+
+  await signInAnonymously(auth);
+
+  // Step 1: Load all existing contacts
+  progress.textContent='Loading existing contacts…';
+  const snap=await get(ref(db,'contacts'));
+  const contacts=snap.exists()?snap.val():{};
+  
+  // Build normalize map of existing contacts
+  const existingMap={};
+  for(const [id,c] of Object.entries(contacts)){
+    existingMap[normalize(c.company||c.name||'')]=id;
+  }
+
+  let upgraded=0, added=0, failed=0;
+  const total=BOTH_NAMES.length+VENDOR_ONLY.length;
+  let done_count=0;
+  const now=new Date().toISOString();
+
+  // Step 2: Upgrade customer+vendor matches
+  progress.textContent='Upgrading customer+vendor contacts…';
+  for(const name of BOTH_NAMES){
+    const existingId=existingMap[normalize(name)];
+    try{
+      if(existingId){
+        await update(ref(db,'contacts/'+existingId),{types:['customer','vendor'],updatedAt:now});
+        upgraded++;
+      } else {
+        // Not found - add as both
+        await push(ref(db,'contacts'),{name,company:name,types:['customer','vendor'],paymentTerms:'',gst:false,phone:'',email:'',address:'',notes:'',persons:[],createdAt:now,updatedAt:now});
+        added++;
+      }
+    }catch(e){failed++;}
+    done_count++;
+    bar.style.width=Math.round((done_count/total)*100)+'%';
+    progress.textContent='Processed '+done_count+' of '+total+'…';
+  }
+
+  // Step 3: Add vendor-only contacts in batches
+  progress.textContent='Adding vendor-only contacts…';
+  const BATCH=10;
+  for(let i=0;i<VENDOR_ONLY.length;i+=BATCH){
+    const chunk=VENDOR_ONLY.slice(i,i+BATCH);
+    await Promise.all(chunk.map(name=>{
+      const existingId=existingMap[normalize(name)];
+      if(existingId){
+        // Already exists as customer - upgrade
+        return update(ref(db,'contacts/'+existingId),{types:['customer','vendor'],updatedAt:now})
+          .then(()=>{upgraded++;done_count++;})
+          .catch(()=>{failed++;done_count++;});
+      }
+      return push(ref(db,'contacts'),{name,company:name,types:['vendor'],paymentTerms:'',gst:false,phone:'',email:'',address:'',notes:'',persons:[],createdAt:now,updatedAt:now})
+        .then(()=>{added++;done_count++;})
+        .catch(()=>{failed++;done_count++;});
+    }));
+    bar.style.width=Math.round((done_count/total)*100)+'%';
+    progress.textContent='Processed '+done_count+' of '+total+'…';
+    await new Promise(r=>setTimeout(r,50));
+  }
+
+  bar.style.width='100%';
+  progress.textContent='';
+  done.innerHTML='✓ <span style="color:#3B6D11">'+upgraded+' upgraded to Customer &amp; Vendor</span><br>✓ <span style="color:#854F0B">'+added+' new vendors added</span>'+(failed?'<br>⚠ '+failed+' failed':'');
+  warn.textContent='Import complete. Delete this file from GitHub after use.';
+  btn.textContent='Done';
+};
+</script>
+</body>
+</html>
