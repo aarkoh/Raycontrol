@@ -598,7 +598,8 @@ onAuthStateChanged(auth,user=>{
 
 const se=document.getElementById('jobSearch');
 ['input','keyup','change'].forEach(e=>se.addEventListener(e,()=>{searchQ=se.value;renderList();}));
-document.getElementById('jobModal').addEventListener('click',e=>{if(e.target===document.getElementById('jobModal'))closeJobModal();});
+// Modal only closes via Cancel button, Save job button, or Esc key
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('jobModal').classList.contains('show'))closeJobModal();});
 </script>
 </body>
 </html>
