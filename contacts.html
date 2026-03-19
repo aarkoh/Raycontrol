@@ -369,7 +369,6 @@ window.openAddContact=function(){
   document.querySelectorAll('#typeGroup .check-opt').forEach(o=>{o.classList.remove('checked');o.querySelector('input').checked=false;});
   document.querySelectorAll('#termsGroup .check-opt').forEach(o=>{o.classList.remove('checked');o.querySelector('input').checked=false;});
   clearPersonRows();
-  clearPersonRows();
   document.getElementById('contactModal').classList.add('show');
   setTimeout(()=>document.getElementById('f_company').focus(),80);
 };
@@ -406,24 +405,6 @@ window.updateTypeOpt=function(inp){inp.closest('.check-opt').classList.toggle('c
 window.updateTermsOpt=function(inp){document.querySelectorAll('#termsGroup .check-opt').forEach(o=>o.classList.remove('checked'));inp.closest('.check-opt').classList.add('checked');};
 
 // ── Contact Persons ───────────────────────────────────────────
-window.addPersonRow=function(p){
-  const list=document.getElementById('personList');
-  const row=document.createElement('div');
-  row.className='person-row';
-  row.innerHTML=`
-    <input type="text" placeholder="Name" class="p-name" value="${p?.name||''}">
-    <input type="text" placeholder="Role/Title" class="p-role" value="${p?.role||''}">
-    <input type="tel" placeholder="Phone" class="p-phone" value="${p?.phone||''}">
-    <input type="email" placeholder="Email" class="p-email" value="${p?.email||''}">
-    <button class="person-remove" onclick="this.closest('.person-row').remove()" title="Remove">✕</button>`;
-  list.appendChild(row);
-};
-
-
-function clearPersonRows(){
-  document.getElementById('personList').innerHTML='';
-}
-
 window.saveContact=async function(){
   const name=document.getElementById('f_company').value.trim()||document.getElementById('f_company').value.trim();
   if(!name){toast('Company name is required');return;}
@@ -588,10 +569,10 @@ window.removePersonRow=function(id){
 function getPersonRows(){
   const rows=[...document.querySelectorAll('#personList .person-row')];
   return rows.map(r=>({
-    name:r.querySelector('[data-field="name"]').value.trim(),
-    role:r.querySelector('[data-field="role"]').value.trim(),
-    phone:r.querySelector('[data-field="phone"]').value.trim(),
-    email:r.querySelector('[data-field="email"]').value.trim()
+    name:(r.querySelector('[data-field="name"]')||r.querySelector('.p-name'))?.value.trim()||'',
+    role:(r.querySelector('[data-field="role"]')||r.querySelector('.p-role'))?.value.trim()||'',
+    phone:(r.querySelector('[data-field="phone"]')||r.querySelector('.p-phone'))?.value.trim()||'',
+    email:(r.querySelector('[data-field="email"]')||r.querySelector('.p-email'))?.value.trim()||''
   })).filter(p=>p.name);
 }
 
