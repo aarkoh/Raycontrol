@@ -108,7 +108,7 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const db = getDatabase(fbApp);
 const auth = getAuth(fbApp);
-const WORKERS = ['HS','TM','RG','MU','AY','IL','SA','AN'];
+let WORKERS = ['HS','TM','RG','MU','AY','IL','SA','AN']; // loaded from Firebase
 let sel = null, workers = {};
 
 // ── Geo ──────────────────────────────────────────────────────
@@ -230,11 +230,22 @@ onAuthStateChanged(auth,async user=>{
     window.location.href='https://aarkoh.github.io/Raycontrol/';
     return;
   }
+  // Load workers list from Firebase
+  try{
+    const ws=await get(ref(db,'config/workers'));
+    if(ws.exists()&&Array.isArray(ws.val())&&ws.val().length>0) WORKERS=ws.val();
+  }catch(e){}
   sel = sessionStaff==='ADMIN' ? null : sessionStaff;
   // Show logged-in staff tag
   const tag=document.getElementById('staffTag');
   if(tag){tag.textContent=sessionStaff==='ADMIN'?'🔑 Admin':'👤 '+sessionStaff;tag.style.display='inline';}
 
+  onValue(ref(db,'config/workers'),snap=>{
+    if(snap.exists()&&Array.isArray(snap.val())&&snap.val().length>0){
+      WORKERS=snap.val();
+      renderWorkers();
+    }
+  });
   onValue(ref(db,'workers'),snap=>{
     workers=snap.val()||{};
     WORKERS.forEach(w=>{if(!workers[w])workers[w]={status:'out',since:null,loc:'',lastTime:null};});

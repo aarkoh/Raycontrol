@@ -256,7 +256,7 @@ const firebaseConfig={apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomai
 const fbApp=initializeApp(firebaseConfig);
 const db=getDatabase(fbApp);
 const auth=getAuth(fbApp);
-const WORKERS=['HS','TM','RG','MU','AY','IL','SA','AN'];
+let WORKERS=['HS','TM','RG','MU','AY','IL','SA','AN'];
 let sel=null, moveType='in', items={}, movements=[], selItem=null, logFilter='all', ovFilter='all';
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
@@ -608,6 +608,11 @@ onAuthStateChanged(auth,async user=>{
   // Check session - redirect to hub if not logged in
   const sessionStaff=sessionStorage.getItem('rc_staff');
   if(!sessionStaff){window.location.href='https://aarkoh.github.io/Raycontrol/';return;}
+  // Load workers from Firebase
+  try{
+    const ws=await get(ref(db,'config/workers'));
+    if(ws.exists()&&Array.isArray(ws.val())&&ws.val().length>0) WORKERS=ws.val();
+  }catch(e){}
   // ADMIN has full access
   onValue(ref(db,'.info/connected'),snap=>{
     const b=document.getElementById('connBadge');
