@@ -377,18 +377,7 @@ window.openDetail=function(id){
   var chgL=function(v,a){return v==="TBA"?"TBA":v==="nil"?"Nil":fmt(a);};
   var hasVendorItems=items.some(function(it){return it.vendorId;});
   window._currentJobId=id;
-  // Build revision history HTML
-  var revs=j.revisions?Object.entries(j.revisions).sort(function(a,b){return(a[1].revNumber||0)-(b[1].revNumber||0);}):[];
-  var revHTML=revs.length?'<div style="margin-top:8px;border-top:1px solid #e0ddd6;padding-top:8px">'+revs.map(function(e){
-    var rv=e[1],rid=e[0];
-    var dt=rv.savedAt?new Date(rv.savedAt).toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">'
-      +'<span style="color:#854F0B;font-weight:600;min-width:40px">Rev '+rv.revNumber+'</span>'
-      +'<span style="color:#aaa;flex:1">'+dt+(rv.savedBy?' · '+rv.savedBy:'')+'</span>'
-      +'<button data-jid="'+id+'" data-rid="'+rid+'" onclick="window.printRev(this.dataset.jid,this.dataset.rid)" style="font-size:11px;padding:3px 8px;border-color:#185FA5;color:#185FA5;background:#E6F1FB">&#128424; Print</button>'
-      +'<button data-jid="'+id+'" data-rid="'+rid+'" onclick="window.deleteRev(this.dataset.jid,this.dataset.rid)" style="font-size:11px;padding:3px 8px;border-color:#A32D2D;color:#A32D2D">&#10005;</button>'
-    +'</div>';
-  }).join('')+'</div>':'';
+
   var vlist=(j.vendorNames||[]).length
     ?(j.vendorNames||[]).map(function(v){return '<div class="ir"><span class="il">Vendor</span><span class="iv">'+v+"</span></div>";}).join("")
     :'<div style="font-size:13px;color:#aaa">None</div>';
@@ -451,11 +440,8 @@ window.openDetail=function(id){
       +'<div class="ir"><span class="il">Validity till</span><span class="iv">'+fmtD(j.validity)+"</span></div>"
     +"</div>"
     +'<div class="sbox"><h3>Documents</h3>'
-      +'<div class="ditem" style="flex-direction:column;align-items:stretch">'
-      +'<div style="display:flex;align-items:center;gap:10px">'
-        +'<span>&#128196;</span><span style="font-weight:500;flex:1">Quotation '+(j.ref||"")+"</span>"
-        +'<button data-jid="'+id+'" onclick="window.saveRevision(this.dataset.jid)" style="font-size:12px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11;background:#EAF3DE;font-weight:600">+ Save Revision</button>'
-        +'<button data-jid="'+id+'" onclick="window.printQuo(this.dataset.jid)" style="font-size:12px;padding:4px 12px;border-color:#185FA5;color:#185FA5;background:#E6F1FB;font-weight:600">&#128424; Print Latest</button>'
+      +'<div class="ditem"><span>&#128196;</span><span style="font-weight:500;flex:1">Quotation '+(j.ref||"")+"</span>"
+        +'<button data-jid="'+id+'" onclick="window.openPrintQuo(this.dataset.jid)" style="font-size:12px;padding:4px 12px;border-color:#185FA5;color:#185FA5;background:#E6F1FB;font-weight:600">&#128424; Print / PDF</button>'
       +'</div>'
       +(revHTML||'')
       +'</div>'
@@ -472,37 +458,6 @@ window.backToList=function(){document.getElementById("detailTab").style.display=
 window.editBtn=function(btn){window.openEditJob(btn.dataset.jid);};
 window.delBtn=function(btn){window.deleteJob(btn.dataset.jid);};
 window.setPipeBtn=function(btn){window.setStatus(btn.dataset.jid,btn.dataset.st);};
-
-window.saveRevision=async function(id){
-  var j=jobs[id]||{};
-  var revs=j.revisions||{};
-  var maxRev=Object.values(revs).reduce(function(m,r){return Math.max(m,r.revNumber||0);},0);
-  var snap={
-    revNumber:maxRev+1,
-    savedAt:new Date().toISOString(),
-    savedBy:rcStaff||'Manager',
-    lineItems:j.lineItems||[],
-    attn:j.attn||'',yourRef:j.yourRef||'',vessel:j.vessel||'',port:j.port||'',
-    equip:j.equip||'',make:j.make||'',model:j.model||'',task:j.task||'',
-    currency:j.currency||'SGD',
-    courier:j.courier||'TBA',courierAmt:j.courierAmt||'',
-    packing:j.packing||'TBA',packingAmt:j.packingAmt||'',
-    freight:j.freight||'TBA',freightAmt:j.freightAmt||'',
-    bankFee:j.bankFee||'0',gst:j.gst||'no',
-    delTime:j.delTime||'',delTerms:j.delTerms||'',payTerms:j.payTerms||'',
-    validity:j.validity||'',engineer:j.engineer||''
-  };
-  try{
-    await push(ref(db,'jobs/'+id+'/revisions'),snap);
-    toast('Revision '+snap.revNumber+' saved ✓');
-  }catch(e){toast('Error: '+e.message);}
-};
-
-window.deleteRev=async function(id,rid){
-  if(!confirm('Delete this revision?'))return;
-  try{await remove(ref(db,'jobs/'+id+'/revisions/'+rid));toast('Revision deleted');}
-  catch(e){toast('Error: '+e.message);}
-};
 
 window.setStatus=async function(id,s){
   try{
@@ -925,16 +880,6 @@ window.doPrintVPO=function(id,selectedIndices){
   win.document.close();
 };
 
-window.printRev=function(id,rid){
-  var jobs=window._jobs||{};
-  var j=jobs[id]||{};
-  var rv=(j.revisions||{})[rid];
-  if(!rv){alert('Revision not found');return;}
-  // Merge job base with revision snapshot
-  var rj=Object.assign({},j,rv);
-  window.printQuoData(rj,'Rev '+rv.revNumber);
-};
-
 window.printQuo=function(id){
   var jobs=window._jobs||{};
   var j=jobs[id]||{};
@@ -950,6 +895,7 @@ window.printQuoData=function(j,revLabel){
   var cur=j.currency||"SGD";
   function fd(d){if(!d)return"";return new Date(d+"T00:00:00").toLocaleDateString("en-SG",{day:"2-digit",month:"short",year:"numeric"});}
   function chg(v,a){return v==="TBA"?"TBA":v==="nil"?"Nil":a>0?fmt(a):"0.00";}
+  var items=selectedItems;
   var iRows=items.map(function(it,i){
     return "<tr>"
       +'<td style="text-align:center;padding:5px 6px">'+(i+1)+"</td>"
@@ -1019,7 +965,7 @@ window.printQuoData=function(j,revLabel){
   +'<div class="tb">'
     +'<div class="cb"><div style="font-weight:700">Messrs</div><div style="font-weight:700">'+(j.customerName||"")+"</div>"+(j.attn?'<div style="margin-top:4px"><span style="font-weight:700">ATTN : </span>'+j.attn+"</div>":"")+"</div>"
     +'<div class="di"><table>'
-      +'<tr><td>QUO NO</td><td>'+(j.ref||'')+''+(revLabel?' <span style="font-size:9pt;font-weight:400">('+revLabel+')</span>':'')+"</td></tr>"
+      +'<tr><td>QUO NO</td><td>'+(j.ref||'')+(revNum?' <span style="font-size:9pt;font-weight:400">(Rev '+revNum+')</span>':'')+"</td></tr>"
       +(j.yourRef?"<tr><td>YOUR REF</td><td>"+j.yourRef+"</td></tr>":"")
       +"<tr><td>DATE</td><td>"+fd(j.date)+"</td></tr>"
       +"<tr><td>PAGE</td><td>1 of 1</td></tr>"
