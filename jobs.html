@@ -443,7 +443,6 @@ window.openDetail=function(id){
       +'<div class="ditem"><span>&#128196;</span><span style="font-weight:500;flex:1">Quotation '+(j.ref||"")+"</span>"
         +'<button data-jid="'+id+'" onclick="window.openPrintQuo(this.dataset.jid)" style="font-size:12px;padding:4px 12px;border-color:#185FA5;color:#185FA5;background:#E6F1FB;font-weight:600">&#128424; Print / PDF</button>'
       +'</div>'
-      +(revHTML||'')
       +'</div>'
       +'<div class="ditem"><span>&#129534;</span><span style="font-weight:500;flex:1">Invoice '+(j.ref||"")+'</span><span style="font-size:11px;color:#aaa">Phase 4</span></div>'
       +'<div class="ditem"><span>&#128202;</span><span style="font-weight:500;flex:1">SOA '+(j.ref||"")+'</span><span style="font-size:11px;color:#aaa">Phase 5</span></div>'
@@ -1013,4 +1012,21 @@ window.printQuoData=function(j,revLabel){
 };
 </script>
 </body>
-</html>
+</htmlwindow.pqSelectAll=function(v){
+  document.querySelectorAll('[id^="pqc_"]').forEach(function(cb){cb.checked=v;});
+};
+window.doPrintQuo=function(id){
+  var jobs=window._jobs||{};
+  var j=jobs[id]||{};
+  var selected=[];
+  (j.lineItems||[]).forEach(function(it,i){
+    var cb=document.getElementById('pqc_'+i);
+    if(cb&&cb.checked)selected.push(it);
+  });
+  var revNum=document.getElementById('pqRevNum');
+  var rev=parseInt((revNum&&revNum.value)||0)||0;
+  var modal=document.getElementById('pqModal');
+  if(modal)modal.remove();
+  window.printQuoData(id,selected,rev);
+};
+>
