@@ -383,6 +383,7 @@ window.openBatchPay=function(){
   var chks=document.querySelectorAll('.vi-chk:checked');
   if(!chks.length){toast('No invoices selected');return;}
   _batchIds=Array.from(chks).map(function(cb){return cb.dataset.id;});
+  window._batchIdsCopy=[..._batchIds]; // copy for plain script access
   document.getElementById('bp_ref').value='';
   document.getElementById('bp_date').value=new Date().toISOString().slice(0,10);
   // Show batch summary
@@ -400,101 +401,6 @@ window.openBatchPay=function(){
   document.getElementById('bpSummary').innerHTML=rows;
   document.getElementById('bpModal').classList.add('show');
   setTimeout(function(){document.getElementById('bp_ref').focus();},100);
-};
-
-window.saveBatchPay=async function(){
-  if(!_batchIds.length)return;
-  const ids=[..._batchIds]; // snapshot before anything changes
-  const pref=document.getElementById('bp_ref').value.trim();
-  const pdate=document.getElementById('bp_date').value;
-  const now=new Date().toISOString();
-  const upd={status:'paid',paymentRef:pref,paidAt:pdate||now.slice(0,10),updatedAt:now};
-  try{
-    // Update all in parallel
-    await Promise.all(ids.map(id=>update(ref(db,'vendorInvoices/'+id),upd)));
-    document.getElementById('bpModal').classList.remove('show');
-    _batchIds=[];
-    clearBatchSelect();
-    toast(ids.length+' invoice'+(ids.length>1?'s':'')+' marked as paid ✓');
-    printBatchAdvice(ids, pref, pdate);
-  }catch(e){toast('Error: '+e.message);}
-};
-
-window.printBatchAdvice=function(ids, pref, pdate){
-  var vis2=window._vi_vis||{};
-  var fmt=function(n){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});};
-  function fmtD(d){if(!d)return'--';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
-  var invoices=ids.map(function(id){return vis2[id]||{};}).filter(function(v){return v.invNo;});
-  var vendorName=invoices[0]?invoices[0].vendorName:'';
-  var total=invoices.reduce(function(s,v){return s+(parseFloat(v.amount)||0);},0);
-  var cur=invoices[0]?invoices[0].currency||'SGD':'SGD';
-  var todayFmt=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
-  var iRows=invoices.map(function(v,i){
-    var bg=i%2===1?'background:#fafaf8':'';
-    return '<tr style="'+bg+'">'
-      +'<td style="padding:5px 8px;font-weight:600">'+v.invNo+'</td>'
-      +'<td style="padding:5px 8px">'+fmtD(v.invDate)+'</td>'
-      +'<td style="padding:5px 8px">'+(v.jobRef||'--')+'</td>'
-      +'<td style="padding:5px 8px">'+(v.vessel||'--')+'</td>'
-      +'<td style="padding:5px 8px">'+(v.desc||'--')+'</td>'
-      +'<td style="padding:5px 8px;text-align:right">'+cur+' '+fmt(v.amount)+'</td>'
-    +'</tr>';
-  }).join('');
-  var css='*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}'
-    +'@page{size:A4;margin:0}@media print{body{padding:10mm 14mm}#pb{display:none}}'
-    +'.hdr{width:100%;border-collapse:collapse;border-bottom:2px solid #000;margin-bottom:12px}'
-    +'.hdr td{vertical-align:middle;padding-bottom:8px}'
-    +'.c1{width:60%}.c2{width:40%;text-align:right;font-size:8pt;font-weight:700;line-height:1.7;vertical-align:bottom!important}'
-    +'.addr{font-size:7.5pt;margin-top:3px;line-height:1.5}'
-    +'.ttl{font-size:16pt;font-weight:900;letter-spacing:1px;text-align:center;margin:10px 0 14px;border-bottom:2px solid #000;padding-bottom:8px}'
-    +'.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}'
-    +'.info-box{border:1px solid #000;padding:8px 12px}'
-    +'.info-box .lbl{font-size:8pt;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:4px}'
-    +'.info-box .val{font-size:11pt;font-weight:700}'
-    +'.info-box .sub{font-size:9pt;color:#333;margin-top:2px}'
-    +'table.dt{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12px}'
-    +'table.dt th{font-weight:700;padding:6px 8px;border-top:1px solid #000;border-bottom:1px solid #000;text-align:left;background:#f5f5f5}'
-    +'table.dt th.r{text-align:right}'
-    +'table.dt td{padding:5px 8px;border-bottom:1px solid #ddd}'
-    +'table.dt tfoot td{font-weight:700;border-top:2px solid #000;border-bottom:none;padding:7px 8px;font-size:11pt}'
-    +'.stamp-row{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #000}'
-    +'.stamp-side{text-align:center;font-size:9pt}'
-    +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a6641;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}';
-  var _LRC=window.LRC||'',_LSTAMP=window.LSTAMP||'';
-  var bdy='<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
-    +'<table class="hdr"><tr>'
-      +'<td class="c1"><div style="display:flex;align-items:flex-end;gap:4px"><img src="'+_LRC+'" style="height:50px;max-width:220px;object-fit:contain;object-position:left"><span style="font-size:9.5pt;font-weight:700;margin-bottom:3px">PTE LTD</span></div>'
-        +'<div class="addr">7 SOON LEE STREET, #05-31, SINGAPORE 627608<br>Tel: +65 88103634 &nbsp; sales@raycontrol.com<br>Reg No: 198602637N</div></td>'
-      +'<td class="c2">BizSAFE4<br>ISO 9001:2015<br>ACCREDITED</td>'
-    +'</tr></table>'
-    +'<div class="ttl">PAYMENT ADVICE</div>'
-    +'<div class="info-grid">'
-      +'<div class="info-box"><div class="lbl">Vendor</div><div class="val">'+vendorName+'</div></div>'
-      +'<div class="info-box"><div class="lbl">Payment Reference</div><div class="val">'+(pref||'--')+'</div><div class="sub">Date: '+fmtD(pdate)+'</div></div>'
-    +'</div>'
-    +'<table class="dt"><thead><tr>'
-      +'<th>Invoice No.</th><th>Invoice Date</th><th>Job Ref</th><th>Vessel</th><th>Description</th><th class="r">Amount</th>'
-    +'</tr></thead>'
-    +'<tbody>'+iRows+'</tbody>'
-    +'<tfoot><tr><td colspan="5" style="text-align:right">TOTAL PAID ('+cur+')</td><td style="text-align:right">'+cur+' '+fmt(total)+'</td></tr></tfoot></table>'
-    +'<div class="stamp-row">'
-      +'<div class="stamp-side"><img src="'+_LSTAMP+'" style="height:80px;margin-bottom:4px;opacity:0.85"><br>For Raycontrol Pte Ltd<br><div style="margin-top:20px;border-top:1px solid #000;padding-top:4px;min-width:180px">Authorised Signature</div></div>'
-      +'<div class="stamp-side" style="text-align:right;font-size:9pt;color:#555">'
-        +'<div>Document Date: '+todayFmt+'</div>'
-        +(pref?'<div style="margin-top:6px">Payment Ref: '+pref+'</div>':'')
-        +'<div style="margin-top:6px">Invoices: '+invoices.length+'</div>'
-        +'<div style="margin-top:6px">Status: <strong style="color:#1a6641">PAID</strong></div>'
-      +'</div>'
-    +'</div>'
-    +'<div style="font-size:8pt;font-style:italic;color:#555;margin-top:10px;text-align:center">This is a computer-generated payment advice. Please contact us if there are any discrepancies.</div>';
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payment Advice - '+vendorName+'</title><style>'+css+'</style></head><body>'+bdy+'</body></html>';
-  var blob=new Blob([html],{type:'text/html'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url;a.target='_blank';a.rel='noopener';
-  document.body.appendChild(a);a.click();
-  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
 };
 
 window.viVendorSearch=function(){
@@ -610,6 +516,10 @@ onAuthStateChanged(auth,user=>{
     window._vi_vis=vis;
     renderTable();
   });
+  // Expose Firebase to plain scripts
+  window._vi_db=db;
+  window._vi_ref=ref;
+  window._vi_update=update;
 });
 setTimeout(()=>document.getElementById('ls').classList.add('hide'),5000);
 </script>
@@ -634,6 +544,105 @@ setTimeout(()=>document.getElementById('ls').classList.add('hide'),5000);
 </div>
 
 <script>
+window.saveBatchPay=async function(){
+  const ids=window._batchIdsCopy||[];
+  if(!ids.length){window.toast('No invoices selected');return;}
+  const pref=document.getElementById('bp_ref').value.trim();
+  const pdate=document.getElementById('bp_date').value;
+  const now=new Date().toISOString();
+  const upd={status:'paid',paymentRef:pref,paidAt:pdate||now.slice(0,10),updatedAt:now};
+  const db=window._vi_db, ref=window._vi_ref, update=window._vi_update;
+  if(!db||!ref||!update){window.toast('Still loading, please wait');return;}
+  try{
+    await Promise.all(ids.map(function(id){return update(ref(db,'vendorInvoices/'+id),upd);}));
+    document.getElementById('bpModal').classList.remove('show');
+    window._batchIdsCopy=[];
+    if(typeof clearBatchSelect==='function') clearBatchSelect();
+    window.toast(ids.length+' invoice'+(ids.length>1?'s':'')+' marked as paid \u2713');
+    window.printBatchAdvice(ids,pref,pdate);
+  }catch(e){window.toast('Error: '+e.message);}
+};
+
+window.printBatchAdvice=function(ids,pref,pdate){
+  var vis=window._vi_vis||{};
+  var invoices=ids.map(function(id){return vis[id]||{};}).filter(function(v){return v.invNo;});
+  if(!invoices.length){window.toast('No invoice data found');return;}
+  var vendorName=invoices[0].vendorName||'';
+  var cur=invoices[0].currency||'SGD';
+  var total=invoices.reduce(function(s,v){return s+(parseFloat(v.amount)||0);},0);
+  var todayFmt=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+  function _fmt(n){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function __fmtD(d){if(!d)return'--';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
+  var iRows=invoices.map(function(v,i){
+    var bg=i%2===1?'background:#fafaf8':'';
+    return '<tr style="'+bg+'"><td style="padding:5px 8px;font-weight:600">'+(v.invNo||'--')+'</td>'
+      +'<td style="padding:5px 8px">'+_fmtD(v.invDate)+'</td>'
+      +'<td style="padding:5px 8px">'+(v.jobRef||'--')+'</td>'
+      +'<td style="padding:5px 8px">'+(v.vessel||'--')+'</td>'
+      +'<td style="padding:5px 8px">'+(v.desc||'--')+'</td>'
+      +'<td style="padding:5px 8px;text-align:right">'+cur+' '+_fmt(v.amount)+'</td></tr>';
+  }).join('');
+  var css='*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:Arial,sans-serif;font-size:10pt;color:#000;padding:12mm 14mm 10mm 14mm}'
+    +'@page{size:A4;margin:0}@media print{body{padding:10mm 14mm}#pb{display:none}}'
+    +'.hdr{width:100%;border-collapse:collapse;border-bottom:2px solid #000;margin-bottom:12px}'
+    +'.hdr td{vertical-align:middle;padding-bottom:8px}'
+    +'.c1{width:60%}.c2{width:40%;text-align:right;font-size:8pt;font-weight:700;line-height:1.7;vertical-align:bottom!important}'
+    +'.addr{font-size:7.5pt;margin-top:3px;line-height:1.5}'
+    +'.ttl{font-size:16pt;font-weight:900;text-align:center;margin:10px 0 14px;border-bottom:2px solid #000;padding-bottom:8px}'
+    +'.ig{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}'
+    +'.ib{border:1px solid #000;padding:8px 12px}'
+    +'.ib .lbl{font-size:8pt;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:4px}'
+    +'.ib .val{font-size:11pt;font-weight:700}.ib .sub{font-size:9pt;color:#333;margin-top:2px}'
+    +'table.dt{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12px}'
+    +'table.dt th{font-weight:700;padding:6px 8px;border-top:1px solid #000;border-bottom:1px solid #000;text-align:left;background:#f5f5f5}'
+    +'table.dt th.r{text-align:right}'
+    +'table.dt td{padding:5px 8px;border-bottom:1px solid #ddd}'
+    +'table.dt tfoot td{font-weight:700;border-top:2px solid #000;border-bottom:none;padding:7px 8px;font-size:11pt}'
+    +'.sr{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #000}'
+    +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a6641;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}';
+  var bdy='<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
+    +'<table class="hdr"><tr>'
+      +'<td class="c1"><div style="display:flex;align-items:flex-end;gap:4px">'
+        +'<img src="'+LRC+'" style="height:50px;max-width:220px;object-fit:contain;object-position:left">'
+        +'<span style="font-size:9.5pt;font-weight:700;margin-bottom:3px">PTE LTD</span>'
+      +'</div>'
+      +'<div class="addr">7 SOON LEE STREET, #05-31, SINGAPORE 627608<br>Tel: +65 88103634 &nbsp; sales@raycontrol.com<br>Reg No: 198602637N</div></td>'
+      +'<td class="c2">BizSAFE4<br>ISO 9001:2015<br>ACCREDITED</td>'
+    +'</tr></table>'
+    +'<div class="ttl">PAYMENT ADVICE</div>'
+    +'<div class="ig">'
+      +'<div class="ib"><div class="lbl">Vendor</div><div class="val">'+vendorName+'</div></div>'
+      +'<div class="ib"><div class="lbl">Payment Reference</div><div class="val">'+(pref||'--')+'</div><div class="sub">Date: '+_fmtD(pdate)+'</div></div>'
+    +'</div>'
+    +'<table class="dt"><thead><tr>'
+      +'<th>Invoice No.</th><th>Invoice Date</th><th>Job Ref</th><th>Vessel</th><th>Description</th><th class="r">Amount</th>'
+    +'</tr></thead>'
+    +'<tbody>'+iRows+'</tbody>'
+    +'<tfoot><tr><td colspan="5" style="text-align:right">TOTAL PAID ('+cur+')</td><td style="text-align:right">'+cur+' '+_fmt(total)+'</td></tr></tfoot></table>'
+    +'<div class="sr">'
+      +'<div style="text-align:center;font-size:9pt">'
+        +'<img src="'+LSTAMP+'" style="height:80px;margin-bottom:4px;opacity:0.85"><br>'
+        +'For Raycontrol Pte Ltd<br>'
+        +'<div style="margin-top:20px;border-top:1px solid #000;padding-top:4px;min-width:180px">Authorised Signature</div>'
+      +'</div>'
+      +'<div style="text-align:right;font-size:9pt;color:#555">'
+        +'<div>Document Date: '+todayFmt+'</div>'
+        +(pref?'<div style="margin-top:6px">Payment Ref: '+pref+'</div>':'')
+        +'<div style="margin-top:6px">Invoices: '+invoices.length+'</div>'
+        +'<div style="margin-top:6px">Status: <strong style="color:#1a6641">PAID</strong></div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="font-size:8pt;font-style:italic;color:#555;margin-top:10px;text-align:center">This is a computer-generated payment advice. Please contact us if there are any discrepancies.</div>';
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payment Advice - '+vendorName+'</title><style>'+css+'</style></head><body>'+bdy+'</body></html>';
+  var blob=new Blob([html],{type:'text/html'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.target='_blank';a.rel='noopener';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+};
+
 window.togglePayRef=function(){
   var paid=document.getElementById('f_status').value==='paid';
   document.getElementById('payRefRow').style.display=paid?'block':'none';
@@ -643,7 +652,7 @@ window.printPayAdvice=function(id){
   var vis=window._vi_vis||{};
   var v=vis[id]||{};
   var todayFmt=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
-  function fmtD(d){if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
+  function __fmtD(d){if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
   function fmt(n){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});}
   var css='*{box-sizing:border-box;margin:0;padding:0}'
     +'body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}'
@@ -683,7 +692,7 @@ window.printPayAdvice=function(id){
       +'<div class="info-box">'
         +'<div class="lbl">Payment Reference</div>'
         +'<div class="val">'+(v.paymentRef||'—')+'</div>'
-        +'<div class="sub">Date: '+fmtD(v.paidAt||v.updatedAt)+'</div>'
+        +'<div class="sub">Date: '+_fmtD(v.paidAt||v.updatedAt)+'</div>'
       +'</div>'
     +'</div>'
     +'<table class="dt"><thead><tr>'
@@ -697,7 +706,7 @@ window.printPayAdvice=function(id){
     +'<tbody>'
       +'<tr>'
         +'<td style="font-weight:700">'+(v.invNo||'—')+'</td>'
-        +'<td>'+fmtD(v.invDate)+'</td>'
+        +'<td>'+_fmtD(v.invDate)+'</td>'
         +'<td>'+(v.jobRef||'—')+'</td>'
         +'<td>'+(v.vessel||'—')+'</td>'
         +'<td>'+(v.desc||'—')+'</td>'
