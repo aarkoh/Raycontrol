@@ -404,19 +404,19 @@ window.openBatchPay=function(){
 
 window.saveBatchPay=async function(){
   if(!_batchIds.length)return;
+  const ids=[..._batchIds]; // snapshot before anything changes
   const pref=document.getElementById('bp_ref').value.trim();
   const pdate=document.getElementById('bp_date').value;
   const now=new Date().toISOString();
+  const upd={status:'paid',paymentRef:pref,paidAt:pdate||now.slice(0,10),updatedAt:now};
   try{
-    for(const id of _batchIds){
-      await update(ref(db,'vendorInvoices/'+id),{status:'paid',paymentRef:pref,paidAt:pdate||now.slice(0,10),updatedAt:now});
-    }
-    toast(_batchIds.length+' invoices marked as paid ✓');
+    // Update all in parallel
+    await Promise.all(ids.map(id=>update(ref(db,'vendorInvoices/'+id),upd)));
     document.getElementById('bpModal').classList.remove('show');
-    clearBatchSelect();
-    // Print batch advice
-    printBatchAdvice(_batchIds, pref, pdate);
     _batchIds=[];
+    clearBatchSelect();
+    toast(ids.length+' invoice'+(ids.length>1?'s':'')+' marked as paid ✓');
+    printBatchAdvice(ids, pref, pdate);
   }catch(e){toast('Error: '+e.message);}
 };
 
@@ -461,9 +461,10 @@ window.printBatchAdvice=function(ids, pref, pdate){
     +'.stamp-row{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #000}'
     +'.stamp-side{text-align:center;font-size:9pt}'
     +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a6641;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}';
+  var _LRC=window.LRC||'',_LSTAMP=window.LSTAMP||'';
   var bdy='<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
     +'<table class="hdr"><tr>'
-      +'<td class="c1"><div style="display:flex;align-items:flex-end;gap:4px"><img src="'+LRC+'" style="height:50px;max-width:220px;object-fit:contain;object-position:left"><span style="font-size:9.5pt;font-weight:700;margin-bottom:3px">PTE LTD</span></div>'
+      +'<td class="c1"><div style="display:flex;align-items:flex-end;gap:4px"><img src="'+_LRC+'" style="height:50px;max-width:220px;object-fit:contain;object-position:left"><span style="font-size:9.5pt;font-weight:700;margin-bottom:3px">PTE LTD</span></div>'
         +'<div class="addr">7 SOON LEE STREET, #05-31, SINGAPORE 627608<br>Tel: +65 88103634 &nbsp; sales@raycontrol.com<br>Reg No: 198602637N</div></td>'
       +'<td class="c2">BizSAFE4<br>ISO 9001:2015<br>ACCREDITED</td>'
     +'</tr></table>'
@@ -478,7 +479,7 @@ window.printBatchAdvice=function(ids, pref, pdate){
     +'<tbody>'+iRows+'</tbody>'
     +'<tfoot><tr><td colspan="5" style="text-align:right">TOTAL PAID ('+cur+')</td><td style="text-align:right">'+cur+' '+fmt(total)+'</td></tr></tfoot></table>'
     +'<div class="stamp-row">'
-      +'<div class="stamp-side"><img src="'+LSTAMP+'" style="height:80px;margin-bottom:4px;opacity:0.85"><br>For Raycontrol Pte Ltd<br><div style="margin-top:20px;border-top:1px solid #000;padding-top:4px;min-width:180px">Authorised Signature</div></div>'
+      +'<div class="stamp-side"><img src="'+_LSTAMP+'" style="height:80px;margin-bottom:4px;opacity:0.85"><br>For Raycontrol Pte Ltd<br><div style="margin-top:20px;border-top:1px solid #000;padding-top:4px;min-width:180px">Authorised Signature</div></div>'
       +'<div class="stamp-side" style="text-align:right;font-size:9pt;color:#555">'
         +'<div>Document Date: '+todayFmt+'</div>'
         +(pref?'<div style="margin-top:6px">Payment Ref: '+pref+'</div>':'')
