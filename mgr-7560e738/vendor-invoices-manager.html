@@ -238,11 +238,19 @@ window.renderTable=function(){
   document.getElementById('sOwed').textContent=fmt(owed);
   document.getElementById('sPaid').textContent=fmt(paid);
   document.getElementById('rc').textContent=list.length+' invoice'+(list.length!==1?'s':'')+' shown';
-  // Re-attach checkbox listeners after render
+  // Re-attach checkbox listeners after render, restore checked state
   setTimeout(function(){
+    var prevSelected=window._selectedIds||new Set();
     document.querySelectorAll('.vi-chk').forEach(function(cb){
-      cb.addEventListener('change', updateBatchBar);
+      if(prevSelected.has(cb.dataset.id)) cb.checked=true;
+      cb.addEventListener('change', function(){
+        window._selectedIds=window._selectedIds||new Set();
+        if(this.checked) window._selectedIds.add(this.dataset.id);
+        else window._selectedIds.delete(this.dataset.id);
+        window.updateBatchBar();
+      });
     });
+    if(prevSelected.size) window.updateBatchBar();
   }, 0);
 
   const tbody=document.getElementById('viTbody');
@@ -346,7 +354,7 @@ window.openEdit=function(id){
   document.getElementById('addModal').classList.add('show');
 };
 
-function updateBatchBar(){
+window.updateBatchBar=function updateBatchBar(){
   var chks=document.querySelectorAll('.vi-chk:checked');
   var bar=document.getElementById('batchBar');
   if(!chks.length){bar.style.display='none';return;}
@@ -368,14 +376,21 @@ function updateBatchBar(){
 }
 
 window.toggleAllChk=function(master){
-  document.querySelectorAll('.vi-chk').forEach(function(cb){cb.checked=master.checked;});
-  updateBatchBar();
+  window._selectedIds=window._selectedIds||new Set();
+  document.querySelectorAll('.vi-chk').forEach(function(cb){
+    cb.checked=master.checked;
+    if(master.checked) window._selectedIds.add(cb.dataset.id);
+    else window._selectedIds.delete(cb.dataset.id);
+  });
+  window.updateBatchBar();
 };
 
 window.clearBatchSelect=function(){
   document.querySelectorAll('.vi-chk').forEach(function(cb){cb.checked=false;});
   var m=document.getElementById('chkAll'); if(m) m.checked=false;
   document.getElementById('batchBar').style.display='none';
+  window._selectedIds=new Set();
+  window._batchIdsCopy=[];
 };
 
 let _batchIds=[];
