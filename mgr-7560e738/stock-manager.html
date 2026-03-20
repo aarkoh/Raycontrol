@@ -401,7 +401,8 @@ window.exportCSV=function(){
 
 // ── Auth & Init ────────────────────────────────────────────────
 // Check session immediately before Firebase
-if(sessionStorage.getItem('rc_manager')!=='1'){
+var _mgrT=localStorage.getItem('rc_manager');
+if(!_mgrT||(Date.now()-parseInt(_mgrT))>=28800000){
   window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';
 } else {
   document.getElementById('loadingScreen').classList.add('hide');
