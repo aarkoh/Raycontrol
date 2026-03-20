@@ -106,6 +106,7 @@ td.nr{text-align:right}
           <th>Invoice No.</th>
           <th>Vendor</th>
           <th class="hsm">Job Ref</th>
+          <th class="hsm">Vessel</th>
           <th class="hsm">Date</th>
           <th class="nr">Amount</th>
           <th>Status</th>
@@ -124,13 +125,25 @@ td.nr{text-align:right}
   <div class="modal">
     <h2 id="modalTitle">+ Add Vendor Invoice</h2>
     <div class="fr2">
-      <div class="fi"><label>Vendor Name *</label><input type="text" id="f_vendor" placeholder="e.g. Hanla IMS"></div>
+      <div class="fi"><label>Vendor Name *</label>
+        <div style="position:relative">
+          <input type="text" id="f_vendor_inp" placeholder="Type vendor name…" autocomplete="off" oninput="viVendorSearch()" onfocus="viVendorSearch()">
+          <div id="f_vendor_drop" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:160px;overflow-y:auto;margin-top:2px"></div>
+        </div>
+      </div>
       <div class="fi"><label>Invoice No. *</label><input type="text" id="f_invno" placeholder="e.g. HNL-2026-001"></div>
     </div>
     <div class="fr2">
       <div class="fi"><label>Invoice Date *</label><input type="date" id="f_date"></div>
-      <div class="fi"><label>Job Reference</label><input type="text" id="f_jobref" placeholder="e.g. 2603016"></div>
+      <div class="fi"><label>Job Reference</label>
+        <div style="position:relative">
+          <input type="text" id="f_jobref_inp" placeholder="Type job ref or customer…" autocomplete="off" oninput="viJobSearch()" onfocus="viJobSearch()">
+          <div id="f_jobref_drop" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:160px;overflow-y:auto;margin-top:2px"></div>
+        </div>
+        <input type="hidden" id="f_jobref">
+      </div>
     </div>
+    <div class="fi"><label>Vessel</label><input type="text" id="f_vessel" placeholder="Auto-filled from job ref" readonly style="background:#f0f0ee;color:#666"></div>
     <div class="fr2">
       <div class="fi"><label>Currency</label>
         <select id="f_cur">
@@ -216,6 +229,7 @@ window.renderTable=function(){
       +'<td style="font-weight:600">'+v.invNo+'</td>'
       +'<td>'+v.vendorName+'</td>'
       +'<td class="hsm" style="color:#555">'+(v.jobRef||'—')+'</td>'
+      +'<td class="hsm" style="color:#888">'+(v.vessel||'—')+'</td>'
       +'<td class="hsm" style="color:#888;white-space:nowrap">'+fmtD(v.invDate)+'</td>'
       +'<td class="nr" style="font-weight:500">'+(v.currency||'SGD')+' '+fmt(v.amount)+'</td>'
       +'<td><span class="badge '+(paid?'b-paid':'b-unpaid')+'">'+(paid?'Paid':'Unpaid')+'</span></td>'
@@ -252,10 +266,12 @@ window.delInv=async function(id){
 window.openAdd=function(){
   editId=null;
   document.getElementById('modalTitle').textContent='+ Add Vendor Invoice';
-  document.getElementById('f_vendor').value='';
+  document.getElementById('f_vendor_inp').value='';
   document.getElementById('f_invno').value='';
   document.getElementById('f_date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('f_jobref_inp').value='';
   document.getElementById('f_jobref').value='';
+  document.getElementById('f_vessel').value='';
   document.getElementById('f_cur').value='SGD';
   document.getElementById('f_amt').value='';
   document.getElementById('f_desc').value='';
@@ -268,10 +284,12 @@ window.openEdit=function(id){
   editId=id;
   const v=vis[id]||{};
   document.getElementById('modalTitle').textContent='Edit Vendor Invoice';
-  document.getElementById('f_vendor').value=v.vendorName||'';
+  document.getElementById('f_vendor_inp').value=v.vendorName||'';
   document.getElementById('f_invno').value=v.invNo||'';
   document.getElementById('f_date').value=v.invDate||'';
+  document.getElementById('f_jobref_inp').value=v.jobRef||'';
   document.getElementById('f_jobref').value=v.jobRef||'';
+  document.getElementById('f_vessel').value=v.vessel||'';
   document.getElementById('f_cur').value=v.currency||'SGD';
   document.getElementById('f_amt').value=v.amount||'';
   document.getElementById('f_desc').value=v.desc||'';
@@ -279,10 +297,65 @@ window.openEdit=function(id){
   document.getElementById('addModal').classList.add('show');
 };
 
+window.viVendorSearch=function(){
+  var q=document.getElementById('f_vendor_inp').value.toLowerCase();
+  var contacts=window._vi_contacts||{};
+  var drop=document.getElementById('f_vendor_drop');
+  var matches=Object.values(contacts).filter(function(c){
+    return (c.types||[]).includes('vendor')&&((c.company||c.name||'').toLowerCase().includes(q));
+  }).slice(0,8);
+  if(!matches.length){drop.style.display='none';return;}
+  window._viVendorMatches=matches;
+  drop.innerHTML=matches.map(function(c,i){
+    return '<div data-i="'+i+'" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f3">'+(c.company||c.name||'')+'</div>';
+  }).join('');
+  drop.querySelectorAll('[data-i]').forEach(function(el){
+    el.addEventListener('click',function(){
+      var c=window._viVendorMatches[parseInt(this.getAttribute('data-i'))];
+      document.getElementById('f_vendor_inp').value=c.company||c.name||'';
+      drop.style.display='none';
+    });
+  });
+  drop.style.display='block';
+  setTimeout(function(){document.addEventListener('click',function h(ev){if(!drop.contains(ev.target)&&ev.target.id!=='f_vendor_inp'){drop.style.display='none';}document.removeEventListener('click',h);});},10);
+};
+
+window.viJobSearch=function(){
+  var q=document.getElementById('f_jobref_inp').value.toLowerCase();
+  var jobs=window._vi_jobs||{};
+  var drop=document.getElementById('f_jobref_drop');
+  var matches=Object.entries(jobs).filter(function(e){
+    var j=e[1];
+    return [j.ref,j.customerName,j.vessel].filter(Boolean).some(function(x){return x.toLowerCase().includes(q);});
+  }).slice(0,8);
+  if(!matches.length){drop.style.display='none';return;}
+  window._viJobMatches=matches;
+  drop.innerHTML=matches.map(function(e,i){
+    var j=e[1];
+    return '<div data-i="'+i+'" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f3">'
+      +'<span style="font-weight:700">'+j.ref+'</span>'
+      +(j.customerName?' <span style="color:#888;font-size:11px">'+j.customerName+'</span>':'')
+      +(j.vessel?' <span style="color:#aaa;font-size:11px">· '+j.vessel+'</span>':'')
+    +'</div>';
+  }).join('');
+  drop.querySelectorAll('[data-i]').forEach(function(el){
+    el.addEventListener('click',function(){
+      var entry=window._viJobMatches[parseInt(this.getAttribute('data-i'))];
+      var j=entry[1];
+      document.getElementById('f_jobref_inp').value=j.ref||'';
+      document.getElementById('f_jobref').value=j.ref||'';
+      document.getElementById('f_vessel').value=j.vessel||'';
+      drop.style.display='none';
+    });
+  });
+  drop.style.display='block';
+  setTimeout(function(){document.addEventListener('click',function h(ev){if(!drop.contains(ev.target)&&ev.target.id!=='f_jobref_inp'){drop.style.display='none';}document.removeEventListener('click',h);});},10);
+};
+
 window.closeAdd=function(){document.getElementById('addModal').classList.remove('show');editId=null;};
 
 window.saveInv=async function(){
-  const vendor=document.getElementById('f_vendor').value.trim();
+  const vendor=document.getElementById('f_vendor_inp').value.trim();
   const invno=document.getElementById('f_invno').value.trim();
   const date=document.getElementById('f_date').value;
   const amt=parseFloat(document.getElementById('f_amt').value);
@@ -293,6 +366,7 @@ window.saveInv=async function(){
   const data={
     vendorName:vendor,invNo:invno,invDate:date,
     jobRef:document.getElementById('f_jobref').value.trim(),
+    vessel:document.getElementById('f_vessel').value.trim(),
     currency:document.getElementById('f_cur').value,
     amount:amt,desc:document.getElementById('f_desc').value.trim(),
     status:document.getElementById('f_status').value,
@@ -321,6 +395,8 @@ onAuthStateChanged(auth,user=>{
     b.className='conn '+(snap.val()?'online':'offline');
     document.getElementById('ls').classList.add('hide');
   });
+  onValue(ref(db,'contacts'),snap=>{window._vi_contacts=snap.val()||{};});
+  onValue(ref(db,'jobs'),snap=>{window._vi_jobs=snap.val()||{};});
   onValue(ref(db,'vendorInvoices'),snap=>{
     vis=snap.val()||{};
     renderTable();
