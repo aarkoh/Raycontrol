@@ -251,9 +251,12 @@ const BC={quote:"bq",customer_po:"bcp",vendor_po:"bvp",invoice:"bi",soa:"bs",clo
 let jobs={},contacts={},currentJobId=null,editJobId=null,sFilter="all",sQ="",selVendors=[],liCount=0;
 
 const rcStaff=sessionStorage.getItem("rc_staff");
-const rcMgr=sessionStorage.getItem("rc_manager");
+// rc_manager uses localStorage with 8hr expiry
+const _mgrT=localStorage.getItem("rc_manager");
+const rcMgr=(_mgrT&&(Date.now()-parseInt(_mgrT))<28800000)?"1":null;
 if(!rcStaff&&!rcMgr){window.location.href="https://aarkoh.github.io/Raycontrol/";}
-if(rcMgr==="1"){const hl=document.getElementById("hubLink");hl.href="https://aarkoh.github.io/Raycontrol/mgr-7560e738/";hl.textContent="Dashboard";}
+// Staff always go to staff hub — only pure manager sessions see manager dashboard
+if(rcMgr&&!rcStaff){const hl=document.getElementById("hubLink");hl.href="https://aarkoh.github.io/Raycontrol/mgr-7560e738/";hl.textContent="Dashboard";}
 
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(function(){t.classList.remove("show");},2500);}
 function fmt(n){return(parseFloat(n)||0).toLocaleString("en-SG",{minimumFractionDigits:2,maximumFractionDigits:2});}
