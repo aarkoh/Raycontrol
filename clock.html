@@ -190,7 +190,7 @@ window.selectW=function(w){
 };
 
 // ── Job autocomplete ─────────────────────────────────────────
-function jobSearch(q){
+window.jobSearch=function(q){
   const drop=document.getElementById('jobDrop');
   if(!q||q.length<2){drop.style.display='none';return;}
   const ql=q.toLowerCase();
