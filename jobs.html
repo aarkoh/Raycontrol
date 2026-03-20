@@ -477,7 +477,7 @@ window.addLI=function(desc,qty,unit,price,vendor,cost,costCur){
   var tr=document.createElement("tr");tr.id="li_"+n;
   var vopts=selVendors.map(function(v){return '<option value="'+v.id+'"'+(vendor===v.id?' selected':'')+'>'+v.name+'</option>';}).join('');
   tr.innerHTML='<td style="text-align:center;color:#888;font-size:11px">'+n+"</td>"
-    +'<td><input type="text" value="'+desc.replace(/"/g,"&quot;")+'" placeholder="Description" id="ld_'+n+'" style="min-width:180px"></td>'
+    +'<td><textarea id="ld_'+n+'" placeholder="Description" rows="2" style="min-width:180px;width:100%;padding:5px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical">'+desc+'</textarea></td>'
     +'<td><input type="number" value="'+qty+'" placeholder="1" min="0" step="0.01" id="lq_'+n+'" data-n="'+n+'" oninput="window.calcLI(this.dataset.n)" style="width:48px;text-align:right"></td>'
     +'<td><input type="text" value="'+unit+'" id="lu_'+n+'" style="width:52px"></td>'
     +'<td><input type="number" value="'+price+'" placeholder="0.00" min="0" step="0.01" id="lp_'+n+'" data-n="'+n+'" oninput="window.calcLI(this.dataset.n)" style="width:82px;text-align:right"></td>'
@@ -488,6 +488,8 @@ window.addLI=function(desc,qty,unit,price,vendor,cost,costCur){
     +'<td style="text-align:center"><button data-n="'+n+'" onclick="window.removeLI(this.dataset.n)" style="font-size:12px;padding:2px 6px;border-color:#ddd;color:#aaa">✕</button></td>';
   document.getElementById("liBody").appendChild(tr);
   if(qty||price)setTimeout(function(){window.calcLI(n);},50);
+  // Auto-focus the description input of the new row (only if no desc pre-filled)
+  if(!desc){setTimeout(function(){var d=document.getElementById('ld_'+n);if(d)d.focus();},60);}
 };
 window.calcLI=function(n){
   var q=parseFloat((document.getElementById("lq_"+n)||{}).value)||0;
@@ -863,7 +865,7 @@ window.printVPO=function(id,selectedItems){
       var amt=(parseFloat(it.qty)||0)*(parseFloat(it.costPrice)||0);
       return "<tr>"
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+"</td>"
-        +'<td style="padding:5px 6px">'+(it.desc||"")+"</td>"
+        +'<td style="padding:5px 6px;white-space:pre-wrap">'+(it.desc||"")+"</td>"
         +'<td style="text-align:right;padding:5px 6px">'+(it.qty||"")+"</td>"
         +'<td style="padding:5px 6px">'+(it.unit||"")+"</td>"
         +'<td style="text-align:right;padding:5px 6px">'+cur+" "+fmt(it.costPrice||0)+"</td>"
@@ -1000,7 +1002,7 @@ window.printQuoData=function(id,selectedItems,revNum){
   var iRows=items.map(function(it,i){
     return "<tr>"
       +'<td style="text-align:center;padding:5px 6px">'+(i+1)+"</td>"
-      +'<td style="padding:5px 6px">'+(it.desc||"")+"</td>"
+      +'<td style="padding:5px 6px;white-space:pre-wrap">'+(it.desc||"")+"</td>"
       +'<td style="text-align:right;padding:5px 6px">'+(it.qty||"")+"</td>"
       +'<td style="padding:5px 6px">'+(it.unit||"")+"</td>"
       +'<td style="text-align:right;padding:5px 6px">'+fmt(it.unitPrice)+"</td>"
