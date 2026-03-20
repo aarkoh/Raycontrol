@@ -170,6 +170,10 @@ button:hover{background:#f0f0ee}
     <div class="fi"><label>Attn</label><input type="text" id="j_attn" placeholder="Contact person name &amp; title"></div>
     <div class="fi"><label>Your Ref</label><input type="text" id="j_yref" placeholder="Customer's reference"></div>
   </div>
+  <div class="fr2">
+    <div class="fi"><label>Customer's PO No.</label><input type="text" id="j_cpo" placeholder="Customer PO reference"></div>
+    <div class="fi"><label>PO Price</label><input type="text" id="j_cpoprice" placeholder="e.g. SGD 5,850.00"></div>
+  </div>
   <div class="ms">Vessel / Equipment</div>
   <div class="fr2">
     <div class="fi"><label>Vessel</label><input type="text" id="j_vessel" placeholder="e.g. CAPE AROLA"></div>
@@ -428,6 +432,8 @@ window.openDetail=function(id){
       +'<div class="ir"><span class="il">Company</span><span class="iv">'+(j.customerName||"&mdash;")+"</span></div>"
       +(j.attn?'<div class="ir"><span class="il">Attn</span><span class="iv">'+j.attn+"</span></div>":"")
       +(j.yourRef?'<div class="ir"><span class="il">Your Ref</span><span class="iv">'+j.yourRef+"</span></div>":"")
+      +(j.custPO?'<div class="ir"><span class="il">Customer PO</span><span class="iv">'+j.custPO+'</span></div>':'')
+      +(j.poPrice?'<div class="ir"><span class="il">PO Price</span><span class="iv">'+j.poPrice+'</span></div>':'')
     +"</div>"
     +'<div class="sbox"><h3>Vendors</h3>'+vlist+"</div>"
     +'<div class="sbox"><h3>Line Items</h3>'
@@ -577,7 +583,7 @@ window.clrCust=function(){document.getElementById("j_cs_id").value="";document.g
 function resetModal(){
   selVendors=[];liCount=0;
   document.getElementById("liBody").innerHTML="";
-  ["j_ref","j_date","j_eta","j_validity","j_attn","j_yref","j_vessel","j_port","j_equip","j_make","j_model","j_task","j_memo","j_eng","j_dtime","j_dterms","j_courier_a","j_packing_a","j_freight_a"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
+  ["j_ref","j_date","j_eta","j_validity","j_attn","j_yref","j_cpo","j_cpoprice","j_vessel","j_port","j_equip","j_make","j_model","j_task","j_memo","j_eng","j_dtime","j_dterms","j_courier_a","j_packing_a","j_freight_a"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   document.getElementById("j_type").value="supply";
   document.getElementById("j_cur").value="SGD";
   document.getElementById("j_courier").value="TBA";
@@ -617,7 +623,7 @@ window.openEditJob=function(id){
   document.getElementById("mTitle").textContent="Edit Job";
   resetModal();
   selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,cost:(j.vendorCosts||[])[i]||""};});
-  var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_vessel:j.vessel,j_port:j.port,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0",j_courier_a:j.courierAmt,j_packing_a:j.packingAmt,j_freight_a:j.freightAmt};
+  var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_cpo:j.custPO,j_cpoprice:j.poPrice,j_vessel:j.vessel,j_port:j.port,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0",j_courier_a:j.courierAmt,j_packing_a:j.packingAmt,j_freight_a:j.freightAmt};
   Object.entries(flds).forEach(function(e){var el=document.getElementById(e[0]);if(el&&e[1])el.value=e[1];});
   document.getElementById("j_type").value=j.type||"supply";
   document.getElementById("j_cur").value=j.currency||"SGD";
@@ -642,7 +648,7 @@ window.saveJob=async function(){
   var custName=(document.getElementById("j_cs_nm")||{}).textContent||"";
   var data={
     ref:jref,date:gv("j_date"),customerId:custId,customerName:custName,
-    attn:gv("j_attn"),yourRef:gv("j_yref"),
+    attn:gv("j_attn"),yourRef:gv("j_yref"),custPO:gv("j_cpo"),poPrice:gv("j_cpoprice"),
     vessel:gv("j_vessel"),port:gv("j_port"),equip:gv("j_equip"),make:gv("j_make"),model:gv("j_model"),task:gv("j_task"),
     vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorCosts:selVendors.map(function(v){return v.cost||""}),
     type:document.getElementById("j_type").value,currency:document.getElementById("j_cur").value,
@@ -1163,10 +1169,6 @@ window.printQuoData=function(id,selectedItems,revNum){
       <div class="cipl-fi"><label>CIPL / Invoice No.</label><input type="text" id="cipl_no"></div>
       <div class="cipl-fi"><label>Date</label><input type="date" id="cipl_date"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="cipl-fi"><label>Customer's PO No.</label><input type="text" id="cipl_cpo" placeholder="e.g. PO-12345"></div>
-      <div class="cipl-fi"><label>PO Price</label><input type="text" id="cipl_cpoprice" placeholder="e.g. SGD 5,850.00"></div>
-    </div>
 
     <div class="cipl-sec">Consignee (Delivery To)</div>
     <div class="cipl-fi"><label>Company / Consignee Name</label><input type="text" id="cipl_consignee"></div>
@@ -1226,8 +1228,7 @@ window.openCIPL = function(id) {
   document.getElementById('cipl_w').value = j.ciplW || '';
   document.getElementById('cipl_h').value = j.ciplH || '';
   document.getElementById('cipl_gw').value = j.ciplGw || '';
-  document.getElementById('cipl_cpo').value = j.ciplCpo || '';
-  document.getElementById('cipl_cpoprice').value = j.ciplCpoPrice || '';
+
   var list = document.getElementById('cipl_item_list');
   list.innerHTML = (j.lineItems||[]).map(function(it,i){
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'+(i>0?'border-top:1px solid #f0ede6':'')+'">'
@@ -1256,14 +1257,14 @@ window.generateCIPL = function() {
   var dimW      = parseFloat(document.getElementById('cipl_w').value)||0;
   var dimH      = parseFloat(document.getElementById('cipl_h').value)||0;
   var gw        = parseFloat(document.getElementById('cipl_gw').value)||0;
-  var custPO    = document.getElementById('cipl_cpo').value.trim();
-  var custPOPrc = document.getElementById('cipl_cpoprice').value.trim();
+  var custPO    = j.custPO || '';
+  var custPOPrc = j.poPrice || '';
 
   // Save CIPL fields back to job so reprints pre-fill
   var saveData = { ciplAddr: document.getElementById('cipl_addr').value.trim(),
     ciplMarks: marks, ciplRemarks: remarks,
     ciplPkgs: String(pkgs), ciplL: String(dimL||''), ciplW: String(dimW||''), ciplH: String(dimH||''),
-    ciplGw: String(gw||''), ciplCpo: custPO, ciplCpoPrice: custPOPrc };
+    ciplGw: String(gw||'') };
   try {
     if(window._db && window._dbRef && window._dbUpdate)
       window._dbUpdate(window._dbRef(window._db,'jobs/'+id), saveData);
