@@ -119,6 +119,15 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
 .lloc{font-size:11px;color:#aaa;margin-top:2px}
 .lts{font-size:12px;color:#aaa;white-space:nowrap}
 
+/* PIN modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:100;padding:1rem}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:300px;border:1px solid #e0ddd6}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:6px}
+.modal p{font-size:13px;color:#888;margin-bottom:1rem}
+.pin-input{display:flex;gap:8px;margin-bottom:1rem}
+.pin-input input{width:100%;height:52px;text-align:center;font-size:22px;font-weight:600;border:1px solid #ccc;border-radius:8px;background:#fff;color:#1a1a1a;font-family:inherit}
+.pin-err{font-size:12px;color:#A32D2D;margin-bottom:0.75rem;min-height:16px}
 .modal-row{display:flex;gap:8px}
 
 /* Loading */
@@ -137,7 +146,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
 <div class="app">
   <div class="topbar">
     <h1>Work Tracker</h1>
-    <a href="https://aarkoh.github.io/Raycontrol/mgr-7560e738/" style="font-size:12px;color:#888;text-decoration:none;padding:5px 10px;border:1px solid #ddd;border-radius:8px;white-space:nowrap">&#8962; Hub</a>
+    <a href="https://aarkoh.github.io/Raycontrol/" style="font-size:12px;color:#888;text-decoration:none;padding:5px 10px;border:1px solid #ddd;border-radius:8px;white-space:nowrap">&#8962; Hub</a>
     <span class="conn syncing" id="connBadge">Connecting…</span>
     <span class="liveclock" id="liveClock"></span>
     <div class="tabs">
@@ -168,9 +177,9 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
     <div class="sec-title">Current status</div>
     <div class="mgrid" id="managerGrid"></div>
     <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ddd6;display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="openPin('change')">Change PIN</button>
       <button class="btn-danger" id="clearLogBtn" onclick="clearAndRebuildLog()">Clear duplicate logs</button>
     </div>
-
   </div>
 
   <!-- SUMMARY -->
@@ -221,7 +230,28 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
   </div>
 </div>
 
-
+<!-- PIN MODAL -->
+<div class="modal-bg" id="pinModal">
+  <div class="modal">
+    <h2 id="pinTitle">Manager PIN</h2>
+    <p id="pinSub">Enter 4-digit PIN to continue</p>
+    <div class="pin-input">
+      <input type="password" maxlength="1" inputmode="numeric" id="p0" oninput="pinInput(0)">
+      <input type="password" maxlength="1" inputmode="numeric" id="p1" oninput="pinInput(1)">
+      <input type="password" maxlength="1" inputmode="numeric" id="p2" oninput="pinInput(2)">
+      <input type="password" maxlength="1" inputmode="numeric" id="p3" oninput="pinInput(3)">
+    </div>
+    <div class="pin-err" id="pinErr"></div>
+    <div class="modal-row">
+      <button onclick="closePinModal()">Cancel</button>
+      <button id="pinSubmitBtn" onclick="submitPin()">Unlock</button>
+    </div>
+    <div id="newPinArea" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ddd6">
+      <p style="font-size:12px;color:#888;margin-bottom:8px">Verify current PIN first, then enter new PIN above</p>
+      <button onclick="saveNewPin()">Set new PIN</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <!-- SheetJS for Excel export -->
@@ -245,18 +275,16 @@ const fbApp = initializeApp(firebaseConfig);
 const db = getDatabase(fbApp);
 const auth = getAuth(fbApp);
 
-let WORKERS = ['HS','TM','RG','MU','AY','IL','SA','AN'];
-let sel=null, logTypeFilter='all';
+const WORKERS = ['HS','TM','RG','MU','AY','IL','SA','AN'];
+let sel=null, logTypeFilter='all', pinTarget=null, unlocked={}, settingNew=false;
 let workers={}, log=[], pin='1234';
 
-// OT/OVS rates stored in Firebase (works across all devices and app installs)
+// OT rates persisted in localStorage
 let otRates={}, ovsRates={};
-function saveOTRates(){
-  set(ref(db,'config/otRates'),otRates).catch(e=>console.warn('OT rates save failed:',e));
-}
-function saveOVSRates(){
-  set(ref(db,'config/ovsRates'),ovsRates).catch(e=>console.warn('OVS rates save failed:',e));
-}
+try{otRates=JSON.parse(localStorage.getItem('wt_ot_rates')||'{}');}catch(e){otRates={};}
+try{ovsRates=JSON.parse(localStorage.getItem('wt_ovs_rates')||'{}');}catch(e){ovsRates={};}
+function saveOTRates(){try{localStorage.setItem('wt_ot_rates',JSON.stringify(otRates));}catch(e){}}
+function saveOVSRates(){try{localStorage.setItem('wt_ovs_rates',JSON.stringify(ovsRates));}catch(e){}}
 window.setOTRate=function(w,val){otRates[w]=parseFloat(val)||0;saveOTRates();renderSummary();};
 window.setOVSRate=function(w,val){ovsRates[w]=parseFloat(val)||0;saveOVSRates();renderSummary();};
 
@@ -516,7 +544,7 @@ window.doAction=async function(type){
 
 // ── Tab switching ─────────────────────────────────────────────
 window.switchTab=function(tab,el){
-  // All tabs accessible - session already verified
+  if((tab==='manager'||tab==='summary'||tab==='log')&&!unlocked[tab]){openPin(tab);return;}
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -639,7 +667,7 @@ function renderLog(){
     // Local time display: use saved localTime or convert UTC to worker's tz
     const displayTime = e.localTime || fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
     const shortTime = e.localTime ? e.localTime.split(',')[1]?.trim().slice(0,5) : fmtInTZ(e.time, e.tz||'Asia/Singapore');
-    return `<div class="lentry"><span class="ltype ${e.type}">${e.type==='in'?'IN':'OUT'}</span><div><div class="lworker">${e.worker}${tzLabel}</div><div class="ltime">${displayTime}</div><div class="lloc">${e.job?'<span style="background:#E6F1FB;color:#185FA5;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px">'+e.job+'</span>':''}${loc}${e.acc?' (±'+e.acc+'m)':''}</div></div><span class="lts">${shortTime}</span></div>`;
+    return `<div class="lentry"><span class="ltype ${e.type}">${e.type==='in'?'IN':'OUT'}</span><div><div class="lworker">${e.worker}${tzLabel}</div><div class="ltime">${displayTime}</div><div class="lloc">${e.job?`<span style="background:#E6F1FB;color:#185FA5;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px">${e.job}${e.vessel?' · '+e.vessel:''}</span>`:''}${loc}${e.acc?' (±'+e.acc+'m)':''}</div></div><span class="lts">${shortTime}</span></div>`;
   }).join('');
 }
 
@@ -669,16 +697,16 @@ window.exportExcel=function(){
   const periodLabel=calState.preset==='custom'?`${fmtDate(calState.fromDate)} to ${fmtDate(calState.toDate)}`:calState.preset.charAt(0).toUpperCase()+calState.preset.slice(1);
 
   // ── Sheet 1: Activity Log ──────────────────────────────────
-  const logData=[['Worker','Type','Job Number','Date (Local)','Time (Local)','Timezone','Day','Latitude','Longitude','Accuracy (m)','Location']];
+  const logData=[['Worker','Type','Job Number','Vessel','Date (Local)','Time (Local)','Timezone','Day','Latitude','Longitude','Accuracy (m)','Location']];
   const filteredLog=log.filter(e=>{const t=new Date(e.time);return t>=start&&t<=end;});
   filteredLog.forEach(e=>{
     const d=new Date(e.time);
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const localD = e.localTime ? e.localTime : d.toLocaleString([],{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    logData.push([e.worker,e.type==='in'?'Clock In':'Clock Out',e.job||'',localD,e.tz||'Asia/Singapore',days[d.getDay()],e.lat||'',e.lon||'',e.acc||'',e.loc||'']);
+    logData.push([e.worker,e.type==='in'?'Clock In':'Clock Out',e.job||'',e.vessel||'',localD,e.tz||'Asia/Singapore',days[d.getDay()],e.lat||'',e.lon||'',e.acc||'',e.loc||'']);
   });
   const wsLog=XLSX.utils.aoa_to_sheet(logData);
-  wsLog['!cols']=[{wch:8},{wch:12},{wch:14},{wch:28},{wch:22},{wch:10},{wch:12},{wch:12},{wch:12},{wch:14},{wch:45}];
+  wsLog['!cols']=[{wch:8},{wch:12},{wch:14},{wch:16},{wch:28},{wch:22},{wch:10},{wch:12},{wch:12},{wch:12},{wch:14},{wch:45}];
   // Header style
   ['A1','B1','C1','D1','E1','F1','G1','H1','I1'].forEach(c=>{if(wsLog[c])wsLog[c].s={font:{bold:true},fill:{fgColor:{rgb:'1F3864'}},font:{bold:true,color:{rgb:'FFFFFF'}}};});
   XLSX.utils.book_append_sheet(wb,wsLog,'Activity Log');
@@ -760,19 +788,58 @@ window.clearAndRebuildLog=async function(){
 };
 
 // ── PIN ───────────────────────────────────────────────────────
+function openPin(target){
+  pinTarget=target;settingNew=false;
+  document.getElementById('pinTitle').textContent=target==='change'?'Change PIN':'Manager PIN';
+  document.getElementById('pinSub').textContent=target==='change'?'Verify current PIN first':'Enter 4-digit PIN to continue';
+  document.getElementById('newPinArea').style.display=target==='change'?'block':'none';
+  document.getElementById('pinSubmitBtn').textContent='Unlock';
+  document.getElementById('pinSubmitBtn').onclick=submitPin;
+  clearPin();document.getElementById('pinErr').textContent='';
+  document.getElementById('pinModal').classList.add('show');
+  setTimeout(()=>document.getElementById('p0').focus(),80);
+}
+function closePinModal(){document.getElementById('pinModal').classList.remove('show');pinTarget=null;settingNew=false;}
+function clearPin(){[0,1,2,3].forEach(i=>document.getElementById('p'+i).value='');}
+function getPin(){return[0,1,2,3].map(i=>document.getElementById('p'+i).value).join('');}
+function pinInput(i){if(document.getElementById('p'+i).value&&i<3)setTimeout(()=>document.getElementById('p'+(i+1)).focus(),10);if(getPin().length===4)setTimeout(()=>{if(settingNew)saveNewPin();else submitPin();},100);}
+function submitPin(){
+  const p=getPin();
+  if(p.length<4){document.getElementById('pinErr').textContent='Enter all 4 digits';return;}
+  if(p===pin){
+    if(pinTarget==='change'){
+      settingNew=true;
+      document.getElementById('pinTitle').textContent='Set new PIN';
+      document.getElementById('pinSub').textContent='Enter your new 4-digit PIN';
+      document.getElementById('newPinArea').style.display='none';
+      document.getElementById('pinSubmitBtn').textContent='Save PIN';
+      document.getElementById('pinSubmitBtn').onclick=saveNewPin;
+      clearPin();document.getElementById('pinErr').textContent='';
+      document.getElementById('p0').focus();return;
+    }
+    unlocked[pinTarget]=true;closePinModal();
+    const tabs=['clock','manager','summary','log'];
+    const idx=tabs.indexOf(pinTarget);
+    if(idx>=0)window.switchTab(pinTarget,document.querySelectorAll('.tab')[idx]);
+  }else{document.getElementById('pinErr').textContent='Incorrect PIN';clearPin();document.getElementById('p0').focus();}
+}
+function saveNewPin(){
+  const p=getPin();
+  if(p.length<4){document.getElementById('pinErr').textContent='Enter all 4 digits';return;}
+  set(ref(db,'config/pin'),p);closePinModal();toast('PIN updated ✓');
+}
+
+// ── Expose to window ──────────────────────────────────────────
+window.openPin=openPin;
+window.closePinModal=closePinModal;
+window.pinInput=pinInput;
+window.submitPin=submitPin;
+window.saveNewPin=saveNewPin;
 
 // ── Auth & Init ───────────────────────────────────────────────
 signInAnonymously(auth).catch(e=>{
   document.getElementById('loadingScreen').innerHTML='<p style="color:#A32D2D;padding:2rem;text-align:center">Connection failed. Please refresh.</p>';
 });
-
-// Check session immediately on page load (before Firebase)
-if(sessionStorage.getItem('rc_manager')!=='1'){
-  window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';
-} else {
-  // Session valid - hide loading screen immediately
-  document.getElementById('loadingScreen').classList.add('hide');
-}
 
 onAuthStateChanged(auth,async user=>{
   if(!user)return;
@@ -781,7 +848,6 @@ onAuthStateChanged(auth,async user=>{
     const online=snap.val(),b=document.getElementById('connBadge');
     b.textContent=online?'Live':'Offline';
     b.className='conn '+(online?'online':'offline');
-    if(online) document.getElementById('loadingScreen').classList.add('hide');
   });
 
   // Init worker nodes
@@ -790,24 +856,6 @@ onAuthStateChanged(auth,async user=>{
   if(!pinSnap.exists())await set(ref(db,'config/pin'),'1234');
 
   onValue(ref(db,'config/pin'),snap=>{if(snap.exists())pin=snap.val();});
-  onValue(ref(db,'config/workers'),snap=>{
-    if(snap.exists()&&Array.isArray(snap.val())&&snap.val().length>0){
-      WORKERS=snap.val();
-      renderWorkers();
-      if(document.getElementById('tab-manager').classList.contains('active')) renderManager();
-      if(document.getElementById('tab-summary').classList.contains('active')) renderSummary();
-    }
-  });
-
-  // Load OT/OVS rates from Firebase - always re-render summary so inputs show saved values
-  onValue(ref(db,'config/otRates'),snap=>{
-    if(snap.exists()) otRates={...otRates,...snap.val()};
-    renderSummary();
-  });
-  onValue(ref(db,'config/ovsRates'),snap=>{
-    if(snap.exists()) ovsRates={...ovsRates,...snap.val()};
-    renderSummary();
-  });
 
   onValue(ref(db,'workers'),snap=>{
     workers=snap.val()||{};
