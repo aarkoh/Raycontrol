@@ -346,6 +346,8 @@ function renderList(){
     var aC=a>30&&j.status!=="closed"?" ov":"";
     var t=totals(j);
     var amt=t.total>0?(j.currency||"SGD")+" "+fmt(t.total):"&mdash;";
+    var rcvd=parseFloat(j.paymentReceived)||0;
+    var payBadge=rcvd>0?(rcvd>=t.total-0.005?'<span style="font-size:10px;background:#EAF3DE;color:#1a6641;border-radius:10px;padding:1px 7px;font-weight:600;margin-left:4px">Paid &#10003;</span>':'<span style="font-size:10px;background:#FAEEDA;color:#854F0B;border-radius:10px;padding:1px 7px;font-weight:600;margin-left:4px">Part Paid</span>'):""
     var jst=j.status||"quote";
     var sc=SC[jst]||"sq";
     var bc=BC[jst]||"bq";
@@ -363,7 +365,7 @@ function renderList(){
           +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px"><span class="badge '+bc+'">'+(SL[jst]||jst)+"</span>"+vb+"</div>"
         +"</div>"
         +'<div style="text-align:right;flex-shrink:0">'
-          +'<div style="font-size:15px;font-weight:600">'+amt+"</div>"
+          +'<div style="font-size:15px;font-weight:600">'+amt+payBadge+"</div>"
           +'<div style="font-size:11px;color:#aaa" class="'+aC+'">'+aStr+"</div>"
         +"</div>"
       +"</div>"
@@ -458,6 +460,8 @@ window.openDetail=function(id){
           +(t.gst>0?'<div class="trow"><span>GST (9%)</span><span>'+fmt(t.gst)+"</span></div>":'<div class="trow"><span style="color:#888;font-size:12px">GSTax not included if applicable</span><span></span></div>')
           +'<div class="trow"><span>Bank Fee</span><span>'+fmt(t.bf)+"</span></div>"
           +'<div class="trow" style="font-size:15px;font-weight:700"><span>TOTAL '+cur+"</span><span>"+fmt(t.total)+"</span></div>"
+          +(j.paymentReceived>0?'<div class="trow" style="color:#1a6641;font-size:13px"><span>&#10003; Payment Received</span><span>'+cur+" "+fmt(j.paymentReceived)+"</span></div>":"")
+          +(j.paymentReceived>0&&t.total-j.paymentReceived>0.005?'<div class="trow" style="color:#854F0B;font-size:13px"><span>Balance Outstanding</span><span>'+cur+" "+fmt(t.total-j.paymentReceived)+"</span></div>":"")
         +"</div>"
       +"</div>"
     +"</div>"
