@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Register — Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
+.app{max-width:1100px;margin:0 auto;padding:1.25rem 1rem}
+.topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;border-bottom:1px solid #e0ddd6;padding-bottom:1rem;flex-wrap:wrap}
+.topbar h1{font-size:20px;font-weight:600;flex:1}
+.back{font-size:12px;color:#185FA5;text-decoration:none;padding:5px 10px;border:1px solid #B5D4F4;border-radius:8px;background:#E6F1FB;white-space:nowrap}
+.conn{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:500}
+.conn.online{background:#EAF3DE;color:#3B6D11}.conn.offline{background:#FCEBEB;color:#A32D2D}.conn.syncing{background:#FAEEDA;color:#854F0B}
+.toolbar{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+.toolbar input[type=text]{flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit}
+.toolbar input:focus{outline:none;border-color:#185FA5}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#666;white-space:nowrap}
+.chip.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:#f0f0ee}
+.bp{background:#1a1a1a;color:#fff;border-color:#1a1a1a;font-weight:600}.bp:hover{background:#333}
+.bg{background:#1a6641;color:#fff;border-color:#1a6641;font-weight:600}.bg:hover{background:#145533}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
+.bq{background:#FAEEDA;color:#854F0B}.bcp{background:#E6F1FB;color:#185FA5}
+.bvp{background:#F3E6F3;color:#8B1A8B}.bdw{background:#CFFAFE;color:#0E7490}.bi{background:#FCEBEB;color:#A32D2D}
+.bs{background:#EAF3DE;color:#1a6641}.bc{background:#efefed;color:#666}
+.ov{color:#A32D2D;font-weight:600}
+.empty{text-align:center;padding:3rem;color:#aaa;font-size:13px;border:1px dashed #ddd;border-radius:12px}
+/* Table layout */
+.jtable{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e0ddd6}
+.jtable thead{background:#f9f9f7}
+.jtable th{text-align:left;font-size:11px;font-weight:600;color:#888;padding:10px 12px;border-bottom:2px solid #e0ddd6;white-space:nowrap}
+.jtable th.nr,.jtable td.nr{text-align:right}
+.jtable td{padding:10px 12px;border-bottom:1px solid #f0ede6;vertical-align:middle}
+.jtable tr:last-child td{border-bottom:none}
+.jtable tr:hover td{background:#fafaf8}
+.jrow{cursor:pointer}
+.jrow td.ref-cell{font-weight:700;font-size:14px}
+.status-bar{width:4px;height:36px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:middle;flex-shrink:0}
+.pay-cell{white-space:nowrap}
+.pay-rcvd{color:#1a6641;font-weight:600}
+.pay-part{color:#854F0B;font-weight:600}
+.pay-none{color:#aaa}
+.pay-over{color:#A32D2D;font-weight:600}
+/* Payment modal */
+.pm-bg{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:100;padding:1rem}
+.pm-bg.show{display:flex}
+.pm-box{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:440px;border:1px solid #e0ddd6}
+.pm-box h2{font-size:16px;font-weight:600;margin-bottom:6px}
+.pm-sub{font-size:12px;color:#888;margin-bottom:1.25rem}
+.pm-fi{margin-bottom:0.85rem}
+.pm-fi label{font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500}
+.pm-fi input,.pm-fi select,.pm-fi textarea{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
+.pm-fi input:focus,.pm-fi select:focus,.pm-fi textarea:focus{outline:none;border-color:#185FA5;background:#fff}
+.pm-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #e0ddd6}
+.pm-summary{background:#f9f9f7;border:1px solid #e0ddd6;border-radius:8px;padding:12px 14px;margin-bottom:1rem;font-size:13px}
+.pm-summary .ps-row{display:flex;justify-content:space-between;padding:2px 0}
+.pm-summary .ps-row.total{font-weight:700;font-size:14px;border-top:1px solid #e0ddd6;margin-top:6px;padding-top:6px}
+.pm-summary .ps-row.balance-ok{color:#1a6641}
+.pm-summary .ps-row.balance-part{color:#854F0B}
+.pm-summary .ps-row.balance-over{color:#A32D2D}
+/* PIN screen */
+.pin-screen{position:fixed;inset:0;background:#f5f5f3;display:flex;align-items:center;justify-content:center;z-index:300;padding:1rem}
+.pin-card{background:#fff;border:1px solid #e0ddd6;border-radius:16px;padding:2rem;width:100%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.1)}
+.pin-card h2{font-size:18px;font-weight:600;margin-bottom:6px}
+.pin-card p{font-size:13px;color:#888;margin-bottom:1.5rem;line-height:1.5}
+.pin-row{display:flex;gap:8px;justify-content:center;margin-bottom:1rem}
+.pin-row input{width:52px;height:60px;text-align:center;font-size:22px;font-weight:700;border:2px solid #ddd;border-radius:10px;background:#f9f9f7;font-family:inherit;color:#1a1a1a}
+.pin-row input:focus{outline:none;border-color:#185FA5;background:#fff}
+.pin-err{font-size:12px;color:#A32D2D;min-height:16px;margin-bottom:0.75rem}
+.pin-btn{width:100%;padding:12px;border:none;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;background:#1a1a1a;color:#fff;cursor:pointer}
+.pin-btn:disabled{opacity:0.35;cursor:default}
+/* Loading */
+.ls{position:fixed;inset:0;background:#f5f5f3;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;gap:12px}
+.ls.hide{display:none}
+.sp{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#185FA5;border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-size:13px;padding:9px 20px;border-radius:8px;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}
+/* Summary cards */
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:1.25rem}
+.sum-card{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:0.85rem 1rem}
+.sum-val{font-size:20px;font-weight:700}
+.sum-lbl{font-size:11px;color:#888;margin-top:2px}
+.sum-val.green{color:#1a6641}.sum-val.amber{color:#854F0B}.sum-val.red{color:#A32D2D}
+@media(max-width:600px){
+  .jtable{font-size:12px}
+  .jtable th,.jtable td{padding:8px 8px}
+  .hide-sm{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- PIN screen -->
+<div class="pin-screen" id="pinScreen">
+  <div class="pin-card">
+    <h2>&#128202; Manager Access</h2>
+    <p>Enter your 4-digit manager PIN<br>to access Job Register</p>
+    <div class="pin-row">
+      <input type="password" maxlength="1" inputmode="numeric" id="p0" oninput="pinInput(0)">
+      <input type="password" maxlength="1" inputmode="numeric" id="p1" oninput="pinInput(1)">
+      <input type="password" maxlength="1" inputmode="numeric" id="p2" oninput="pinInput(2)">
+      <input type="password" maxlength="1" inputmode="numeric" id="p3" oninput="pinInput(3)">
+    </div>
+    <div class="pin-err" id="pinErr"></div>
+    <button class="pin-btn" id="pinBtn" onclick="doPin()">Unlock</button>
+  </div>
+</div>
+
+<!-- Loading -->
+<div class="ls" id="ls"><div class="sp"></div><p>Loading&hellip;</p></div>
+
+<!-- Main app (hidden until PIN) -->
+<div class="app" id="mainApp" style="display:none">
+  <div class="topbar">
+    <h1>&#128188; Job Register <span style="font-size:12px;font-weight:400;color:#1a6641;background:#EAF3DE;padding:2px 8px;border-radius:12px;margin-left:6px">Manager</span></h1>
+    <a href="https://aarkoh.github.io/Raycontrol/mgr-7560e738/" class="back">&#8592; Dashboard</a>
+    <a href="jobs.html" class="back" style="background:#fff;border-color:#ccc;color:#555">Staff View</a>
+    <span class="conn syncing" id="connBadge">Connecting&hellip;</span>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="sum-grid" id="sumGrid">
+    <div class="sum-card"><div class="sum-val" id="sTotalJobs">—</div><div class="sum-lbl">Total Jobs</div></div>
+    <div class="sum-card"><div class="sum-val amber" id="sOpen">—</div><div class="sum-lbl">Open Jobs</div></div>
+    <div class="sum-card"><div class="sum-val green" id="sTotalInv">—</div><div class="sum-lbl">Total Invoiced (SGD)</div></div>
+    <div class="sum-card"><div class="sum-val green" id="sTotalRcvd">—</div><div class="sum-lbl">Total Received (SGD)</div></div>
+    <div class="sum-card"><div class="sum-val red" id="sOutstanding">—</div><div class="sum-lbl">Outstanding (SGD)</div></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="jobSearch" placeholder="Search ref, customer, vessel&hellip;" autocomplete="off" oninput="renderTable()">
+  </div>
+  <div class="chips" id="filterChips">
+    <div class="chip on" onclick="setFilter('all',this)">All</div>
+    <div class="chip" onclick="setFilter('quote',this)">Quote</div>
+    <div class="chip" onclick="setFilter('customer_po',this)">Customer PO</div>
+    <div class="chip" onclick="setFilter('vendor_po',this)">Vendor PO</div>
+    <div class="chip" onclick="setFilter('do_wcc',this)">DO / WCC</div>
+    <div class="chip" onclick="setFilter('invoice',this)">Invoice</div>
+    <div class="chip" onclick="setFilter('soa',this)">SOA</div>
+    <div class="chip" onclick="setFilter('closed',this)">Closed</div>
+    <div class="chip" onclick="setFilter('_unpaid',this)" style="border-color:#854F0B;color:#854F0B">Unpaid</div>
+    <div class="chip" onclick="setFilter('_partial',this)" style="border-color:#185FA5;color:#185FA5">Partial</div>
+    <div class="chip" onclick="setFilter('_paid',this)" style="border-color:#1a6641;color:#1a6641">Fully Paid</div>
+  </div>
+
+  <!-- Table -->
+  <div style="overflow-x:auto">
+    <table class="jtable" id="jobTable">
+      <thead>
+        <tr>
+          <th>Ref</th>
+          <th class="hide-sm">Date</th>
+          <th>Customer</th>
+          <th class="hide-sm">Vessel / Equip</th>
+          <th>Status</th>
+          <th class="nr">Invoice Amt</th>
+          <th class="nr">Rcvd</th>
+          <th class="nr">Balance</th>
+          <th style="text-align:center">Payment</th>
+        </tr>
+      </thead>
+      <tbody id="jobTbody">
+        <tr><td colspan="9" class="empty">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="pm-bg" id="pmModal">
+  <div class="pm-box">
+    <h2>&#128176; Record Payment</h2>
+    <div class="pm-sub" id="pmJobLabel">Job —</div>
+    <div class="pm-summary" id="pmSummary"></div>
+    <div class="pm-fi">
+      <label>Amount Received (<span id="pmCur">SGD</span>)</label>
+      <input type="number" id="pmAmt" min="0" step="0.01" placeholder="0.00" oninput="updatePmPreview()">
+    </div>
+    <div class="pm-fi">
+      <label>Payment Method</label>
+      <select id="pmMethod">
+        <option value="">— Select —</option>
+        <option value="TT">TT (Telegraphic Transfer)</option>
+        <option value="PayNow">PayNow</option>
+        <option value="Cheque">Cheque</option>
+        <option value="Cash">Cash</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="pm-fi">
+      <label>Payment Date</label>
+      <input type="date" id="pmDate">
+    </div>
+    <div class="pm-fi">
+      <label>Notes (internal)</label>
+      <textarea id="pmNotes" rows="2" placeholder="e.g. TT ref #12345, partial payment, etc."></textarea>
+    </div>
+    <div class="pm-foot">
+      <button onclick="document.getElementById('pmModal').classList.remove('show')">Cancel</button>
+      <button class="bg" onclick="savePayment()">&#10003; Save Payment</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, onValue, update, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+const fbCfg={apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",
+  databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",
+  messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"};
+const db=getDatabase(initializeApp(fbCfg));
+const auth=getAuth();
+
+/* ── State ── */
+let jobs={}, mgrPin='1234', sFilter='all', pmJobId=null;
+
+/* ── Labels / colours ── */
+const SL={quote:'Quote',customer_po:'Customer PO',vendor_po:'Vendor PO',do_wcc:'DO / WCC',invoice:'Invoice',soa:'SOA',closed:'Closed'};
+const BC={quote:'bq',customer_po:'bcp',vendor_po:'bvp',do_wcc:'bdw',invoice:'bi',soa:'bs',closed:'bc'};
+const SBC={quote:'#854F0B',customer_po:'#185FA5',vendor_po:'#8B1A8B',do_wcc:'#0E7490',invoice:'#A32D2D',soa:'#1a6641',closed:'#aaa'};
+
+/* ── Helpers ── */
+const fmt=n=>(parseFloat(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const fmtD=s=>{if(!s)return'';try{const d=new Date(s+'T00:00:00');return d.toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return s;}};
+const ageD=s=>{if(!s)return 999;const d=new Date(s+'T00:00:00');return Math.floor((Date.now()-d)/86400000);};
+window.toast=function(msg,dur=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);};
+
+/* ── Totals (mirrors jobs.html) ── */
+function totals(j){
+  const items=j.lineItems||[];
+  const sub=items.reduce((s,it)=>s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0),0)
+    +(j.courier==='TBA'?0:parseFloat(j.courierAmt)||0)
+    +(j.packing==='TBA'?0:parseFloat(j.packingAmt)||0)
+    +(j.freight==='TBA'?0:parseFloat(j.freightAmt)||0);
+  const gst=j.gst?sub*0.09:0;
+  const bf=parseFloat(j.bankFee)||0;
+  return {sub,gst,bf,total:sub+gst+bf};
+}
+
+/* ── PIN ── */
+window.pinInput=function(i){
+  const el=document.getElementById('p'+i);
+  if(el.value&&i<3)setTimeout(()=>document.getElementById('p'+(i+1)).focus(),10);
+  const pin=[0,1,2,3].map(j=>document.getElementById('p'+j).value).join('');
+  if(pin.length===4)setTimeout(window.doPin,100);
+};
+window.doPin=function(){
+  const pin=[0,1,2,3].map(i=>document.getElementById('p'+i).value).join('');
+  if(pin===mgrPin){
+    localStorage.setItem('rc_manager',Date.now().toString());
+    document.getElementById('pinScreen').style.display='none';
+    document.getElementById('mainApp').style.display='block';
+    toast('Welcome, Manager ✓');
+  } else {
+    document.getElementById('pinErr').textContent='Incorrect PIN — try again';
+    [0,1,2,3].forEach(i=>{document.getElementById('p'+i).value='';});
+    document.getElementById('p0').focus();
+  }
+};
+
+/* Check existing session */
+function checkSession(){
+  const t=localStorage.getItem('rc_manager');
+  if(t&&(Date.now()-parseInt(t))<28800000){
+    document.getElementById('pinScreen').style.display='none';
+    document.getElementById('mainApp').style.display='block';
+    return true;
+  }
+  setTimeout(()=>{document.getElementById('p0').focus();},200);
+  return false;
+}
+
+/* ── Filter ── */
+window.setFilter=function(f,el){
+  sFilter=f;
+  document.querySelectorAll('.chips .chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  renderTable();
+};
+
+/* ── Render table ── */
+function renderTable(){
+  const q=(document.getElementById('jobSearch').value||'').toLowerCase();
+  let list=Object.entries(jobs).filter(([id,j])=>{
+    // status filter
+    if(sFilter==='_paid'){const rcvd=parseFloat(j.paymentReceived)||0;const tot=totals(j).total;return rcvd>0&&rcvd>=tot-0.005;}
+    if(sFilter==='_partial'){const rcvd=parseFloat(j.paymentReceived)||0;const tot=totals(j).total;return rcvd>0&&rcvd<tot-0.005;}
+    if(sFilter==='_unpaid'){const rcvd=parseFloat(j.paymentReceived)||0;return rcvd<=0;}
+    if(sFilter!=='all'&&j.status!==sFilter)return false;
+    // search
+    if(q&&![j.ref,j.customerName,j.vessel,j.equip,j.memo].filter(Boolean).some(x=>x.toLowerCase().includes(q)))return false;
+    return true;
+  }).sort((a,b)=>(b[1].createdAt||'').localeCompare(a[1].createdAt||''));
+
+  // Summary cards
+  const allJobs=Object.values(jobs);
+  document.getElementById('sTotalJobs').textContent=allJobs.length;
+  document.getElementById('sOpen').textContent=allJobs.filter(j=>j.status!=='closed').length;
+  const tInv=allJobs.filter(j=>['invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+totals(j).total,0);
+  const tRcvd=allJobs.reduce((s,j)=>s+(parseFloat(j.paymentReceived)||0),0);
+  document.getElementById('sTotalInv').textContent=fmt(tInv);
+  document.getElementById('sTotalRcvd').textContent=fmt(tRcvd);
+  document.getElementById('sOutstanding').textContent=fmt(Math.max(0,tInv-tRcvd));
+
+  const tbody=document.getElementById('jobTbody');
+  if(!list.length){
+    tbody.innerHTML='<tr><td colspan="9" class="empty">No jobs found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=list.map(([id,j])=>{
+    const t=totals(j);
+    const cur=j.currency||'SGD';
+    const rcvd=parseFloat(j.paymentReceived)||0;
+    const bal=t.total-rcvd;
+    const jst=j.status||'quote';
+    const a=ageD(j.date||j.createdAt);
+    const aStr=a===0?'Today':a===1?'Yesterday':a+' days ago';
+    const aC=a>30&&jst!=='closed'?' ov':'';
+
+    // Payment status
+    let payClass='pay-none',payLabel='—';
+    if(rcvd>0){
+      if(rcvd>=t.total-0.005){payClass='pay-rcvd';payLabel='Paid';}
+      else if(bal<0.005){payClass='pay-rcvd';payLabel='Paid';}
+      else{payClass='pay-part';payLabel=cur+' '+fmt(rcvd);}
+    }
+    const balClass=bal<-0.005?'pay-over':bal<0.005?'pay-rcvd':'pay-part';
+    const balStr=Math.abs(bal)<0.005?'—':(bal<0?'<span class="pay-over">+'+fmt(-bal)+'</span>':cur+' '+fmt(bal));
+
+    const eq=[j.equip,j.make,j.model].filter(Boolean).join(' ');
+    const vs=j.vessel?j.vessel+(j.port?' / '+j.port:''):'';
+    const evStr=[vs,eq].filter(Boolean).join('<br>');
+
+    return `<tr class="jrow">
+      <td class="ref-cell" style="white-space:nowrap">
+        <span style="display:inline-block;width:4px;height:36px;background:${SBC[jst]||'#aaa'};border-radius:3px;vertical-align:middle;margin-right:8px"></span>
+        ${j.ref||'—'}
+      </td>
+      <td class="hide-sm" style="font-size:12px;color:#888;white-space:nowrap">
+        ${fmtD(j.date||j.createdAt)}<br>
+        <span class="${aC}" style="font-size:11px">${aStr}</span>
+      </td>
+      <td>
+        <div style="font-weight:500">${j.customerName||'—'}</div>
+        ${j.custPO?'<div style="font-size:11px;color:#888">PO: '+j.custPO+'</div>':''}
+      </td>
+      <td class="hide-sm" style="font-size:12px;color:#555">${evStr||'—'}</td>
+      <td><span class="badge ${BC[jst]||'bc'}">${SL[jst]||jst}</span></td>
+      <td class="nr" style="font-weight:500">${t.total>0?cur+' '+fmt(t.total):'—'}</td>
+      <td class="nr pay-cell"><span class="${payClass}">${payLabel}</span></td>
+      <td class="nr pay-cell">${balStr}</td>
+      <td style="text-align:center">
+        <button class="bg" style="font-size:11px;padding:4px 10px" onclick="openPaymentModal('${id}',event)">&#9998; Pay</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Payment modal ── */
+window.openPaymentModal=function(id,e){
+  if(e)e.stopPropagation();
+  pmJobId=id;
+  const j=jobs[id]||{};
+  const t=totals(j);
+  const cur=j.currency||'SGD';
+  const rcvd=parseFloat(j.paymentReceived)||0;
+  const bal=t.total-rcvd;
+
+  document.getElementById('pmJobLabel').textContent=(j.ref||'—')+' — '+(j.customerName||'');
+  document.getElementById('pmCur').textContent=cur;
+  document.getElementById('pmAmt').value=rcvd>0?'':t.total>0?t.total.toFixed(2):'';
+  document.getElementById('pmMethod').value=j.paymentMethod||'';
+  document.getElementById('pmDate').value=j.paymentDate||new Date().toISOString().slice(0,10);
+  document.getElementById('pmNotes').value=j.paymentNotes||'';
+
+  updatePmSummary(j,t,cur,rcvd);
+  document.getElementById('pmModal').classList.add('show');
+};
+
+function updatePmSummary(j,t,cur,rcvd){
+  const bal=t.total-rcvd;
+  const history=j.paymentHistory||[];
+  let html='';
+  if(t.total>0)html+=`<div class="ps-row total"><span>${cur} Invoice Total</span><span>${fmt(t.total)}</span></div>`;
+  if(history.length){
+    html+=`<div style="margin-top:6px;font-size:11px;color:#888;font-weight:600">Previous Payments</div>`;
+    history.forEach(p=>{
+      html+=`<div class="ps-row" style="font-size:12px"><span>${p.date||''} ${p.method?'('+p.method+')':''}</span><span>${cur} ${fmt(p.amount)}</span></div>`;
+    });
+  }
+  if(rcvd>0){
+    const cls=rcvd>=t.total-0.005?'balance-ok':rcvd<t.total?'balance-part':'';
+    html+=`<div class="ps-row ${cls}" style="margin-top:6px"><span>Total Received so far</span><span>${cur} ${fmt(rcvd)}</span></div>`;
+    if(bal>0.005)html+=`<div class="ps-row balance-part"><span>Remaining Balance</span><span>${cur} ${fmt(bal)}</span></div>`;
+  }
+  document.getElementById('pmSummary').innerHTML=html||'<div style="font-size:12px;color:#aaa">No payments recorded yet.</div>';
+}
+
+window.updatePmPreview=function(){
+  if(!pmJobId)return;
+  const j=jobs[pmJobId]||{};
+  const t=totals(j);
+  const cur=j.currency||'SGD';
+  const rcvd=parseFloat(j.paymentReceived)||0;
+  updatePmSummary(j,t,cur,rcvd);
+};
+
+window.savePayment=async function(){
+  if(!pmJobId){toast('No job selected');return;}
+  const amt=parseFloat(document.getElementById('pmAmt').value);
+  if(isNaN(amt)||amt<0){toast('Enter a valid amount');return;}
+  const method=document.getElementById('pmMethod').value;
+  const date=document.getElementById('pmDate').value;
+  const notes=document.getElementById('pmNotes').value.trim();
+
+  const j=jobs[pmJobId]||{};
+  const t=totals(j);
+  const cur=j.currency||'SGD';
+
+  // Append to history
+  const history=[...(j.paymentHistory||[]),{amount:amt,method,date,notes}];
+  const totalRcvd=history.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
+
+  // Auto-close if fully paid and status allows
+  let updates={
+    paymentReceived:totalRcvd,
+    paymentMethod:method,
+    paymentDate:date,
+    paymentNotes:notes,
+    paymentHistory:history,
+    updatedAt:new Date().toISOString()
+  };
+
+  try{
+    await update(ref(db,'jobs/'+pmJobId),updates);
+    jobs[pmJobId]=Object.assign({},j,updates);
+    document.getElementById('pmModal').classList.remove('show');
+    renderTable();
+    const bal=t.total-totalRcvd;
+    toast(bal<0.005?'Payment saved — fully paid ✓':'Payment saved — '+cur+' '+fmt(bal)+' remaining');
+  }catch(err){toast('Save failed: '+err.message);}
+};
+
+/* ── Firebase init ── */
+signInAnonymously(auth).catch(e=>console.error(e));
+onAuthStateChanged(auth,user=>{
+  if(!user)return;
+  onValue(ref(db,'.info/connected'),snap=>{
+    const b=document.getElementById('connBadge');
+    b.textContent=snap.val()?'Live':'Offline';
+    b.className='conn '+(snap.val()?'online':'offline');
+    document.getElementById('ls').classList.add('hide');
+  });
+  onValue(ref(db,'jobs'),snap=>{
+    jobs=snap.val()||{};
+    renderTable();
+  });
+  onValue(ref(db,'config/pin'),snap=>{
+    if(snap.exists()){mgrPin=snap.val();}
+  });
+});
+setTimeout(()=>document.getElementById('ls').classList.add('hide'),5000);
+
+checkSession();
+</script>
+</body>
+</html>
