@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendor Invoices — Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
+.app{max-width:1100px;margin:0 auto;padding:1.25rem 1rem}
+.topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;border-bottom:3px solid #1a6641;padding-bottom:1rem;flex-wrap:wrap}
+.topbar h1{font-size:20px;font-weight:700;flex:1}
+.mgr-tag{background:#1a6641;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px}
+.back-link{font-size:12px;text-decoration:none;padding:5px 12px;border-radius:8px;font-weight:500;white-space:nowrap}
+.back-mgr{color:#1a6641;background:#EAF3DE;border:1px solid #C0DD97}
+.back-staff{color:#666;background:#fff;border:1px solid #ccc}
+.conn{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:500}
+.conn.online{background:#EAF3DE;color:#3B6D11}.conn.offline{background:#FCEBEB;color:#A32D2D}.conn.syncing{background:#FAEEDA;color:#854F0B}
+/* Summary */
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:1.25rem}
+.sc{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:.85rem 1rem;border-top:3px solid #e0ddd6}
+.sc.r{border-top-color:#A32D2D}.sc.a{border-top-color:#854F0B}.sc.g{border-top-color:#1a6641}.sc.b{border-top-color:#185FA5}
+.sv{font-size:20px;font-weight:700;margin-bottom:2px}
+.sv.r{color:#A32D2D}.sv.a{color:#854F0B}.sv.g{color:#1a6641}
+.sl{font-size:11px;color:#888}
+/* Toolbar */
+.toolbar{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+.toolbar input{flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit}
+.toolbar input:focus{outline:none;border-color:#185FA5}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#666;white-space:nowrap}
+.chip.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:#f0f0ee}
+.bp{background:#1a1a1a;color:#fff;border-color:#1a1a1a;font-weight:600}.bp:hover{background:#333}
+.bg{background:#1a6641;color:#fff;border-color:#1a6641;font-weight:600}.bg:hover{background:#145533}
+.bd{border-color:#A32D2D;color:#A32D2D}.bd:hover{background:#FCEBEB}
+.bsm{font-size:11px;padding:4px 10px}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
+.b-paid{background:#EAF3DE;color:#1a6641}.b-unpaid{background:#FCEBEB;color:#A32D2D}
+/* Table */
+.tw{overflow-x:auto;border-radius:12px;border:1px solid #e0ddd6}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:#1a6641}
+th{color:#fff;font-size:11px;font-weight:600;padding:10px 12px;text-align:left;white-space:nowrap}
+th.nr{text-align:right}
+td{padding:10px 12px;border-bottom:1px solid #f0ede6;vertical-align:middle;background:#fff}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#f5fbf5}
+td.nr{text-align:right}
+.empty{text-align:center;padding:3rem;color:#aaa;font-size:13px;background:#fff}
+/* Modal */
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:1rem;overflow-y:auto}
+.mbg.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:600px;border:1px solid #e0ddd6;margin:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:1rem}
+.fi{margin-bottom:.75rem}
+.fi label{font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500}
+.fi input,.fi select,.fi textarea{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
+.fi input:focus,.fi select:focus,.fi textarea:focus{outline:none;border-color:#1a6641;background:#fff}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #e0ddd6}
+/* Loading */
+.ls{position:fixed;inset:0;background:#f5f5f3;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;gap:12px}
+.ls.hide{display:none}
+.sp{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#1a6641;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-size:13px;padding:9px 20px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}
+@media(max-width:500px){.fr2{grid-template-columns:1fr}.hsm{display:none}}
+</style>
+</head>
+<body>
+<div class="ls" id="ls"><div class="sp"></div><p>Loading&hellip;</p></div>
+<div class="app">
+  <div class="topbar">
+    <h1>&#128467; Vendor Invoices</h1>
+    <span class="mgr-tag">MANAGER</span>
+    <a href="https://aarkoh.github.io/Raycontrol/mgr-7560e738/" class="back-link back-mgr">&#9651; Manager Hub</a>
+    <a href="../vendor-invoices.html" class="back-link back-staff">Staff View &rarr;</a>
+    <span class="conn syncing" id="connBadge">Connecting&hellip;</span>
+  </div>
+
+  <!-- Summary -->
+  <div class="sum-grid">
+    <div class="sc b"><div class="sv" id="sTotal">—</div><div class="sl">Total Invoices</div></div>
+    <div class="sc a"><div class="sv a" id="sUnpaid">—</div><div class="sl">Unpaid</div></div>
+    <div class="sc r"><div class="sv r" id="sOwed">—</div><div class="sl">Total Owed (SGD)</div></div>
+    <div class="sc g"><div class="sv g" id="sPaid">—</div><div class="sl">Total Paid (SGD)</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="srch" placeholder="Search vendor, job ref, invoice no&hellip;" oninput="renderTable()">
+    <button class="bp" onclick="openAdd()">+ Add Invoice</button>
+  </div>
+  <div class="chips">
+    <div class="chip on" onclick="setF('all',this)">All</div>
+    <div class="chip" onclick="setF('unpaid',this)">Unpaid</div>
+    <div class="chip" onclick="setF('paid',this)">Paid</div>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice No.</th>
+          <th>Vendor</th>
+          <th class="hsm">Job Ref</th>
+          <th class="hsm">Date</th>
+          <th class="nr">Amount</th>
+          <th>Status</th>
+          <th class="hsm">Entered by</th>
+          <th style="text-align:center">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="viTbody"><tr><td colspan="8" class="empty">Loading&hellip;</td></tr></tbody>
+    </table>
+  </div>
+  <div style="font-size:11px;color:#aaa;margin-top:8px;text-align:right" id="rc"></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="mbg" id="addModal">
+  <div class="modal">
+    <h2 id="modalTitle">+ Add Vendor Invoice</h2>
+    <div class="fr2">
+      <div class="fi"><label>Vendor Name *</label><input type="text" id="f_vendor" placeholder="e.g. Hanla IMS"></div>
+      <div class="fi"><label>Invoice No. *</label><input type="text" id="f_invno" placeholder="e.g. HNL-2026-001"></div>
+    </div>
+    <div class="fr2">
+      <div class="fi"><label>Invoice Date *</label><input type="date" id="f_date"></div>
+      <div class="fi"><label>Job Reference</label><input type="text" id="f_jobref" placeholder="e.g. 2603016"></div>
+    </div>
+    <div class="fr2">
+      <div class="fi"><label>Currency</label>
+        <select id="f_cur">
+          <option value="SGD">SGD</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="JPY">JPY</option>
+          <option value="CNY">CNY</option>
+          <option value="GBP">GBP</option>
+        </select>
+      </div>
+      <div class="fi"><label>Amount *</label><input type="number" id="f_amt" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="fi"><label>Description / Notes</label><textarea id="f_desc" rows="2" placeholder="e.g. Parts for steering gear repair"></textarea></div>
+    <div class="fi"><label>Payment Status</label>
+      <select id="f_status">
+        <option value="unpaid">Unpaid</option>
+        <option value="paid">Paid</option>
+      </select>
+    </div>
+    <div class="mfoot">
+      <button onclick="closeAdd()">Cancel</button>
+      <button class="bg" onclick="saveInv()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getDatabase,ref,onValue,push,update,remove}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import{getAuth,signInAnonymously,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+const _t=localStorage.getItem('rc_manager');
+if(!_t||(Date.now()-parseInt(_t))>=28800000){window.location.href='https://aarkoh.github.io/Raycontrol/mgr-7560e738/';}
+
+const db=getDatabase(initializeApp({
+  apiKey:'AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4',authDomain:'attendance-20d6a.firebaseapp.com',
+  databaseURL:'https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId:'attendance-20d6a',storageBucket:'attendance-20d6a.firebasestorage.app',
+  messagingSenderId:'597668949951',appId:'1:597668949951:web:f7fcc8c3b4450f8f80bb0a'
+}));
+const auth=getAuth();
+
+let vis={}, filt='all', editId=null;
+
+const fmt=n=>(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
+window.toast=function(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);};
+
+window.setF=function(f,el){
+  filt=f;
+  document.querySelectorAll('.chips .chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  renderTable();
+};
+
+window.renderTable=function(){
+  const q=(document.getElementById('srch').value||'').toLowerCase();
+  const list=Object.entries(vis).filter(([id,v])=>{
+    if(filt==='paid'&&v.status!=='paid') return false;
+    if(filt==='unpaid'&&v.status==='paid') return false;
+    if(q&&![v.vendorName,v.invNo,v.jobRef,v.desc].filter(Boolean).some(x=>x.toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=>(b[1].createdAt||'').localeCompare(a[1].createdAt||''));
+
+  // Summary — always all
+  const all=Object.values(vis);
+  document.getElementById('sTotal').textContent=all.length;
+  document.getElementById('sUnpaid').textContent=all.filter(v=>v.status!=='paid').length;
+  const owed=all.filter(v=>v.status!=='paid').reduce((s,v)=>s+(parseFloat(v.amount)||0),0);
+  const paid=all.filter(v=>v.status==='paid').reduce((s,v)=>s+(parseFloat(v.amount)||0),0);
+  document.getElementById('sOwed').textContent=fmt(owed);
+  document.getElementById('sPaid').textContent=fmt(paid);
+  document.getElementById('rc').textContent=list.length+' invoice'+(list.length!==1?'s':'')+' shown';
+
+  const tbody=document.getElementById('viTbody');
+  if(!list.length){tbody.innerHTML='<tr><td colspan="8" class="empty">No vendor invoices found.</td></tr>';return;}
+  tbody.innerHTML=list.map(([id,v])=>{
+    const paid=v.status==='paid';
+    return '<tr>'
+      +'<td style="font-weight:600">'+v.invNo+'</td>'
+      +'<td>'+v.vendorName+'</td>'
+      +'<td class="hsm" style="color:#555">'+(v.jobRef||'—')+'</td>'
+      +'<td class="hsm" style="color:#888;white-space:nowrap">'+fmtD(v.invDate)+'</td>'
+      +'<td class="nr" style="font-weight:500">'+(v.currency||'SGD')+' '+fmt(v.amount)+'</td>'
+      +'<td><span class="badge '+(paid?'b-paid':'b-unpaid')+'">'+(paid?'Paid':'Unpaid')+'</span></td>'
+      +'<td class="hsm" style="font-size:12px;color:#888">'+(v.createdBy||'—')+'</td>'
+      +'<td style="text-align:center;white-space:nowrap;display:flex;gap:6px;justify-content:center">'
+        +(paid
+          ?'<button class="bsm" onclick="togglePaid(\''+id+'\',false)" style="border-color:#854F0B;color:#854F0B">Mark Unpaid</button>'
+          :'<button class="bsm bg" onclick="togglePaid(\''+id+'\',true)">&#10003; Mark Paid</button>'
+        )
+        +'<button class="bsm" onclick="openEdit(\''+id+'\')" style="border-color:#185FA5;color:#185FA5">Edit</button>'
+        +'<button class="bsm bd" onclick="delInv(\''+id+'\')">Delete</button>'
+      +'</td>'
+      +'</tr>';
+  }).join('');
+};
+
+window.togglePaid=async function(id,paid){
+  try{
+    const upd={status:paid?'paid':'unpaid',updatedAt:new Date().toISOString()};
+    if(paid) upd.paidAt=new Date().toISOString();
+    await update(ref(db,'vendorInvoices/'+id),upd);
+    toast(paid?'Marked as paid ✓':'Marked as unpaid');
+  }catch(e){toast('Error: '+e.message);}
+};
+
+window.delInv=async function(id){
+  if(!confirm('Delete this vendor invoice? This cannot be undone.')) return;
+  try{
+    await remove(ref(db,'vendorInvoices/'+id));
+    toast('Invoice deleted');
+  }catch(e){toast('Error: '+e.message);}
+};
+
+window.openAdd=function(){
+  editId=null;
+  document.getElementById('modalTitle').textContent='+ Add Vendor Invoice';
+  document.getElementById('f_vendor').value='';
+  document.getElementById('f_invno').value='';
+  document.getElementById('f_date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('f_jobref').value='';
+  document.getElementById('f_cur').value='SGD';
+  document.getElementById('f_amt').value='';
+  document.getElementById('f_desc').value='';
+  document.getElementById('f_status').value='unpaid';
+  document.getElementById('addModal').classList.add('show');
+  setTimeout(()=>document.getElementById('f_vendor').focus(),100);
+};
+
+window.openEdit=function(id){
+  editId=id;
+  const v=vis[id]||{};
+  document.getElementById('modalTitle').textContent='Edit Vendor Invoice';
+  document.getElementById('f_vendor').value=v.vendorName||'';
+  document.getElementById('f_invno').value=v.invNo||'';
+  document.getElementById('f_date').value=v.invDate||'';
+  document.getElementById('f_jobref').value=v.jobRef||'';
+  document.getElementById('f_cur').value=v.currency||'SGD';
+  document.getElementById('f_amt').value=v.amount||'';
+  document.getElementById('f_desc').value=v.desc||'';
+  document.getElementById('f_status').value=v.status||'unpaid';
+  document.getElementById('addModal').classList.add('show');
+};
+
+window.closeAdd=function(){document.getElementById('addModal').classList.remove('show');editId=null;};
+
+window.saveInv=async function(){
+  const vendor=document.getElementById('f_vendor').value.trim();
+  const invno=document.getElementById('f_invno').value.trim();
+  const date=document.getElementById('f_date').value;
+  const amt=parseFloat(document.getElementById('f_amt').value);
+  if(!vendor){toast('Enter vendor name');return;}
+  if(!invno){toast('Enter invoice number');return;}
+  if(!date){toast('Select invoice date');return;}
+  if(isNaN(amt)||amt<=0){toast('Enter a valid amount');return;}
+  const data={
+    vendorName:vendor,invNo:invno,invDate:date,
+    jobRef:document.getElementById('f_jobref').value.trim(),
+    currency:document.getElementById('f_cur').value,
+    amount:amt,desc:document.getElementById('f_desc').value.trim(),
+    status:document.getElementById('f_status').value,
+    updatedAt:new Date().toISOString()
+  };
+  try{
+    if(editId){
+      await update(ref(db,'vendorInvoices/'+editId),data);
+      toast('Invoice updated ✓');
+    } else {
+      data.createdBy='Manager';
+      data.createdAt=new Date().toISOString();
+      await push(ref(db,'vendorInvoices'),data);
+      toast('Invoice saved ✓');
+    }
+    closeAdd();
+  }catch(e){toast('Error: '+e.message);}
+};
+
+signInAnonymously(auth).catch(e=>console.error(e));
+onAuthStateChanged(auth,user=>{
+  if(!user)return;
+  onValue(ref(db,'.info/connected'),snap=>{
+    const b=document.getElementById('connBadge');
+    b.textContent=snap.val()?'Live':'Offline';
+    b.className='conn '+(snap.val()?'online':'offline');
+    document.getElementById('ls').classList.add('hide');
+  });
+  onValue(ref(db,'vendorInvoices'),snap=>{
+    vis=snap.val()||{};
+    renderTable();
+  });
+});
+setTimeout(()=>document.getElementById('ls').classList.add('hide'),5000);
+</script>
+</body>
+</html>

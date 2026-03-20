@@ -416,7 +416,25 @@ function buildDetail(id){
     +'</div>'
 
     /* Payment section */
-    +'<div class="pay-section">'
+    +(function(){
+    var allVI=window._vendorInvoices||{};
+    var jobVIs=Object.entries(allVI).filter(function(e){return e[1].jobRef===j.ref;});
+    if(!jobVIs.length) return '';
+    var rows=jobVIs.map(function(e){
+      var v=e[1];
+      var paid=v.status==='paid';
+      return '<div class="pay-hist-row">'
+        +'<div><div style="font-weight:600">'+v.invNo+' &nbsp;·&nbsp; '+v.vendorName+'</div>'
+        +'<div style="font-size:11px;color:#555">'+(v.invDate?fmtD(v.invDate)+' ':'')+' '+(v.desc||'')+'</div></div>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="font-weight:600">'+(v.currency||'SGD')+' '+fmt(v.amount)+'</span>'
+          +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+(paid?'#EAF3DE':'#FCEBEB')+';color:'+(paid?'#1a6641':'#A32D2D')+'">'+(paid?'Paid ✓':'Unpaid')+'</span>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+    return '<div class="sbox" style="border-color:#e0ddd6"><h3>Vendor Invoices</h3>'+rows+'</div>';
+  })()
++'<div class="pay-section">'
       +'<h3>&#128176; Payment Tracking'+(payStatus?' &nbsp;'+payStatus:'')+'</h3>'
       +histHtml
       /* Add payment form */
@@ -502,6 +520,10 @@ onAuthStateChanged(auth,user=>{
   onValue(ref(db,'contacts'),snap=>{
     contacts=snap.val()||{};
     window._mgr_contacts=contacts;
+  });
+  onValue(ref(db,'vendorInvoices'),snap=>{
+    window._vendorInvoices=snap.val()||{};
+    if(curId)buildDetail(curId);
   });
   onValue(ref(db,'jobs'),snap=>{
     jobs=snap.val()||{};
