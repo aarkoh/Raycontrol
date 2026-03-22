@@ -286,8 +286,14 @@ let workers={}, log=[], pin='1234';
 let otRates={}, ovsRates={};
 try{otRates=JSON.parse(localStorage.getItem('wt_ot_rates')||'{}');}catch(e){otRates={};}
 try{ovsRates=JSON.parse(localStorage.getItem('wt_ovs_rates')||'{}');}catch(e){ovsRates={};}
-function saveOTRates(){try{localStorage.setItem('wt_ot_rates',JSON.stringify(otRates));}catch(e){}}
-function saveOVSRates(){try{localStorage.setItem('wt_ovs_rates',JSON.stringify(ovsRates));}catch(e){}}
+function saveOTRates(){
+  set(ref(db,'config/rates/ot'),otRates).catch(e=>console.error('saveOTRates',e));
+  try{localStorage.removeItem('wt_ot_rates');}catch(e){} // clean up old localStorage
+}
+function saveOVSRates(){
+  set(ref(db,'config/rates/ovs'),ovsRates).catch(e=>console.error('saveOVSRates',e));
+  try{localStorage.removeItem('wt_ovs_rates');}catch(e){}
+}
 window.setOTRate=function(w,val){otRates[w]=parseFloat(val)||0;saveOTRates();renderSummary();};
 window.setOVSRate=function(w,val){ovsRates[w]=parseFloat(val)||0;saveOVSRates();renderSummary();};
 
@@ -864,6 +870,27 @@ onAuthStateChanged(auth,async user=>{
   if(!pinSnap.exists())await set(ref(db,'config/pin'),'1234');
 
   onValue(ref(db,'config/pin'),snap=>{if(snap.exists())pin=snap.val();});
+  // Load OT/OVS rates from Firebase (syncs across all devices)
+  onValue(ref(db,'config/rates'),snap=>{
+    if(snap.exists()){
+      const r=snap.val();
+      if(r.ot) otRates=r.ot;
+      if(r.ovs) ovsRates=r.ovs;
+    } else {
+      // First time: migrate from localStorage if available
+      const oldOT=JSON.parse(localStorage.getItem('wt_ot_rates')||'{}');
+      const oldOVS=JSON.parse(localStorage.getItem('wt_ovs_rates')||'{}');
+      if(Object.keys(oldOT).length||Object.keys(oldOVS).length){
+        if(Object.keys(oldOT).length) otRates={...otRates,...oldOT};
+        if(Object.keys(oldOVS).length) ovsRates={...ovsRates,...oldOVS};
+        set(ref(db,'config/rates'),{ot:otRates,ovs:ovsRates}).then(()=>{
+          localStorage.removeItem('wt_ot_rates');
+          localStorage.removeItem('wt_ovs_rates');
+        });
+      }
+    }
+    if(document.getElementById('tab-summary')?.classList.contains('active')) renderSummary();
+  });
 
   onValue(ref(db,'workers'),snap=>{
     workers=snap.val()||{};
