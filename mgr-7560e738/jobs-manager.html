@@ -72,6 +72,13 @@ button:hover{background:#f0f0ee}
 .trow:last-child{border:none}
 /* Payment section inside detail */
 .pay-section{background:#EAF3DE;border:1px solid #C0DD97;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.profit-section{background:#f0f7ff;border:1px solid #B5D4F4;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.profit-section h3{font-size:13px;font-weight:700;color:#185FA5;margin-bottom:1rem}
+.profit-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-bottom:1px solid #e8f0f8}
+.profit-row:last-child{border-bottom:none}
+.profit-total{font-size:15px;font-weight:700;padding-top:8px;margin-top:4px;border-top:2px solid #185FA5;display:flex;justify-content:space-between}
+.claim-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;border-bottom:1px solid #e8f0f8}
+.claim-row:last-child{border-bottom:none}
 .pay-section h3{font-size:13px;font-weight:700;color:#1a6641;margin-bottom:1rem}
 .pay-hist-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #C0DD97;font-size:13px}
 .pay-hist-row:last-child{border:none}
@@ -487,6 +494,78 @@ function buildDetail(id){
     }).join('');
     return '<div class="sbox" style="border-color:#e0ddd6"><h3>Vendor Invoices</h3>'+rows+'</div>';
   })()
++(function(){
+    var allVI=window._vendorInvoices||{};
+    var jobVIs=Object.entries(allVI).filter(function(e){return e[1].jobRef===j.ref;});
+    var claims=j.workerClaims||[];
+    var revSGD=t.total; // already in job currency
+    var jobCur=j.currency||'SGD';
+    // Build vendor cost rows
+    var viRows=jobVIs.map(function(e){
+      var v=e[1];
+      var vCur=v.currency||'SGD';
+      var amt=parseFloat(v.amount)||0;
+      var rateKey='_fx_'+vCur+'_SGD';
+      var rate=window[rateKey]||1;
+      var sgd=vCur==='SGD'?amt:amt*rate;
+      var rateNote=vCur!=='SGD'?'<span style="font-size:10px;color:#888"> ('+vCur+' '+fmt(amt)+' @ '+rate.toFixed(4)+')</span>':'';
+      return '<div class="profit-row">'
+        +'<span style="color:#555">'+v.vendorName+' — '+v.invNo+rateNote+'</span>'
+        +'<span style="color:#A32D2D">- SGD '+fmt(sgd)+'</span>'
+      +'</div>';
+    }).join('');
+    // Build claims rows
+    var claimRows=claims.map(function(c,i){
+      return '<div class="claim-row">'
+        +'<div><span style="font-weight:500">'+c.worker+'</span>'
+        +(c.date?' <span style="color:#888;font-size:11px">'+fmtD(c.date)+'</span>':'')
+        +(c.desc?' <span style="color:#aaa;font-size:11px">— '+c.desc+'</span>':'')+'</div>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="color:#A32D2D">- SGD '+fmt(parseFloat(c.amount)||0)+'</span>'
+          +'<button class="bsm" style="font-size:10px;padding:2px 7px;border-color:#A32D2D;color:#A32D2D" onclick="mgrDeleteClaim(\''+id+'\','+i+')">&#10005;</button>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+    // Totals
+    var vendorCostSGD=jobVIs.reduce(function(s,e){
+      var v=e[1],vCur=v.currency||'SGD',amt=parseFloat(v.amount)||0;
+      var rateKey='_fx_'+vCur+'_SGD';
+      return s+(vCur==='SGD'?amt:amt*(window[rateKey]||1));
+    },0);
+    var claimCostSGD=claims.reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
+    var revSGD2=jobCur==='SGD'?t.total:t.total*(window['_fx_'+jobCur+'_SGD']||1);
+    var profit=revSGD2-vendorCostSGD-claimCostSGD;
+    var margin=revSGD2>0?(profit/revSGD2*100):0;
+    var profitColor=profit>=0?'#1a6641':'#A32D2D';
+    var fxNote=document.getElementById('fxNote_'+id)||'';
+    return '<div class="profit-section">'
+      +'<h3>&#128200; Profit Analysis <span id="fxStatus_'+id+'" style="font-size:10px;font-weight:400;color:#888"></span></h3>'
+      +'<div class="profit-row"><span>Revenue ('+jobCur+'→SGD)</span><span style="color:#1a6641">+ SGD '+fmt(revSGD2)+'</span></div>'
+      +(viRows||'<div class="profit-row" style="color:#aaa;font-size:12px">No vendor invoices linked</div>')
+      +(claimRows||'')
+      +'<div class="profit-total">'
+        +'<span>GROSS PROFIT</span>'
+        +'<span style="color:'+profitColor+'">SGD '+fmt(profit)+'&nbsp;<span style="font-size:12px;font-weight:400">('+margin.toFixed(1)+'%)</span></span>'
+      +'</div>'
+      +'<div style="margin-top:12px;padding-top:10px;border-top:1px solid #c8dff0">'
+        +'<div style="font-size:11px;font-weight:600;color:#185FA5;margin-bottom:6px">Add Worker Claim</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:6px;align-items:end">'
+          +'<div><label style="font-size:10px;color:#888;display:block;margin-bottom:2px">Worker</label>'
+            +'<input type="text" id="cl_worker_'+id+'" placeholder="Name" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit"></div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">'
+            +'<div><label style="font-size:10px;color:#888;display:block;margin-bottom:2px">Amount (SGD)</label>'
+              +'<input type="number" id="cl_amt_'+id+'" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit"></div>'
+            +'<div><label style="font-size:10px;color:#888;display:block;margin-bottom:2px">Date</label>'
+              +'<input type="date" id="cl_date_'+id+'" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit"></div>'
+          +'</div>'
+          +'<button class="bg bsm" style="height:28px;font-size:11px" onclick="mgrAddClaim(\''+id+'\')" title="Add claim">+ Add</button>'
+        +'</div>'
+        +'<div style="margin-top:4px"><label style="font-size:10px;color:#888;display:block;margin-bottom:2px">Description (optional)</label>'
+          +'<input type="text" id="cl_desc_'+id+'" placeholder="e.g. Overtime, transport" style="width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit">'
+        +'</div>'
+      +'</div>'
+    +'</div>';
+  })()
 +'<div class="pay-section">'
       +'<h3>&#128176; Payment Tracking'+(payStatus?' &nbsp;'+payStatus:'')+'</h3>'
       +histHtml
@@ -584,6 +663,53 @@ onAuthStateChanged(auth,user=>{
     render();
     if(curId)buildDetail(curId);
   });
+
+  // ── Forex: fetch 30-day average rates for common currencies → SGD ──
+  window.fetchForex=async function(){
+    const currencies=['USD','EUR','JPY','GBP','CNY','AUD'];
+    const today=new Date();
+    const from=new Date(today); from.setDate(from.getDate()-30);
+    const fmtDate=d=>d.toISOString().slice(0,10);
+    for(const cur of currencies){
+      try{
+        const url=`https://api.frankfurter.app/${fmtDate(from)}..${fmtDate(today)}?from=${cur}&to=SGD`;
+        const r=await fetch(url);
+        const data=await r.json();
+        const rates=Object.values(data.rates||{}).map(d=>d.SGD).filter(Boolean);
+        if(rates.length) window['_fx_'+cur+'_SGD']=rates.reduce((s,r)=>s+r,0)/rates.length;
+      }catch(e){console.warn('Forex fetch failed for '+cur,e);}
+    }
+    if(curId) buildDetail(curId);
+  };
+  window.fetchForex();
+
+  // ── Worker Claims ──
+  window.mgrAddClaim=async function(id){
+    const worker=document.getElementById('cl_worker_'+id)?.value.trim();
+    const amt=parseFloat(document.getElementById('cl_amt_'+id)?.value||0);
+    const date=document.getElementById('cl_date_'+id)?.value;
+    const desc=document.getElementById('cl_desc_'+id)?.value.trim();
+    if(!worker){toast('Enter worker name');return;}
+    if(!amt||amt<=0){toast('Enter a valid amount');return;}
+    const claims=[...(jobs[id]?.workerClaims||[]),{worker,amount:amt,date:date||'',desc:desc||'',addedAt:new Date().toISOString()}];
+    try{
+      await update(ref(db,'jobs/'+id),{workerClaims:claims});
+      jobs[id]=Object.assign({},jobs[id],{workerClaims:claims});
+      toast('Claim added ✓');
+      buildDetail(id);
+    }catch(e){toast('Error: '+e.message);}
+  };
+
+  window.mgrDeleteClaim=async function(id,idx){
+    if(!confirm('Remove this worker claim?'))return;
+    const claims=(jobs[id]?.workerClaims||[]).filter((_,i)=>i!==idx);
+    try{
+      await update(ref(db,'jobs/'+id),{workerClaims:claims});
+      jobs[id]=Object.assign({},jobs[id],{workerClaims:claims});
+      toast('Claim removed');
+      buildDetail(id);
+    }catch(e){toast('Error: '+e.message);}
+  };
 });
 setTimeout(()=>document.getElementById('ls').classList.add('hide'),5000);
 </script>
