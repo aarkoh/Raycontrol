@@ -241,9 +241,9 @@ window.saveStaffPins=async function(){
   const newPins={};
   for(const w of WORKERS_ALL){
     const val=(document.getElementById('sp_'+w).value||'').trim();
-    if(!val||!/^[0-9]$/.test(val)){
+    if(!val||!/^[0-9]{4}$/.test(val)){
       document.getElementById('pinSaveMsg').style.color='#A32D2D';
-      document.getElementById('pinSaveMsg').textContent='Code for '+w+' must be a single digit 0–9';
+      document.getElementById('pinSaveMsg').textContent='Code for '+w+' must be exactly 4 digits';
       return;
     }
     newPins[w]=val;
@@ -272,7 +272,7 @@ let adminPin='9';
 window.changeAdminPin=async function(){
   const n=document.getElementById('newAdminPin').value.trim();
   const msg=document.getElementById('adminPinMsg');
-  if(!n||!/^[0-9]$/.test(n)){msg.style.color='#A32D2D';msg.textContent='Must be a single digit 0–9';return;}
+  if(!n||!/^[0-9]{4}$/.test(n)){msg.style.color='#A32D2D';msg.textContent='Must be exactly 4 digits';return;}
   // Make sure it doesn't clash with a staff PIN
   const clash=Object.entries(staffPins).find(([,v])=>v===n);
   if(clash){msg.style.color='#A32D2D';msg.textContent='That digit is already used by '+clash[0];return;}
