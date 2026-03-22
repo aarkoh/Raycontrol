@@ -498,6 +498,29 @@ function buildDetail(id){
     var allVI=window._vendorInvoices||{};
     var jobVIs=Object.entries(allVI).filter(function(e){return e[1].jobRef===j.ref;});
     var claims=j.workerClaims||[];
+    // ── Auto-calculate worker OT from timesheet ──
+    var jobLog=(window._mgr_log||[]).filter(function(e){return e.job===j.ref;});
+    var otRatesMgr=window._mgr_otRates||{};
+    var workerOT={}; // {worker: {otMins, normalMins}}
+    // Pair in/out entries per worker
+    var workers=[...new Set(jobLog.map(function(e){return e.worker;}))];
+    workers.forEach(function(w){
+      var wLog=jobLog.filter(function(e){return e.worker===w;}).sort(function(a,b){return new Date(a.time)-new Date(b.time);});
+      var openIn=null; var otMins=0; var normMins=0;
+      wLog.forEach(function(e){
+        if(e.type==='in') openIn=e;
+        else if(e.type==='out'&&openIn){
+          var inT=new Date(openIn.time),outT=new Date(e.time);
+          var totalMs=outT-inT;
+          var tz=openIn.tz||'Asia/Singapore';
+          var otMs=_calcOTMins(inT,outT,tz)*60000;
+          otMins+=otMs/60000;
+          normMins+=(totalMs-otMs)/60000;
+          openIn=null;
+        }
+      });
+      if(otMins>0||normMins>0) workerOT[w]={otMins:otMins,normMins:normMins,otH:(otMins/60)};
+    });
     var revSGD=t.total; // already in job currency
     var jobCur=j.currency||'SGD';
     // Build vendor cost rows
@@ -533,8 +556,12 @@ function buildDetail(id){
       return s+(vCur==='SGD'?amt:amt*(window[rateKey]||1));
     },0);
     var claimCostSGD=claims.reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
+    var otCostSGD=Object.entries(workerOT).reduce(function(s,e){
+      var rate=otRatesMgr[e[0]]||0;
+      return s+e[1].otH*rate;
+    },0);
     var revSGD2=jobCur==='SGD'?t.total:t.total*(window['_fx_'+jobCur+'_SGD']||1);
-    var profit=revSGD2-vendorCostSGD-claimCostSGD;
+    var profit=revSGD2-vendorCostSGD-claimCostSGD-otCostSGD;
     var margin=revSGD2>0?(profit/revSGD2*100):0;
     var profitColor=profit>=0?'#1a6641':'#A32D2D';
     var fxNote=document.getElementById('fxNote_'+id)||'';
@@ -542,7 +569,27 @@ function buildDetail(id){
       +'<h3>&#128200; Profit Analysis <span id="fxStatus_'+id+'" style="font-size:10px;font-weight:400;color:#888"></span></h3>'
       +'<div class="profit-row"><span>Revenue ('+jobCur+'→SGD)</span><span style="color:#1a6641">+ SGD '+fmt(revSGD2)+'</span></div>'
       +(viRows||'<div class="profit-row" style="color:#aaa;font-size:12px">No vendor invoices linked</div>')
-      +(claimRows||'')
+      +(Object.keys(workerOT).length
+        ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Worker OT (from timesheet)</div>'
+         +Object.entries(workerOT).map(function(e){
+           var w=e[0],d=e[1];
+           var rate=otRatesMgr[w]||0;
+           var cost=d.otH*rate;
+           var normH=(d.normMins/60);
+           return '<div class="profit-row">'
+             +'<span style="color:#555">'+w
+               +' <span style="font-size:11px;color:#888">'+d.otH.toFixed(1)+'h OT + '+normH.toFixed(1)+'h normal</span>'
+               +(rate?'<span style="font-size:10px;color:#aaa"> @ S$'+rate+'/h</span>':'<span style="font-size:10px;color:#aaa"> (no OT rate set)</span>')
+             +'</span>'
+             +'<span style="color:#A32D2D">'+( cost>0?'- SGD '+fmt(cost):'—')+'</span>'
+           +'</div>';
+         }).join('')
+        :'<div class="profit-row" style="color:#aaa;font-size:12px">No timesheet entries for this job</div>'
+      )
+      +(claimRows
+        ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Manual Claims</div>'+claimRows
+        :''
+      )
       +'<div class="profit-total">'
         +'<span>GROSS PROFIT</span>'
         +'<span style="color:'+profitColor+'">SGD '+fmt(profit)+'&nbsp;<span style="font-size:12px;font-weight:400">('+margin.toFixed(1)+'%)</span></span>'
@@ -661,6 +708,32 @@ onAuthStateChanged(auth,user=>{
     jobs=snap.val()||{};
     window._mgr_jobs=jobs;
     render();
+    if(curId)buildDetail(curId);
+  });
+
+  // ── OT helpers (replicated from clock-manager) ──
+  const SG_PH=new Set(['2025-01-01','2025-01-29','2025-01-30','2025-03-31','2025-04-18','2025-05-01','2025-05-12','2025-06-06','2025-08-09','2025-12-25','2026-01-01','2026-02-17','2026-02-18','2026-03-21','2026-04-03','2026-05-01','2026-05-27','2026-05-31','2026-06-01','2026-08-09','2026-08-10','2026-11-08','2026-11-09','2026-12-25']);
+  function _dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+  function _inTZ(dt,tz){if(!tz)return dt;try{const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});const p=Object.fromEntries(fmt.formatToParts(dt).map(p=>[p.type,p.value]));return new Date(`${p.year}-${p.month}-${p.day}T${p.hour==='24'?'00':p.hour}:${p.minute}:${p.second}`);}catch(e){return dt;}}
+  function _isOT(dt,tz){const local=tz?_inTZ(dt,tz):dt;const dow=local.getDay(),key=_dateKey(local);if(dow===0||dow===6||SG_PH.has(key))return true;const h=local.getHours()+local.getMinutes()/60;return h<8||h>=18;}
+  function _calcOTMins(inT,outT,tz){const CHUNK=5*60*1000;let ot=0,t=new Date(inT);while(t<outT){const n=new Date(Math.min(t.getTime()+CHUNK,outT.getTime()));if(_isOT(t,tz))ot+=(n-t)/60000;t=n;}return ot;}
+
+  // ── Load OT/OVS rates from Firebase ──
+  let otRatesMgr={}, ovsRatesMgr={};
+  onValue(ref(db,'config/rates'),snap=>{
+    if(snap.exists()){const r=snap.val();otRatesMgr=r.ot||{};ovsRatesMgr=r.ovs||{};}
+    window._mgr_otRates=otRatesMgr;
+    window._mgr_ovsRates=ovsRatesMgr;
+    if(curId)buildDetail(curId);
+  });
+
+  // ── Load log entries from Firebase ──
+  let mgrLog=[];
+  onValue(ref(db,'log'),snap=>{
+    mgrLog=[];
+    if(snap.exists())Object.entries(snap.val()).forEach(([k,v])=>mgrLog.push({id:k,...v}));
+    mgrLog.sort((a,b)=>new Date(a.time)-new Date(b.time));
+    window._mgr_log=mgrLog;
     if(curId)buildDetail(curId);
   });
 
