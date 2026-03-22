@@ -289,7 +289,9 @@ const WORKERS_ALL=['HS','TM','RG','MU','AY','IL','SA','AN'];
 let staffPins={HS:'1111',TM:'2222',RG:'3333',MU:'4444',AY:'5555',IL:'6666',SA:'7777',AN:'8888'};
 
 function renderStaffPins(){
-  document.getElementById('staffPinGrid').innerHTML=WORKERS_ALL.map(w=>`
+  // Use live workers list from Firebase if available, fallback to WORKERS_ALL
+  const list = window._activeWorkers || WORKERS_ALL;
+  document.getElementById('staffPinGrid').innerHTML=list.map(w=>`
     <div class="pin-card">
       <div class="pin-card-label">${w}</div>
       <input type="text" id="sp_${w}" value="${staffPins[w]||''}" maxlength="4" inputmode="numeric" placeholder="0000">
@@ -298,7 +300,8 @@ function renderStaffPins(){
 
 window.saveStaffPins=async function(){
   const newPins={};
-  for(const w of WORKERS_ALL){
+  const saveList = window._activeWorkers || WORKERS_ALL;
+  for(const w of saveList){
     const val=(document.getElementById('sp_'+w).value||'').trim();
     if(!val||!/^[0-9]{4}$/.test(val)){
       document.getElementById('pinSaveMsg').style.color='#A32D2D';
@@ -481,7 +484,9 @@ onAuthStateChanged(auth,user=>{
   });
   onValue(ref(db,'config/workers'),snap=>{
     const workers=snap.exists()&&Array.isArray(snap.val())?snap.val():['HS','TM','RG','MU','AY','IL','SA','AN'];
+    window._activeWorkers=workers;
     renderWorkerList(workers);
+    renderStaffPins(); // refresh pin grid to include new workers
   });
   onValue(ref(db,'config/staffPins'),snap=>{
     if(snap.exists()) staffPins={...staffPins,...snap.val()};
