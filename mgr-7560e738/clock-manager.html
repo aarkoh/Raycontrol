@@ -911,6 +911,16 @@ setTimeout(()=>document.getElementById('loadingScreen').classList.add('hide'),10
       <label style="font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500">Time (24hr, Singapore time)</label>
       <input type="time" id="editLogTime" style="width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7">
     </div>
+    <div style="margin-bottom:.75rem">
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500">Job Number</label>
+      <div style="position:relative">
+        <input type="text" id="editLogJobInp" placeholder="Type job ref or vessel…" autocomplete="off"
+          oninput="editLogJobSearch(this.value)"
+          style="width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7">
+        <input type="hidden" id="editLogJob">
+        <div id="editLogJobDrop" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:160px;overflow-y:auto;margin-top:2px"></div>
+      </div>
+    </div>
     <div style="margin-bottom:1rem">
       <label style="font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500">Reason for edit</label>
       <input type="text" id="editLogReason" placeholder="e.g. Wrong clock-out location" style="width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7">
@@ -940,9 +950,47 @@ function openEditLog(id){
   document.getElementById('editLogType').value = e.type === 'in' ? 'Clock In' : 'Clock Out';
   document.getElementById('editLogDate').value = yyyy+'-'+mm+'-'+dd;
   document.getElementById('editLogTime').value = hh+':'+mi;
+  document.getElementById('editLogJobInp').value = e.job||'';
+  document.getElementById('editLogJob').value = e.job||'';
   document.getElementById('editLogReason').value = '';
+  document.getElementById('editLogJobDrop').style.display = 'none';
   document.getElementById('editLogModal').style.display = 'flex';
 }
+function editLogJobSearch(q){
+  var drop = document.getElementById('editLogJobDrop');
+  if(!q||q.length<2){drop.style.display='none';return;}
+  var jobs = window._mgr_jobs||{};
+  var ql = q.toLowerCase();
+  var matches = Object.entries(jobs).filter(function(e){
+    var j=e[1];
+    return j.ref&&(j.ref.toLowerCase().includes(ql)||(j.vessel||'').toLowerCase().includes(ql));
+  }).filter(function(e){return e[1].status!=='closed';}).slice(0,8);
+  if(!matches.length){drop.style.display='none';return;}
+  window._editJobMatches = matches;
+  drop.innerHTML = matches.map(function(e,i){
+    var j=e[1];
+    return '<div data-i="'+i+'" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f3">'
+      +'<span style="font-weight:700">'+j.ref+'</span>'
+      +(j.vessel?' <span style="color:#888;font-size:11px">· '+j.vessel+'</span>':'')
+    +'</div>';
+  }).join('');
+  drop.querySelectorAll('[data-i]').forEach(function(el){
+    el.addEventListener('click',function(){
+      var j = window._editJobMatches[parseInt(this.getAttribute('data-i'))][1];
+      document.getElementById('editLogJobInp').value = j.ref||'';
+      document.getElementById('editLogJob').value = j.ref||'';
+      drop.style.display='none';
+    });
+  });
+  drop.style.display='block';
+  setTimeout(function(){
+    document.addEventListener('click',function h(ev){
+      if(!drop.contains(ev.target)&&ev.target.id!=='editLogJobInp'){drop.style.display='none';}
+      document.removeEventListener('click',h);
+    });
+  },10);
+}
+
 function closeEditLog(){
   document.getElementById('editLogModal').style.display = 'none';
 }
@@ -962,9 +1010,11 @@ async function saveEditLog(){
   // Find the entry for context
   var log2 = window._clockLog||[];
   var e = log2.find(function(x){return x.id===id;});
+  var jobVal = document.getElementById('editLogJob').value.trim() || document.getElementById('editLogJobInp').value.trim();
   var upd = {
     time: utcTime,
     localTime: localTime,
+    job: jobVal,
     edited: true,
     editedAt: new Date().toISOString(),
     editReason: reason||'Manual correction by manager'
