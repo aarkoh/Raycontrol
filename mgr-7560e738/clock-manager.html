@@ -676,7 +676,7 @@ function renderLog(){
     // Local time display: use saved localTime or convert UTC to worker's tz
     const displayTime = e.localTime || fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
     const shortTime = e.localTime ? e.localTime.split(',')[1]?.trim().slice(0,5) : fmtInTZ(e.time, e.tz||'Asia/Singapore');
-    return `<div class="lentry"><span class="ltype ${e.type}">${e.type==='in'?'IN':'OUT'}</span><div><div class="lworker">${e.worker}${tzLabel}${e.edited?'<span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">Edited</span>':''}</div><div class="ltime">${displayTime}</div><div class="lloc">${e.job?`<span style="background:#E6F1FB;color:#185FA5;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px">${e.job}${e.vessel?' · '+e.vessel:''}</span>`:''}${loc}${e.acc?' (±'+e.acc+'m)':''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="lts">${shortTime}</span><button onclick="openEditLog('${e.id}')" style="font-size:10px;padding:2px 8px;border:1px solid #185FA5;color:#185FA5;background:#E6F1FB;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#9998; Edit</button></div></div>`;
+    return `<div class="lentry"><span class="ltype ${e.type}">${e.type==='in'?'IN':'OUT'}</span><div><div class="lworker">${e.worker}${tzLabel}${e.edited?'<span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">Edited</span>':''}</div><div class="ltime">${displayTime}</div><div class="lloc">${e.job?`<span style="background:#E6F1FB;color:#185FA5;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px">${e.job}${e.vessel?' · '+e.vessel:''}</span>`:''}${loc}${e.acc?' (±'+e.acc+'m)':''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="lts">${shortTime}</span><button onclick="openEditLog('${e.id}')" style="font-size:10px;padding:2px 8px;border:1px solid #185FA5;color:#185FA5;background:#E6F1FB;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#9998; Edit</button><button onclick="deleteLogEntry('${e.id}')" style="font-size:10px;padding:2px 8px;border:1px solid #A32D2D;color:#A32D2D;background:#FCEBEB;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#128465;</button></div></div>`;
   }).join('');
 }
 
@@ -857,6 +857,7 @@ onAuthStateChanged(auth,async user=>{
   window._clockDb=db;
   window._clockRef=ref;
   window._clockUpdate=update;
+  window._clockRemove=remove;
 
   onValue(ref(db,'.info/connected'),snap=>{
     const online=snap.val(),b=document.getElementById('connBadge');
@@ -1032,6 +1033,22 @@ document.addEventListener('keydown', function(e){
     if(m && m.style.display !== 'none') { e.preventDefault(); closeEditLog(); }
   }
 });
+async function deleteLogEntry(id){
+  var e = (window._clockLog||[]).find(function(x){return x.id===id;});
+  if(!e){toast('Entry not found');return;}
+  var label = (e.type==='in'?'Clock IN':'Clock OUT')+' — '+(e.worker||'?')+' — '+(e.localTime||e.time||'');
+  if(!confirm('Delete this log entry?\n\n'+label+'\n\nThis cannot be undone.')){return;}
+  try{
+    var db = window._clockDb;
+    var ref2 = window._clockRef;
+    var remove2 = window._clockRemove;
+    if(!db||!ref2||!remove2){toast('Still loading, please try again');return;}
+    await remove2(ref2(db,'log/'+id));
+    toast('Entry deleted');
+    await fetchLog();
+  }catch(err){toast('Error: '+err.message);}
+}
+
 async function saveEditLog(){
   var id = document.getElementById('editLogId').value;
   var dateVal = document.getElementById('editLogDate').value;
