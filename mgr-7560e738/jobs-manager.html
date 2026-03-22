@@ -526,7 +526,9 @@ function buildDetail(id){
           openIn=null;
         }
       });
-      if(otMins>0||normMins>0) workerOT[w]={otMins:otMins,normMins:normMins,otH:(otMins/60)};
+      var rawOtH=otMins/60;
+      var otHRounded=Math.round(rawOtH); // <0.5 rounds down, >=0.5 rounds up
+      if(otMins>0||normMins>0) workerOT[w]={otMins:otMins,normMins:normMins,otH:otHRounded,otHRaw:rawOtH};
     });
     var revSGD=t.total; // already in job currency
     var jobCur=j.currency||'SGD';
@@ -565,7 +567,7 @@ function buildDetail(id){
     var claimCostSGD=claims.reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
     var otCostSGD=Object.entries(workerOT).reduce(function(s,e){
       var rate=otRatesMgr[e[0]]||0;
-      return s+e[1].otH*rate;
+      return s+e[1].otH*rate; // otH already rounded
     },0);
     var revSGD2=jobCur==='SGD'?t.total:t.total*(window['_fx_'+jobCur+'_SGD']||1);
     var profit=revSGD2-vendorCostSGD-claimCostSGD-otCostSGD;
@@ -585,7 +587,7 @@ function buildDetail(id){
            var normH=(d.normMins/60);
            return '<div class="profit-row">'
              +'<span style="color:#555">'+w
-               +' <span style="font-size:11px;color:#888">'+d.otH.toFixed(1)+'h OT + '+normH.toFixed(1)+'h normal</span>'
+               +' <span style="font-size:11px;color:#888">'+d.otH+'h OT'+(d.otHRaw!==d.otH?' <span style="font-size:10px;color:#aaa">(raw '+d.otHRaw.toFixed(2)+'h)</span>':'')+'</span>'
                +(rate?'<span style="font-size:10px;color:#aaa"> @ S$'+rate+'/h</span>':'<span style="font-size:10px;color:#aaa"> (no OT rate set)</span>')
              +'</span>'
              +'<span style="color:#A32D2D">'+( cost>0?'- SGD '+fmt(cost):'—')+'</span>'
