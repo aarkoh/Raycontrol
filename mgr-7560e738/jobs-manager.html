@@ -313,7 +313,9 @@ window.render=function(){
     const rcvd=parseFloat(j.paymentReceived)||0;
     const bal=t.total-rcvd;
     const jst=j.status||'quote';
-    const a=ageD(j.date||j.createdAt);
+    // For invoiced jobs, show invoice date not job creation date
+    const displayDate=invoiced?(j.invoiceDate||j.updatedAt||j.date||j.createdAt):(j.date||j.createdAt);
+    const a=ageD(displayDate);
     const aStr=a===0?'Today':a===1?'Yesterday':a+' d ago';
     const aC=a>30&&jst!=='closed'?' ov':'';
     const invoiced=['invoice','soa','closed'].includes(jst);
@@ -338,7 +340,7 @@ window.render=function(){
         +'<div style="font-size:12px;color:#555">'+(j.customerName||'—')+'</div>'
         +(j.custPO?'<div style="font-size:11px;color:#888">PO: '+j.custPO+'</div>':'')
         +'</div></div></td>'
-      +'<td class="hsm" style="font-size:12px;color:#888;white-space:nowrap">'+fmtD(j.date||j.createdAt)+'<br><span class="'+aC+'" style="font-size:11px">'+aStr+'</span></td>'
+      +'<td class="hsm" style="font-size:12px;color:#888;white-space:nowrap">'+fmtD(displayDate)+'<br><span class="'+aC+'" style="font-size:11px">'+aStr+'</span></td>'
       +'<td class="hsm" style="font-size:12px;color:#555">'+(vs||'—')+(eq?'<br><span style="color:#888;font-size:11px">'+eq+'</span>':'')+'</td>'
       +'<td><span class="badge '+(BC[jst]||'bc')+'">'+(SL[jst]||jst)+'</span></td>'
       +'<td class="nr" style="font-weight:500;white-space:nowrap">'+(['invoice','soa','closed'].includes(jst)&&t.total>0?cur+' '+fmt(t.total):'—')+'</td>'
