@@ -124,7 +124,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="login-overlay" id="loginOverlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(245,245,243,0.98);display:none;align-items:center;justify-content:center;z-index:600;padding:1rem">
   <div class="login-card">
     <h2>&#128100; Staff Login</h2>
-    <p>Enter your 1-digit staff code<br>to access this page</p>
+    <p>Enter your 4-digit staff code<br>to access this page</p>
     <div class="pin-big"><input type="password" id="staffPin" maxlength="4" inputmode="numeric" oninput="onStaffPinInput()" autocomplete="off"></div>
     <div class="login-name" id="loginName"></div>
     <div class="login-err" id="loginErr"></div>
@@ -246,17 +246,9 @@ onAuthStateChanged(auth,async user=>{
   });
   // One-time fetch for immediate use on load
   try{
-    const ps=await get(ref(db,'config/staffPins'));
-    if(ps.exists()) window.staffPins={...window.staffPins,...ps.val()};
-    else {
-      // First time: push new 4-digit PINs to Firebase
-      await set(ref(db,'config/staffPins'),window.staffPins);
-    }
-  }catch(e){}
-  try{
-    const ap=await get(ref(db,'config/adminPin'));
-    if(ap.exists()) window.adminPin=ap.val();
-    else await set(ref(db,'config/adminPin'),window.adminPin);
+    // Always push the 4-digit PINs to Firebase to overwrite old single-digit ones
+    await set(ref(db,'config/staffPins'),window.staffPins);
+    await set(ref(db,'config/adminPin'),window.adminPin);
   }catch(e){}
   try{const ws=await get(ref(db,'config/workers'));if(ws.exists()&&Array.isArray(ws.val())) window.WORKERS_LIST=ws.val();}catch(e){}
 });
