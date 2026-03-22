@@ -383,10 +383,30 @@ window.addWorker=async function(){
     // Init worker node in Firebase
     const wSnap=await get(ref(db,'workers/'+initials));
     if(!wSnap.exists()) await set(ref(db,'workers/'+initials),{status:'out',since:null,loc:'',lastTime:null});
+    // Assign a default PIN if not already set
+    const pinsSnap=await get(ref(db,'config/staffPins'));
+    const curPins=pinsSnap.exists()?pinsSnap.val():{};
+    if(!curPins[initials]){
+      // Find an unused 4-digit PIN (use position-based default)
+      const usedPins=new Set(Object.values(curPins));
+      let defaultPin=String(workers.indexOf(initials)+1).padStart(4,'0');
+      // If collision, try incrementing
+      let attempt=workers.indexOf(initials)+1;
+      while(usedPins.has(String(attempt).padStart(4,'0'))&&attempt<9999){attempt++;}
+      defaultPin=String(attempt).padStart(4,'0');
+      curPins[initials]=defaultPin;
+      await set(ref(db,'config/staffPins'),curPins);
+      msg.style.color='#3B6D11';
+      msg.textContent='✓ '+initials+' added — default PIN: '+defaultPin+' (change in Staff Login Codes above)';
+    } else {
+      msg.style.color='#3B6D11';msg.textContent='✓ '+initials+' added';
+    }
     inp.value='';
-    msg.style.color='#3B6D11';msg.textContent='✓ '+initials+' added';
-    setTimeout(()=>msg.textContent='',3000);
+    setTimeout(()=>msg.textContent='',6000);
     renderWorkerList(workers);
+    // Refresh the staffPins section
+    const sp2=await get(ref(db,'config/staffPins'));
+    if(sp2.exists()){staffPins={...staffPins,...sp2.val()};renderStaffPins();}
   }catch(e){msg.style.color='#A32D2D';msg.textContent='Error: '+e.message;}
 };
 
