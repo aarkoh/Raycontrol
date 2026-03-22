@@ -140,6 +140,7 @@ button:hover{background:#f0f0ee}
       <div class="chip" onclick="setF('invoice',this)">Invoice</div>
       <div class="chip" onclick="setF('soa',this)">SOA</div>
       <div class="chip" onclick="setF('closed',this)">Closed</div>
+      <div class="chip" onclick="setF('_archived',this)" style="border-color:#aaa;color:#aaa">&#128447; Archived</div>
       <div class="chip" onclick="setF('_unpaid',this)" style="border-color:#A32D2D;color:#A32D2D">Unpaid</div>
       <div class="chip" onclick="setF('_partial',this)" style="border-color:#854F0B;color:#854F0B">Partial</div>
       <div class="chip" onclick="setF('_paid',this)" style="border-color:#1a6641;color:#1a6641">Fully Paid</div>
@@ -246,6 +247,23 @@ function totals(j){
 function chgL(v,a){return v==='TBA'?'TBA':v==='nil'?'Nil':fmt(a);}
 
 /* ── Navigate list / detail ── */
+window.mgrArchive=async function(id){
+  if(!confirm('Archive this job? It will be hidden from main view but can be restored anytime.'))return;
+  try{
+    await update(ref(db,'jobs/'+id),{archived:true,updatedAt:new Date().toISOString()});
+    jobs[id]=Object.assign({},jobs[id],{archived:true});
+    toast('Job archived');
+    showList();
+  }catch(e){toast('Error: '+e.message);}
+};
+window.mgrUnarchive=async function(id){
+  try{
+    await update(ref(db,'jobs/'+id),{archived:false,updatedAt:new Date().toISOString()});
+    jobs[id]=Object.assign({},jobs[id],{archived:false});
+    toast('Job restored to live \u2713');
+    showList();
+  }catch(e){toast('Error: '+e.message);}
+};
 window.mgrSetStatus=async function(id,s){
   try{
     const upd={status:s,updatedAt:new Date().toISOString()};
@@ -286,6 +304,9 @@ window.render=function(){
     const rcvd=parseFloat(j.paymentReceived)||0;
     const tot=totals(j).total;
     const isInvoiced=['invoice','soa','closed'].includes(j.status);
+    const isArchived=!!j.archived;
+    if(filt==='_archived') return isArchived;
+    if(isArchived) return false;
     if(filt==='_paid')   return isInvoiced&&rcvd>0&&rcvd>=tot-0.005;
     if(filt==='_partial')return isInvoiced&&rcvd>0&&rcvd<tot-0.005;
     if(filt==='_unpaid') return isInvoiced&&rcvd<=0&&tot>0;
@@ -396,7 +417,11 @@ function buildDetail(id){
     /* Header */
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;flex-wrap:wrap">'
       +'<button onclick="showList()" style="font-size:12px;padding:5px 10px">&larr; Back to List</button>'
-      +'<div style="font-size:22px;font-weight:700;flex:1">'+(j.ref||'—')+'</div>'
+      +'<div style="font-size:22px;font-weight:700;flex:1">'+(j.ref||'&mdash;')+'</div>'
+      +(j.archived
+        ?'<button onclick="mgrUnarchive(\''+id+'\')" class="bsm" style="border-color:#185FA5;color:#185FA5">&#9654; Restore</button>'
+        :'<button onclick="mgrArchive(\''+id+'\')" class="bsm" style="border-color:#aaa;color:#888">&#128447; Archive</button>'
+      )
     +'</div>'
 
     /* Status pipeline */
