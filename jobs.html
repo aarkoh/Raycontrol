@@ -344,7 +344,9 @@ function renderList(){
   if(!list.length){el.innerHTML='<div class="empty">No jobs found.<br>Tap + New Job to create one.</div>';return;}
   el.innerHTML=list.map(function(e){
     var id=e[0],j=e[1];
-    var a=ageD(j.date||j.createdAt);
+    var invoiced=['invoice','soa','closed'].includes(j.status||'');
+    var displayDate=invoiced?(j.invoiceDate||j.updatedAt||j.date||j.createdAt):(j.date||j.createdAt);
+    var a=ageD(displayDate);
     var aStr=a===0?"Today":a===1?"Yesterday":a+" days ago";
     var aC=a>30&&j.status!=="closed"?" ov":"";
     var t=totals(j);
