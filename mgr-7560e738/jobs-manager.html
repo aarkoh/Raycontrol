@@ -379,6 +379,13 @@ window.render=function(){
 };
 
 /* ── Detail view ── */
+// ── OT helpers ──
+const SG_PH=new Set(['2025-01-01','2025-01-29','2025-01-30','2025-03-31','2025-04-18','2025-05-01','2025-05-12','2025-06-06','2025-08-09','2025-12-25','2026-01-01','2026-02-17','2026-02-18','2026-03-21','2026-04-03','2026-05-01','2026-05-27','2026-05-31','2026-06-01','2026-08-09','2026-08-10','2026-11-08','2026-11-09','2026-12-25']);
+function _dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function _inTZ(dt,tz){if(!tz)return dt;try{const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});const p=Object.fromEntries(fmt.formatToParts(dt).map(p=>[p.type,p.value]));return new Date(`${p.year}-${p.month}-${p.day}T${p.hour==='24'?'00':p.hour}:${p.minute}:${p.second}`);}catch(e){return dt;}}
+function _isOT(dt,tz){const local=tz?_inTZ(dt,tz):dt;const dow=local.getDay(),key=_dateKey(local);if(dow===0||dow===6||SG_PH.has(key))return true;const h=local.getHours()+local.getMinutes()/60;return h<8||h>=18;}
+function _calcOTMins(inT,outT,tz){const CHUNK=5*60*1000;let ot=0,t=new Date(inT);while(t<outT){const n=new Date(Math.min(t.getTime()+CHUNK,outT.getTime()));if(_isOT(t,tz))ot+=(n-t)/60000;t=n;}return ot;}
+
 function buildDetail(id){
   const j=jobs[id]||{};
   const t=totals(j);
@@ -710,13 +717,6 @@ onAuthStateChanged(auth,user=>{
     render();
     if(curId)buildDetail(curId);
   });
-
-  // ── OT helpers (replicated from clock-manager) ──
-  const SG_PH=new Set(['2025-01-01','2025-01-29','2025-01-30','2025-03-31','2025-04-18','2025-05-01','2025-05-12','2025-06-06','2025-08-09','2025-12-25','2026-01-01','2026-02-17','2026-02-18','2026-03-21','2026-04-03','2026-05-01','2026-05-27','2026-05-31','2026-06-01','2026-08-09','2026-08-10','2026-11-08','2026-11-09','2026-12-25']);
-  function _dateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
-  function _inTZ(dt,tz){if(!tz)return dt;try{const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});const p=Object.fromEntries(fmt.formatToParts(dt).map(p=>[p.type,p.value]));return new Date(`${p.year}-${p.month}-${p.day}T${p.hour==='24'?'00':p.hour}:${p.minute}:${p.second}`);}catch(e){return dt;}}
-  function _isOT(dt,tz){const local=tz?_inTZ(dt,tz):dt;const dow=local.getDay(),key=_dateKey(local);if(dow===0||dow===6||SG_PH.has(key))return true;const h=local.getHours()+local.getMinutes()/60;return h<8||h>=18;}
-  function _calcOTMins(inT,outT,tz){const CHUNK=5*60*1000;let ot=0,t=new Date(inT);while(t<outT){const n=new Date(Math.min(t.getTime()+CHUNK,outT.getTime()));if(_isOT(t,tz))ot+=(n-t)/60000;t=n;}return ot;}
 
   // ── Load OT/OVS rates from Firebase ──
   let otRatesMgr={}, ovsRatesMgr={};
