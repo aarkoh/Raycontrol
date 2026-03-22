@@ -202,7 +202,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <p>This PIN grants full access to the staff dashboard without being tied to a specific worker (4 digits). Currently: <strong id="adminPinDisplay">•</strong></p>
       <div style="display:flex;gap:8px;align-items:flex-end;margin-top:0.75rem;flex-wrap:wrap">
         <div>
-          <div style="font-size:12px;color:#888;margin-bottom:4px;font-weight:500">New admin PIN (1 digit)</div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px;font-weight:500">New admin PIN (4 digits)</div>
           <input type="text" id="newAdminPin" maxlength="4" inputmode="numeric" placeholder="0000"
             style="width:70px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:20px;font-weight:700;text-align:center;font-family:inherit;background:#f9f9f7">
         </div>
@@ -336,15 +336,16 @@ window.changeAdminPin=async function(){
   const msg=document.getElementById('adminPinMsg');
   if(!n||!/^[0-9]{4}$/.test(n)){msg.style.color='#A32D2D';msg.textContent='Must be exactly 4 digits';return;}
   // Make sure it doesn't clash with a staff PIN
+  // Check against all current staff PINs from Firebase
   const clash=Object.entries(staffPins).find(([,v])=>v===n);
-  if(clash){msg.style.color='#A32D2D';msg.textContent='That digit is already used by '+clash[0];return;}
+  if(clash){msg.style.color='#A32D2D';msg.textContent='PIN '+n+' is already used by staff member '+clash[0]+' — choose a different PIN';return;}
   try{
     await set(ref(db,'config/adminPin'),n);
     adminPin=n;
     document.getElementById('newAdminPin').value='';
     document.getElementById('adminPinDisplay').textContent=n;
-    msg.style.color='#3B6D11';msg.textContent='✓ Admin PIN updated to '+n;
-    setTimeout(()=>msg.textContent='',3000);
+    msg.style.color='#3B6D11';msg.textContent='✓ Admin PIN updated to '+n+' — staff hub login now uses this PIN';
+    setTimeout(()=>msg.textContent='',6000);
   }catch(e){msg.style.color='#A32D2D';msg.textContent='Error: '+e.message;}
 };
 
