@@ -415,7 +415,10 @@ window.openDetail=function(id){
   window._currentJobId=id;
 
   var vlist=(j.vendorNames||[]).length
-    ?(j.vendorNames||[]).map(function(v){return '<div class="ir"><span class="il">Vendor</span><span class="iv">'+v+"</span></div>";}).join("")
+    ?(j.vendorNames||[]).map(function(v,i){
+        var ref=(j.vendorRefs||[])[i];
+        return '<div class="ir"><span class="il">Vendor</span><span class="iv">'+v+(ref?' <span style="color:#888;font-size:11px">· Ref: '+ref+'</span>':'')+"</span></div>";
+      }).join("")
     :'<div style="font-size:13px;color:#aaa">None</div>';
 
   document.getElementById("detailContent").innerHTML=
@@ -644,7 +647,12 @@ function setupSearch(inpId,dropId,filterFn,onSel){
 function renderVTags(){
   var el=document.getElementById("j_vtags");if(!el)return;
   el.innerHTML=selVendors.map(function(v,i){
-    return '<div style="display:flex;align-items:center;gap:5px;background:#F3E6F3;border:1px solid #d4b8d4;border-radius:20px;padding:3px 10px;font-size:12px;color:#8B1A8B">'+v.name+'<span data-i="'+i+'" onclick="window.removeVendor(this.dataset.i)" style="cursor:pointer;font-weight:700">✕</span></div>';
+    return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">'
+      +'<div style="display:flex;align-items:center;gap:5px;background:#F3E6F3;border:1px solid #d4b8d4;border-radius:20px;padding:3px 10px;font-size:12px;color:#8B1A8B">'+v.name+'<span data-i="'+i+'" onclick="window.removeVendor(this.dataset.i)" style="cursor:pointer;font-weight:700">✕</span></div>'
+      +'<input type="text" id="j_vref_'+i+'" value="'+( v.ref||'')+'" placeholder="Vendor ref / PO no" '
+      +'oninput="selVendors['+i+'].ref=this.value" '
+      +'style="padding:3px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;width:160px;background:#fafaf8">'
+    +'</div>';
   }).join("");
 }
 window.removeVendor=function(i){selVendors.splice(parseInt(i),1);renderVTags();refreshLIVendors();};
@@ -702,7 +710,7 @@ window.openEditJob=function(id){
   editJobId=id;var j=jobs[id]||{};
   document.getElementById("mTitle").textContent="Edit Job";
   resetModal();
-  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,cost:(j.vendorCosts||[])[i]||""};});
+  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,cost:(j.vendorCosts||[])[i]||"",ref:(j.vendorRefs||[])[i]||""};});
   var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_cpo:j.custPO,j_cpoprice:j.poPrice,j_vessel:j.vessel,j_port:j.port,j_hull:j.hull,j_yard:j.yard,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0",j_courier_a:j.courierAmt,j_packing_a:j.packingAmt,j_freight_a:j.freightAmt};
   Object.entries(flds).forEach(function(e){var el=document.getElementById(e[0]);if(el&&e[1])el.value=e[1];});
   document.getElementById("j_type").value=j.type||"supply";
@@ -730,7 +738,7 @@ window.saveJob=async function(){
     ref:jref,date:gv("j_date"),customerId:custId,customerName:custName,
     attn:gv("j_attn"),yourRef:gv("j_yref"),custPO:gv("j_cpo"),poPrice:gv("j_cpoprice"),
     vessel:gv("j_vessel"),port:gv("j_port"),hull:gv("j_hull"),yard:gv("j_yard"),equip:gv("j_equip"),make:gv("j_make"),model:gv("j_model"),task:gv("j_task"),
-    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorCosts:selVendors.map(function(v){return v.cost||""}),
+    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorCosts:selVendors.map(function(v){return v.cost||""}),vendorRefs:selVendors.map(function(v){return v.ref||""}),
     type:document.getElementById("j_type").value,currency:document.getElementById("j_cur").value,
     eta:gv("j_eta"),validity:gv("j_validity"),memo:gv("j_memo"),engineer:gv("j_eng"),
     lineItems:getLIs(),
@@ -968,7 +976,7 @@ window.printVPO=function(id,selectedItems){
   // Group by vendor
   var vendorMap={};
   items.forEach(function(it){
-    if(!vendorMap[it.vendorId])vendorMap[it.vendorId]={name:it.vendorName,items:[]};
+    if(!vendorMap[it.vendorId])vendorMap[it.vendorId]={name:it.vendorName,ref:(selVendors.find(function(v){return v.id===it.vendorId;})||{}).ref||'',items:[]};
     vendorMap[it.vendorId].items.push(it);
   });
 
@@ -1024,6 +1032,7 @@ window.printVPO=function(id,selectedItems){
         +'<td style="width:50%;font-size:9.5pt;line-height:1.5;vertical-align:top">'
           +"<div><b>To: Messrs</b></div>"
           +'<div style="font-weight:700">'+vnd.name+"</div>"
+          +(vnd.ref?'<div style="font-size:9pt;color:#555">Vendor Ref: '+vnd.ref+'</div>':'')
         +"</td>"
         +'<td style="min-width:220px;font-size:9.5pt;vertical-align:top">'
           +'<table style="border-collapse:collapse;width:100%">'

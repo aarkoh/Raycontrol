@@ -625,5 +625,17 @@ if(searchEl){
 document.getElementById('contactModal').addEventListener('click',e=>{if(e.target===document.getElementById('contactModal'))closeContactModal();});
 document.getElementById('jobModal').addEventListener('click',e=>{if(e.target===document.getElementById('jobModal'))closeJobModal();});
 </script>
+
+<script>
+(function(){
+  document.addEventListener('keydown',function(e){
+    var m=document.querySelector('.modal-bg.show,.mbg.show');
+    if(!m)return;
+    if(e.key==='Escape'){e.preventDefault();var c=m.querySelector('.mfoot button:first-child,.modal-actions button:first-child');if(c)c.click();else m.classList.remove('show');return;}
+    if(e.key==='Enter'){if(document.activeElement&&document.activeElement.tagName==='TEXTAREA')return;e.preventDefault();var p=m.querySelector('.mfoot button:last-child,.modal-actions button:last-child,.btn-primary');if(p)p.click();}
+  });
+})();
+</script>
+
 </body>
 </html>
