@@ -710,7 +710,7 @@ window.openEditJob=function(id){
   editJobId=id;var j=jobs[id]||{};
   document.getElementById("mTitle").textContent="Edit Job";
   resetModal();
-  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,cost:(j.vendorCosts||[])[i]||"",ref:(j.vendorRefs||[])[i]||""};});
+  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,ref:(j.vendorRefs||[])[i]||""};});
   var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_cpo:j.custPO,j_cpoprice:j.poPrice,j_vessel:j.vessel,j_port:j.port,j_hull:j.hull,j_yard:j.yard,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0",j_courier_a:j.courierAmt,j_packing_a:j.packingAmt,j_freight_a:j.freightAmt};
   Object.entries(flds).forEach(function(e){var el=document.getElementById(e[0]);if(el&&e[1])el.value=e[1];});
   document.getElementById("j_type").value=j.type||"supply";
@@ -738,7 +738,7 @@ window.saveJob=async function(){
     ref:jref,date:gv("j_date"),customerId:custId,customerName:custName,
     attn:gv("j_attn"),yourRef:gv("j_yref"),custPO:gv("j_cpo"),poPrice:gv("j_cpoprice"),
     vessel:gv("j_vessel"),port:gv("j_port"),hull:gv("j_hull"),yard:gv("j_yard"),equip:gv("j_equip"),make:gv("j_make"),model:gv("j_model"),task:gv("j_task"),
-    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorCosts:selVendors.map(function(v){return v.cost||""}),vendorRefs:selVendors.map(function(v){return v.ref||""}),
+    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorRefs:selVendors.map(function(v){return v.ref||""}),
     type:document.getElementById("j_type").value,currency:document.getElementById("j_cur").value,
     eta:gv("j_eta"),validity:gv("j_validity"),memo:gv("j_memo"),engineer:gv("j_eng"),
     lineItems:getLIs(),
@@ -774,7 +774,7 @@ onAuthStateChanged(auth,function(user){
   onValue(ref(db,"contacts"),function(snap){
     contacts=snap.val()||{};
     setupSearch("j_cs","j_cs_d",function(c){return(c.types||[]).includes("customer");},function(id,nm){document.getElementById("j_cs_id").value=id;document.getElementById("j_cs_nm").textContent=nm;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";});
-    setupSearch("j_vs","j_vs_d",function(c){return(c.types||[]).includes("vendor");},function(id,nm){if(!selVendors.find(function(v){return v.id===id;})){selVendors.push({id:id,name:nm,cost:""});renderVTags();refreshLIVendors();}});
+    setupSearch("j_vs","j_vs_d",function(c){return(c.types||[]).includes("vendor");},function(id,nm){if(!selVendors.find(function(v){return v.id===id;})){selVendors.push({id:id,name:nm});renderVTags();refreshLIVendors();}});
   });
   onValue(ref(db,'vendorInvoices'),function(snap){
     window._vendorInvoices=snap.val()||{};
