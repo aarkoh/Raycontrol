@@ -938,7 +938,9 @@ window.openPrintQuo=function(id){
       +'<label for="pqc_'+i+'" style="flex:1;font-size:13px;font-weight:'+(ch.length?'600':'400')+';cursor:pointer">'+(it.desc||'(no description)')
         +(it.qty&&it.unit&&!ch.length?'<span style="color:#aaa;font-size:11px;margin-left:8px">'+it.qty+' '+it.unit+'</span>':'')
       +'</label>'
-      +'<span style="font-size:12px;color:#555;min-width:80px;text-align:right">'+(j.currency||'SGD')+' '+fmt(parentAmt)+'</span>'
+      +(ch.length
+        ?'<span style="font-size:11px;color:#aaa;min-width:80px;text-align:right;font-style:italic">subtotal: '+(j.currency||'SGD')+' '+fmt(parentAmt)+'</span>'
+        :'<span style="font-size:12px;color:#555;min-width:80px;text-align:right">'+(j.currency||'SGD')+' '+fmt(parentAmt)+'</span>')
     +'</div>');
     ch.forEach(function(c,ci){
       rows.push('<div style="display:flex;align-items:center;gap:10px;padding:5px 0 5px 24px;border-bottom:1px solid #f5f5f3;background:#f4f8fe">'
@@ -1733,12 +1735,11 @@ window.printSOA = function() {
 <script>
 // ═══════════════════════════ SHARED HELPERS ═══════════════════════════
 function rcOpenBlob(html) {
-  var blob=new Blob([html],{type:'text/html'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url;a.target='_blank';a.rel='noopener';
-  document.body.appendChild(a);a.click();
-  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  var w=window.open('','_blank');
+  if(!w){alert('Popups are blocked. Please allow popups for this page and try again.');return;}
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
 function rcBaseStyle(pbColor) {
   return '<style>*{box-sizing:border-box;margin:0;padding:0}'
