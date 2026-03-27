@@ -414,7 +414,7 @@ function buildDetail(id){
         :(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;color:#888;font-size:12px">'+(i+1)+'</td>'
-        +'<td style="'+(ch.length?'font-weight:600;':'')+'">'+(it.desc||'—')+'</td>'
+        +'<td style="font-weight:600;">'+(it.desc||'—')+'</td>'
         +(ch.length
           ?'<td></td><td></td><td></td>'
             +'<td class="nr" style="color:#aaa;font-size:11px;font-style:italic">see sub-items</td>'
@@ -951,9 +951,9 @@ function printInvData(id, selectedItems, invType, invPct){
     scaledItems.forEach(function(it,i){
       var ch=it.children||[];
       var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
-      rows.push('<tr'+(ch.length?' style="font-weight:600"':'')+'>'
+      rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
-        +'<td style="padding:5px 6px;white-space:pre-wrap">'+(it.desc||'')+'</td>'
+        +'<td style="padding:5px 6px;white-space:pre-wrap;font-weight:700">'+(it.desc||'')+'</td>'
         +(ch.length
           ?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
