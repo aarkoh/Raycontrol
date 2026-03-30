@@ -106,6 +106,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ddd6}
 
 
+  .job-drop-item:hover,.job-drop-item.active{background:#E6F1FB!important;}
 </style>
 </head>
 <body>
@@ -176,7 +177,12 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       </div>
       <div class="field">
         <label id="jobLabel">Job number <span style="color:#A32D2D">*</span></label>
-        <input type="text" id="jobInput" placeholder="e.g. JOB-001" oninput="document.getElementById('jobReqMsg').style.display='none';checkSubmit();">
+        <div style="position:relative">
+          <input type="text" id="jobInput" placeholder="e.g. 2603001" autocomplete="off"
+            oninput="document.getElementById('jobReqMsg').style.display='none';checkSubmit();filterJobDrop(this.value)"
+            onkeydown="jobDropKey(event)">
+          <div id="jobDrop" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:300;max-height:200px;overflow-y:auto;margin-top:2px"></div>
+        </div>
         <div id="jobReqMsg" style="display:none;font-size:11px;color:#A32D2D;margin-top:3px">This field is required</div>
       </div>
       <div class="field">
@@ -249,7 +255,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, onValue, push, update } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { getDatabase, ref, onValue, push, update, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 const firebaseConfig={apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"};
@@ -259,6 +265,7 @@ const auth=getAuth(fbApp);
 let WORKERS=['HS','TM','RG','MU','AY','IL','SA','AN'];
 let sel=null, moveType='in', items={}, movements=[], selItem=null, logFilter='all', ovFilter='all';
 let loggedInStaff=sessionStorage.getItem('rc_staff')||null;
+let _jobRefs=[]; // cache of job ref strings for autocomplete
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
@@ -313,6 +320,7 @@ window.setType=function(t){
     input.placeholder='e.g. 2603001';
   }
   input.value='';
+  document.getElementById('jobDrop').style.display='none';
   checkSubmit();
 };
 
@@ -381,6 +389,43 @@ window.saveNewItem=async function(){
     setTimeout(()=>{window.selectItem(newRef.key);document.getElementById('newItemForm').style.display='none';document.getElementById('newItemBanner').style.display='none';},300);
   }catch(e){toast('Error: '+e.message);}
 };
+
+// ── Job autocomplete ─────────────────────────────────────────
+function filterJobDrop(q){
+  const drop=document.getElementById('jobDrop');
+  if(!q||q.length<2||moveType!=='out'){drop.style.display='none';return;}
+  const matches=_jobRefs.filter(r=>r.toLowerCase().includes(q.toLowerCase())).slice(0,10);
+  if(!matches.length){drop.style.display='none';return;}
+  drop.innerHTML=matches.map((r,i)=>`<div class="job-drop-item" data-idx="${i}" onclick="selectJobRef('${r}')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f3">${r}</div>`).join('');
+  drop.style.display='block';
+}
+function selectJobRef(ref){
+  document.getElementById('jobInput').value=ref;
+  document.getElementById('jobDrop').style.display='none';
+  document.getElementById('jobReqMsg').style.display='none';
+  checkSubmit();
+}
+function jobDropKey(e){
+  const drop=document.getElementById('jobDrop');
+  const items=[...drop.querySelectorAll('.job-drop-item')];
+  const cur=drop.querySelector('.job-drop-item.active');
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    const idx=cur?items.indexOf(cur):-1;
+    const next=e.key==='ArrowDown'?Math.min(idx+1,items.length-1):Math.max(idx-1,0);
+    items.forEach(el=>el.classList.remove('active'));
+    if(items[next]){items[next].classList.add('active');items[next].style.background='#E6F1FB';}
+    if(cur)cur.style.background='';
+  } else if(e.key==='Enter'&&cur){
+    selectJobRef(cur.textContent.trim());
+  } else if(e.key==='Escape'){
+    drop.style.display='none';
+  }
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#jobDrop')&&e.target.id!=='jobInput')
+    document.getElementById('jobDrop').style.display='none';
+});
 
 // ── Submit ────────────────────────────────────────────────────
 function checkSubmit(){
@@ -645,6 +690,14 @@ onAuthStateChanged(auth,async user=>{
     const b=document.getElementById('connBadge');
     b.textContent=snap.val()?'Live':'Offline';
     b.className='conn '+(snap.val()?'online':'offline');
+  });
+  // Load job refs for autocomplete
+  onValue(ref(db,'jobs'),snap=>{
+    const data=snap.val()||{};
+    _jobRefs=Object.values(data)
+      .filter(j=>j.ref&&!j.archived)
+      .map(j=>j.ref)
+      .sort((a,b)=>b.localeCompare(a)); // newest first
   });
   onValue(ref(db,'stock/items'),snap=>{
     items=snap.val()||{};
