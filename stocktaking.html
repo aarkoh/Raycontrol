@@ -265,7 +265,7 @@ const auth=getAuth(fbApp);
 let WORKERS=['HS','TM','RG','MU','AY','IL','SA','AN'];
 let sel=null, moveType='in', items={}, movements=[], selItem=null, logFilter='all', ovFilter='all';
 let loggedInStaff=sessionStorage.getItem('rc_staff')||null;
-let _jobRefs=[]; // cache of job ref strings for autocomplete
+let _jobCache=[]; // cache of {ref, vessel} objects for autocomplete
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
@@ -394,9 +394,15 @@ window.saveNewItem=async function(){
 window.filterJobDrop=function(q){
   const drop=document.getElementById('jobDrop');
   if(!q||q.length<2||moveType!=='out'){drop.style.display='none';return;}
-  const matches=_jobRefs.filter(r=>r.toLowerCase().includes(q.toLowerCase())).slice(0,10);
+  const ql=q.toLowerCase();
+  const matches=_jobCache.filter(j=>
+    j.ref.toLowerCase().includes(ql)||(j.vessel&&j.vessel.toLowerCase().includes(ql))
+  ).slice(0,10);
   if(!matches.length){drop.style.display='none';return;}
-  drop.innerHTML=matches.map((r,i)=>`<div class="job-drop-item" data-idx="${i}" onclick="selectJobRef('${r}')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f3">${r}</div>`).join('');
+  drop.innerHTML=matches.map((j,i)=>{
+    const vesselTag=j.vessel?`<span style="font-size:11px;color:#888;margin-left:8px">${j.vessel}</span>`:'';
+    return `<div class="job-drop-item" data-idx="${i}" onclick="window.selectJobRef('${j.ref}')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f3;display:flex;align-items:center"><span style="font-weight:600">${j.ref}</span>${vesselTag}</div>`;
+  }).join('');
   drop.style.display='block';
 }
 window.selectJobRef=function(ref){
@@ -417,7 +423,7 @@ window.jobDropKey=function(e){
     if(items[next]){items[next].classList.add('active');items[next].style.background='#E6F1FB';}
     if(cur)cur.style.background='';
   } else if(e.key==='Enter'&&cur){
-    window.selectJobRef(cur.textContent.trim());
+    window.selectJobRef(cur.querySelector('span').textContent.trim());
   } else if(e.key==='Escape'){
     drop.style.display='none';
   }
@@ -694,10 +700,10 @@ onAuthStateChanged(auth,async user=>{
   // Load job refs for autocomplete
   onValue(ref(db,'jobs'),snap=>{
     const data=snap.val()||{};
-    _jobRefs=Object.values(data)
+    _jobCache=Object.values(data)
       .filter(j=>j.ref&&!j.archived)
-      .map(j=>j.ref)
-      .sort((a,b)=>b.localeCompare(a)); // newest first
+      .map(j=>({ref:j.ref,vessel:j.vessel||''}))
+      .sort((a,b)=>b.ref.localeCompare(a.ref)); // newest first
   });
   onValue(ref(db,'stock/items'),snap=>{
     items=snap.val()||{};
