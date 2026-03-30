@@ -93,9 +93,9 @@ button:hover{background:#f0f0ee}
   <div class="modal">
     <h2 id="modalTitle">+ Add Vendor Invoice</h2>
     <!-- Hidden file input for camera/photo -->
-    <input type="file" id="scanFileInput" accept="image/*" capture="environment" style="display:none" onchange="window.viHandleScan(this)">
+    <input type="file" id="scanFileInput" accept="image/*,application/pdf" style="display:none" onchange="window.viHandleScan(this)">
     <!-- Scan button -->
-    <button type="button" onclick="document.getElementById('scanFileInput').click()" style="width:100%;margin-bottom:12px;padding:10px;font-size:13px;font-weight:600;border:2px dashed #185FA5;color:#185FA5;background:#E6F1FB;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">&#128247; Scan Invoice — auto-fill fields</button>
+    <button type="button" onclick="document.getElementById('scanFileInput').click()" style="width:100%;margin-bottom:12px;padding:10px;font-size:13px;font-weight:600;border:2px dashed #185FA5;color:#185FA5;background:#E6F1FB;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">&#128247; Scan Invoice (photo or PDF) — auto-fill fields</button>
     <!-- Scanning status overlay -->
     <div id="scanStatus" style="display:none;align-items:center;gap:10px;padding:10px 14px;background:#fff8e6;border:1px solid #f0c060;border-radius:8px;margin-bottom:12px;font-size:13px;color:#854F0B"><span style="display:inline-block;width:16px;height:16px;border:2px solid #f0c060;border-top-color:#854F0B;border-radius:50%;animation:spin .8s linear infinite"></span><span id="scanStatusTxt">Reading invoice…</span></div>
     <div class="fr2">
@@ -363,7 +363,12 @@ window.viHandleScan=async function(input){
       reader.readAsDataURL(file);
     });
     var mediaType=file.type||'image/jpeg';
+    var isPDF=mediaType==='application/pdf';
     statusTxt.textContent='Extracting invoice details…';
+    // Build content block: document for PDF, image for photos
+    var contentBlock=isPDF
+      ?{type:'document',source:{type:'base64',media_type:'application/pdf',data:base64}}
+      :{type:'image',source:{type:'base64',media_type:mediaType,data:base64}};
     // Call Anthropic API
     var resp=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
@@ -374,8 +379,8 @@ window.viHandleScan=async function(input){
         messages:[{
           role:'user',
           content:[
-            {type:'image',source:{type:'base64',media_type:mediaType,data:base64}},
-            {type:'text',text:'Extract the vendor invoice details from this image. Return ONLY valid JSON with no markdown, no explanation. Use this exact structure:\n{"vendor":"company name","invNo":"invoice number","date":"YYYY-MM-DD","currency":"SGD or USD or EUR or JPY or CNY or GBP","lineItems":[{"desc":"description","qty":1,"unit":"LOT","unitPrice":0.00}],"notes":"any notes or payment terms"}'}
+            contentBlock,
+            {type:'text',text:'Extract the vendor invoice details from this '+(isPDF?'PDF':'image')+'. Return ONLY valid JSON with no markdown, no explanation. Use this exact structure:\n{"vendor":"company name","invNo":"invoice number","date":"YYYY-MM-DD","currency":"SGD or USD or EUR or JPY or CNY or GBP","lineItems":[{"desc":"description","qty":1,"unit":"LOT","unitPrice":0.00}],"notes":"any notes or payment terms"}'}
           ]
         }]
       })
