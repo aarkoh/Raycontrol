@@ -196,7 +196,7 @@ window.jobSearch=function(q){
   if(!q||q.length<2){drop.style.display='none';return;}
   const ql=q.toLowerCase();
   const matches=Object.entries(jobsCache).filter(([id,j])=>{
-    return j.ref&&(j.ref.toLowerCase().includes(ql)||(j.vessel||'').toLowerCase().includes(ql));
+    return j.ref&&!j.archived&&(j.ref.toLowerCase().includes(ql)||(j.vessel||'').toLowerCase().includes(ql));
   }).filter(([id,j])=>j.status!=='closed').slice(0,8);
   if(!matches.length){drop.style.display='none';return;}
   drop.innerHTML=matches.map(([id,j])=>{
