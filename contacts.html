@@ -198,35 +198,7 @@ button:active{transform:scale(0.97)}
   </div>
 </div>
 
-<!-- ADD JOB MODAL -->
-<div class="modal-bg" id="jobModal">
-  <div class="modal">
-    <h2>Add job record</h2>
-    <div class="field-row">
-      <div class="field"><label>Job No *</label><input type="text" id="j_jobno" placeholder="e.g. JOB-001"></div>
-      <div class="field"><label>Amount (S$)</label><input type="number" id="j_amt" min="0" step="0.01" placeholder="0.00"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Make</label><input type="text" id="j_make" placeholder="e.g. HANLA"></div>
-      <div class="field"><label>Model</label><input type="text" id="j_model" placeholder="e.g. FMS-200"></div>
-    </div>
-    <div class="field">
-      <label>Payment status</label>
-      <div class="check-group" id="payStatusGroup">
-        <label class="check-opt" id="ps-pending"><input type="radio" name="payStatus" value="Pending" onchange="updatePayOpt(this)"> Pending</label>
-        <label class="check-opt" id="ps-partial"><input type="radio" name="payStatus" value="Partial" onchange="updatePayOpt(this)"> Partial</label>
-        <label class="check-opt" id="ps-paid"><input type="radio" name="payStatus" value="Paid" onchange="updatePayOpt(this)"> Paid</label>
-        <label class="check-opt" id="ps-overdue"><input type="radio" name="payStatus" value="Overdue" onchange="updatePayOpt(this)"> Overdue</label>
-      </div>
-    </div>
-    <div class="field"><label>Date</label><input type="date" id="j_date"></div>
-    <div class="field"><label>Notes</label><input type="text" id="j_notes" placeholder="Optional notes"></div>
-    <div class="modal-footer">
-      <button onclick="closeJobModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveJob()">Save job</button>
-    </div>
-  </div>
-</div>
+<!-- Job modal removed — jobs auto-populated from job register -->
 
 <div class="toast" id="toast"></div>
 
@@ -241,6 +213,7 @@ const db=getDatabase(fbApp);
 const auth=getAuth(fbApp);
 
 let contacts={}, currentContactId=null, editContactId=null, editJobId=null, filterType='all';
+let allJobs={}; // auto-populated from job register
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
@@ -277,7 +250,8 @@ window.renderList=function renderList(){
     const badgeType=isC&&isV?'both':isC?'customer':'vendor';
     const badgeLabel=isC&&isV?'Customer & Vendor':isC?'Customer':'Vendor';
     const initials=(c.name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
-    const jobCount=Object.keys(c.jobs||{}).length;
+    const cNameL=(c.company||c.name||'').toLowerCase().trim();
+    const jobCount=Object.values(allJobs).filter(j=>!j.archived&&(j.customerName||'').toLowerCase().trim()===cNameL).length;
     return `<div class="ccard" onclick="openDetail('${id}')">
       <div class="ccard-top">
         <div class="${avatarCls}">${initials}</div>
@@ -304,21 +278,38 @@ window.openDetail=function(id){
   const isC=types.includes('customer'),isV=types.includes('vendor');
   const badgeType=isC&&isV?'both':isC?'customer':'vendor';
   const badgeLabel=isC&&isV?'Customer & Vendor':isC?'Customer':'Vendor';
-  const jobs=c.jobs||{};
-  const jobRows=Object.entries(jobs).length
-    ? Object.entries(jobs).sort((a,b)=>b[1].date?.localeCompare(a[1].date)||0).map(([jid,j])=>{
-        const payCls=j.paymentStatus==='Paid'?'pay-paid':j.paymentStatus==='Partial'?'pay-partial':j.paymentStatus==='Overdue'?'pay-overdue':'pay-pending';
+  // Auto-populate jobs from job register by matching customerName
+  const cName=(c.company||c.name||'').toLowerCase().trim();
+  const matchedJobs=Object.entries(allJobs)
+    .filter(([,j])=>!j.archived&&(j.customerName||'').toLowerCase().trim()===cName)
+    .sort(([,a],[,b])=>(b.ref||'').localeCompare(a.ref||''));
+  const fmt2=n=>(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const jobRows=matchedJobs.length
+    ? matchedJobs.map(([jid,j])=>{
+        const tot=j.lineItems
+          ?j.lineItems.reduce((s,it)=>{
+              const ch=it.children||[];
+              if(ch.length)return s+ch.reduce((cs,c)=>cs+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0),0);
+              return s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+            },0)
+          :0;
+        const cur=j.currency||'SGD';
+        const rcvd=parseFloat(j.paymentReceived)||0;
+        const paid=rcvd>=tot-0.005&&tot>0;
+        const partial=rcvd>0&&!paid;
+        const payCls=paid?'pay-paid':partial?'pay-partial':'pay-pending';
+        const payLbl=paid?'Paid':partial?'Partial':'Pending';
+        const dateStr=j.invoiceDate||j.createdAt||'';
+        const dateFmt=dateStr?new Date(dateStr).toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'';
         return `<tr>
-          <td>${j.jobNo||'—'}</td>
-          <td>${[j.make,j.model].filter(Boolean).join(' ')||'—'}</td>
-          <td>S$${(parseFloat(j.amt)||0).toFixed(2)}</td>
-          <td><span class="pay-badge ${payCls}">${j.paymentStatus||'Pending'}</span></td>
-          <td>${j.date||'—'}</td>
-          <td><button onclick="editJob('${id}','${jid}')" style="font-size:11px;padding:3px 8px;border-color:#185FA5;color:#185FA5">Edit</button>
-              <button onclick="deleteJob('${id}','${jid}')" style="font-size:11px;padding:3px 8px;border-color:#A32D2D;color:#A32D2D;margin-left:4px">Del</button></td>
+          <td style="font-weight:600">${j.ref||'—'}</td>
+          <td>${j.vessel?'<span style="font-size:11px;color:#888">'+j.vessel+'</span> ':''}`+[j.make,j.model].filter(Boolean).join(' ')+`</td>
+          <td>${cur} ${fmt2(tot)}</td>
+          <td><span class="pay-badge ${payCls}">${payLbl}</span></td>
+          <td style="font-size:11px;color:#888">${dateFmt}</td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:1rem">No jobs yet</td></tr>';
+    : '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:1rem">No jobs found in job register</td></tr>';
 
   document.getElementById('detailContent').innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem">
@@ -348,12 +339,12 @@ window.openDetail=function(id){
 
     <div class="detail-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-        <h3 style="margin:0">Previous jobs</h3>
-        <button class="btn-primary" onclick="openAddJob('${id}')" style="font-size:12px;padding:5px 12px">+ Add job</button>
+        <h3 style="margin:0">Jobs from Job Register</h3>
+        <span style="font-size:11px;color:#aaa">${matchedJobs.length} job${matchedJobs.length!==1?'s':''}</span>
       </div>
       <div style="overflow-x:auto">
         <table class="jtable">
-          <thead><tr><th>Job No</th><th>Make / Model</th><th>Amount</th><th>Payment</th><th>Date</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Ref</th><th>Vessel / Make Model</th><th>Amount</th><th>Payment</th><th>Date</th></tr></thead>
           <tbody>${jobRows}</tbody>
         </table>
       </div>
@@ -475,71 +466,7 @@ window.deleteContact=async function(id){
 };
 
 // ── Jobs ──────────────────────────────────────────────────────
-window.openAddJob=function(contactId){
-  editJobId=null;
-  currentContactId=contactId;
-  document.getElementById('j_jobno').value='';
-  document.getElementById('j_amt').value='';
-  document.getElementById('j_make').value='';
-  document.getElementById('j_model').value='';
-  document.getElementById('j_notes').value='';
-  document.getElementById('j_date').value=new Date().toISOString().slice(0,10);
-  document.querySelectorAll('#payStatusGroup .check-opt').forEach(o=>{o.classList.remove('checked');o.querySelector('input').checked=false;});
-  // Default to Pending
-  const pending=document.getElementById('ps-pending');
-  pending.querySelector('input').checked=true;
-  pending.classList.add('checked');
-  document.getElementById('jobModal').classList.add('show');
-  setTimeout(()=>document.getElementById('j_jobno').focus(),80);
-};
-window.editJob=function(contactId,jobId){
-  currentContactId=contactId;editJobId=jobId;
-  const j=(contacts[contactId]?.jobs||{})[jobId]||{};
-  document.getElementById('j_jobno').value=j.jobNo||'';
-  document.getElementById('j_amt').value=j.amt||'';
-  document.getElementById('j_make').value=j.make||'';
-  document.getElementById('j_model').value=j.model||'';
-  document.getElementById('j_notes').value=j.notes||'';
-  document.getElementById('j_date').value=j.date||new Date().toISOString().slice(0,10);
-  document.querySelectorAll('#payStatusGroup .check-opt').forEach(o=>{
-    const inp=o.querySelector('input');
-    const checked=inp.value===j.paymentStatus;
-    inp.checked=checked;o.classList.toggle('checked',checked);
-  });
-  document.getElementById('jobModal').classList.add('show');
-};
-window.closeJobModal=function(){document.getElementById('jobModal').classList.remove('show');editJobId=null;};
-window.updatePayOpt=function(inp){document.querySelectorAll('#payStatusGroup .check-opt').forEach(o=>o.classList.remove('checked'));inp.closest('.check-opt').classList.add('checked');};
-
-window.saveJob=async function(){
-  const jobNo=document.getElementById('j_jobno').value.trim();
-  if(!jobNo){toast('Job number is required');return;}
-  const payEl=document.querySelector('#payStatusGroup input:checked');
-  const data={
-    jobNo,amt:parseFloat(document.getElementById('j_amt').value)||0,
-    make:document.getElementById('j_make').value.trim(),
-    model:document.getElementById('j_model').value.trim(),
-    paymentStatus:payEl?payEl.value:'Pending',
-    date:document.getElementById('j_date').value,
-    notes:document.getElementById('j_notes').value.trim()
-  };
-  try{
-    const path=editJobId
-      ?'contacts/'+currentContactId+'/jobs/'+editJobId
-      :'contacts/'+currentContactId+'/jobs';
-    if(editJobId) await update(ref(db,path),data);
-    else await push(ref(db,path),data);
-    toast('Job saved ✓');
-    closeJobModal();
-    openDetail(currentContactId);
-  }catch(e){toast('Error: '+e.message);}
-};
-
-window.deleteJob=async function(contactId,jobId){
-  if(!confirm('Delete this job record?'))return;
-  try{await remove(ref(db,'contacts/'+contactId+'/jobs/'+jobId));toast('Job deleted');openDetail(contactId);}
-  catch(e){toast('Error: '+e.message);}
-};
+// Job CRUD removed — jobs auto-populated from job register
 
 // ── Auth & Init ───────────────────────────────────────────────
 // Session check
@@ -585,6 +512,10 @@ onAuthStateChanged(auth,async user=>{
   onValue(ref(db,'contacts'),snap=>{
     contacts=snap.val()||{};
     renderList();
+    if(currentContactId&&contacts[currentContactId]) openDetail(currentContactId);
+  });
+  onValue(ref(db,'jobs'),snap=>{
+    allJobs=snap.val()||{};
     if(currentContactId&&contacts[currentContactId]) openDetail(currentContactId);
   });
 });
@@ -661,7 +592,6 @@ if(searchEl){
 
 // Close modals on bg click
 document.getElementById('contactModal').addEventListener('click',e=>{if(e.target===document.getElementById('contactModal'))closeContactModal();});
-document.getElementById('jobModal').addEventListener('click',e=>{if(e.target===document.getElementById('jobModal'))closeJobModal();});
 </script>
 
 <script>
