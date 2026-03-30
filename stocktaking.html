@@ -138,7 +138,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <div class="field">
         <label>Item</label>
         <div class="item-search">
-          <input type="text" id="itemSearch" placeholder="Search items…" oninput="searchItems()" onfocus="showDropdown()" autocomplete="off">
+          <input type="text" id="itemSearch" placeholder="Search items…" oninput="searchItems()" onfocus="if(this.value.trim())searchItems()" autocomplete="off">
           <div class="dropdown" id="itemDropdown" style="display:none"></div>
         </div>
         <div id="selectedItem" style="display:none;margin-top:6px;padding:8px 10px;background:#f9f9f7;border-radius:8px;font-size:13px"></div>
@@ -342,7 +342,8 @@ window.searchItems=function(){
 };
 window.showDropdown=function(q=''){
   const dd=document.getElementById('itemDropdown');
-  const list=Object.entries(items).filter(([,i])=>!q||i.name.toLowerCase().includes(q)||(i.sku||'').toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
+  if(!q||q.length<1){dd.style.display='none';return;}
+  const list=Object.entries(items).filter(([,i])=>i.name.toLowerCase().includes(q)||(i.sku||'').toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
   if(!list.length){dd.style.display='none';return;}
   dd.innerHTML=list.map(([id,i])=>{
     const sc=i.qty<=0?'stock-empty':i.minQty>0&&i.qty<=i.minQty?'stock-low':'stock-ok';
