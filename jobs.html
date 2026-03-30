@@ -1725,7 +1725,7 @@ window.printSOA = function() {
   <div class="cipl-modal">
     <h2>&#128221; CIPL &mdash; <span id="cipl_ref_title"></span></h2>
     <input type="hidden" id="cipl_jobid">
-    <div class="cipl-sec" style="margin-top:0;padding-top:0;border:none">Select Items to Include</div>
+    <div class="cipl-sec" style="margin-top:0;padding-top:0;border:none">Select Items to Include <span style="font-weight:400;font-size:11px;color:#aaa">&mdash; prices are CIPL-only, edit freely</span></div>
     <div id="cipl_item_list" style="max-height:200px;overflow-y:auto;border:1px solid #f0ede6;border-radius:8px;margin-bottom:4px"></div>
     <div style="font-size:12px;color:#888;margin-bottom:4px">
       <a href="#" onclick="window.ciplSelectAll(true);return false" style="color:#185FA5">All</a> /
@@ -1894,18 +1894,23 @@ window.openCIPL = function(id) {
     var ch=it.children||[];
     var row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 12px;'+(i>0?'border-top:1px solid #f0ede6':'');
+    var dispPrice=ch.length?'':((parseFloat(it.unitPrice)||0).toFixed(2));
     row.innerHTML='<input type="checkbox" id="cipl_ic_'+i+'" checked data-parent-idx="'+i+'" onchange="window.ciplToggleParent(this.dataset.parentIdx,this.checked)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">'
       +'<label for="cipl_ic_'+i+'" style="flex:1;font-size:13px;font-weight:'+(ch.length?'600':'400')+';cursor:pointer">'+(it.desc||'(no description)')
         +(it.qty&&it.unit&&!ch.length?'<span style="color:#aaa;font-size:11px;margin-left:8px">'+it.qty+' '+it.unit+'</span>':'')
-      +'</label>';
+      +'</label>'
+      +(ch.length?'<span style="font-size:11px;color:#aaa;white-space:nowrap">see sub-items</span>'
+        :'<div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><span style="font-size:11px;color:#888">Price:</span><input type="number" id="cipl_p_'+i+'" value="'+dispPrice+'" step="0.01" min="0" style="width:80px;padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;text-align:right" placeholder="0.00"></div>');
     list.appendChild(row);
     ch.forEach(function(c,ci){
       var sub=document.createElement('div');
       sub.style.cssText='display:flex;align-items:center;gap:10px;padding:5px 12px 5px 32px;border-top:1px solid #f5f5f3;background:#f4f8fe';
+      var subPrice=(parseFloat(c.unitPrice)||0).toFixed(2);
       sub.innerHTML='<input type="checkbox" id="cipl_ic_'+i+'_'+ci+'" checked data-parent="'+i+'" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
         +'<label for="cipl_ic_'+i+'_'+ci+'" style="flex:1;font-size:12px;color:#444;cursor:pointer">'+(c.desc||'(no description)')
           +(c.qty&&c.unit?'<span style="color:#aaa;font-size:11px;margin-left:8px">'+c.qty+' '+c.unit+'</span>':'')
-        +'</label>';
+        +'</label>'
+        +'<div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><span style="font-size:11px;color:#888">Price:</span><input type="number" id="cipl_p_'+i+'_'+ci+'" value="'+subPrice+'" step="0.01" min="0" style="width:80px;padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;text-align:right" placeholder="0.00"></div>';
       list.appendChild(sub);
     });
   });
@@ -1927,14 +1932,26 @@ window.generateCIPL = function() {
   var dObj=ciplDate?new Date(ciplDate+'T12:00:00'):new Date();
   var dateFmt=dObj.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
 
-  // Collect selected items (with child support)
+  // Collect selected items with CIPL-specific prices
   var selected=[];
   (j.lineItems||[]).forEach(function(it,i){
     var cb=document.getElementById('cipl_ic_'+i);
     if(!cb||!cb.checked)return;
     var ch=it.children||[];
-    var selCh=ch.filter(function(c,ci){var scb=document.getElementById('cipl_ic_'+i+'_'+ci);return !scb||scb.checked;});
-    var entry=Object.assign({},it);
+    var selCh=ch.filter(function(c,ci){
+      var scb=document.getElementById('cipl_ic_'+i+'_'+ci);
+      return !scb||scb.checked;
+    }).map(function(c,ci){
+      // Use CIPL-specific price if provided
+      var pinput=document.getElementById('cipl_p_'+i+'_'+ci);
+      var ciplPrice=pinput?parseFloat(pinput.value):null;
+      return Object.assign({},c,{unitPrice:ciplPrice!=null&&!isNaN(ciplPrice)?ciplPrice:parseFloat(c.unitPrice)||0});
+    });
+    var ciplPInput=document.getElementById('cipl_p_'+i);
+    var ciplUnitPrice=ciplPInput?parseFloat(ciplPInput.value):null;
+    var entry=Object.assign({},it,{
+      unitPrice:(!ch.length&&ciplUnitPrice!=null&&!isNaN(ciplUnitPrice))?ciplUnitPrice:parseFloat(it.unitPrice)||0
+    });
     if(ch.length)entry.children=selCh;
     selected.push(entry);
   });
