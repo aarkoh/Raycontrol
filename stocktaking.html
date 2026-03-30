@@ -138,7 +138,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <div class="field">
         <label>Item</label>
         <div class="item-search">
-          <input type="text" id="itemSearch" placeholder="Search items…" oninput="searchItems()" onfocus="if(this.value.trim())searchItems()" autocomplete="off">
+          <input type="text" id="itemSearch" placeholder="Search items…" oninput="searchItems()" onfocus="if(this.value.trim().length>=2)searchItems()" autocomplete="off">
           <div class="dropdown" id="itemDropdown" style="display:none"></div>
         </div>
         <div id="selectedItem" style="display:none;margin-top:6px;padding:8px 10px;background:#f9f9f7;border-radius:8px;font-size:13px"></div>
@@ -329,8 +329,9 @@ window.searchItems=function(){
   selItem=null;
   document.getElementById('selectedItem').style.display='none';
   document.getElementById('newItemForm').style.display='none';
+  document.getElementById('itemDropdown').style.display='none';
   const q=document.getElementById('itemSearch').value.trim();
-  showDropdown(q.toLowerCase());
+  if(q.length>=2)showDropdown(q.toLowerCase());
   const banner=document.getElementById('newItemBanner');
   if(q.length>1){
     const hasMatch=Object.values(items).some(i=>i.name.toLowerCase().includes(q.toLowerCase())||(i.sku||'').toLowerCase().includes(q.toLowerCase()));
@@ -342,7 +343,7 @@ window.searchItems=function(){
 };
 window.showDropdown=function(q=''){
   const dd=document.getElementById('itemDropdown');
-  if(!q||q.length<1){dd.style.display='none';return;}
+  if(!q||q.length<2){dd.style.display='none';return;}
   const list=Object.entries(items).filter(([,i])=>i.name.toLowerCase().includes(q)||(i.sku||'').toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
   if(!list.length){dd.style.display='none';return;}
   dd.innerHTML=list.map(([id,i])=>{
