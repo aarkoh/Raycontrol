@@ -179,8 +179,8 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
         <label id="jobLabel">Job number <span style="color:#A32D2D">*</span></label>
         <div style="position:relative">
           <input type="text" id="jobInput" placeholder="e.g. 2603001" autocomplete="off"
-            oninput="document.getElementById('jobReqMsg').style.display='none';checkSubmit();filterJobDrop(this.value)"
-            onkeydown="jobDropKey(event)">
+            oninput="document.getElementById('jobReqMsg').style.display='none';window.checkSubmit();window.filterJobDrop(this.value)"
+            onkeydown="window.jobDropKey(event)">
           <div id="jobDrop" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);z-index:300;max-height:200px;overflow-y:auto;margin-top:2px"></div>
         </div>
         <div id="jobReqMsg" style="display:none;font-size:11px;color:#A32D2D;margin-top:3px">This field is required</div>
@@ -391,7 +391,7 @@ window.saveNewItem=async function(){
 };
 
 // ── Job autocomplete ─────────────────────────────────────────
-function filterJobDrop(q){
+window.filterJobDrop=function(q){
   const drop=document.getElementById('jobDrop');
   if(!q||q.length<2||moveType!=='out'){drop.style.display='none';return;}
   const matches=_jobRefs.filter(r=>r.toLowerCase().includes(q.toLowerCase())).slice(0,10);
@@ -399,13 +399,13 @@ function filterJobDrop(q){
   drop.innerHTML=matches.map((r,i)=>`<div class="job-drop-item" data-idx="${i}" onclick="selectJobRef('${r}')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f3">${r}</div>`).join('');
   drop.style.display='block';
 }
-function selectJobRef(ref){
+window.selectJobRef=function(ref){
   document.getElementById('jobInput').value=ref;
   document.getElementById('jobDrop').style.display='none';
   document.getElementById('jobReqMsg').style.display='none';
   checkSubmit();
 }
-function jobDropKey(e){
+window.jobDropKey=function(e){
   const drop=document.getElementById('jobDrop');
   const items=[...drop.querySelectorAll('.job-drop-item')];
   const cur=drop.querySelector('.job-drop-item.active');
@@ -417,7 +417,7 @@ function jobDropKey(e){
     if(items[next]){items[next].classList.add('active');items[next].style.background='#E6F1FB';}
     if(cur)cur.style.background='';
   } else if(e.key==='Enter'&&cur){
-    selectJobRef(cur.textContent.trim());
+    window.selectJobRef(cur.textContent.trim());
   } else if(e.key==='Escape'){
     drop.style.display='none';
   }
@@ -428,7 +428,7 @@ document.addEventListener('click',e=>{
 });
 
 // ── Submit ────────────────────────────────────────────────────
-function checkSubmit(){
+window.checkSubmit=function checkSubmit(){
   if(!selItem){const q=document.getElementById('itemSearch').value.trim().toLowerCase();const m=Object.entries(items).find(([,i])=>i.name.toLowerCase()===q||(i.sku||'').toLowerCase()===q);if(m)window.selectItem(m[0]);}
   const jobVal=document.getElementById('jobInput').value.trim();
   const ok=sel&&selItem&&parseFloat(document.getElementById('qtyInput').value)>0&&jobVal.length>0;
