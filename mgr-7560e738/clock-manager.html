@@ -995,7 +995,7 @@ function editLogJobSearch(q){
   var ql = q.toLowerCase();
   var matches = Object.entries(jobs).filter(function(e){
     var j=e[1];
-    return j.ref&&(j.ref.toLowerCase().includes(ql)||(j.vessel||'').toLowerCase().includes(ql));
+    return j.ref&&!j.archived&&(j.ref.toLowerCase().includes(ql)||(j.vessel||'').toLowerCase().includes(ql));
   }).filter(function(e){return e[1].status!=='closed';}).slice(0,8);
   if(!matches.length){drop.style.display='none';return;}
   window._editJobMatches = matches;
