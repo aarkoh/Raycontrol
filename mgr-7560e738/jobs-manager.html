@@ -850,6 +850,21 @@ setTimeout(()=>document.getElementById('ls').classList.add('hide'),5000);
       &nbsp;/&nbsp;
       <a href="#" onclick="invSelAll(false);return false" style="color:#185FA5">None</a>
     </div>
+    <div style="border:1px solid #e0ddd6;border-radius:8px;padding:10px 12px;margin-bottom:12px;background:#f9f9f7">
+      <div style="font-size:12px;font-weight:600;color:#444;margin-bottom:8px">&#128236; Invoice Address <span style="font-size:11px;font-weight:400;color:#888">— editable per invoice</span></div>
+      <div style="margin-bottom:7px">
+        <label style="font-size:11px;color:#888;font-weight:500;display:block;margin-bottom:3px">Company / Messrs</label>
+        <input type="text" id="inv_bill_name" placeholder="Company name on invoice&hellip;" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;background:#fff">
+      </div>
+      <div style="margin-bottom:7px">
+        <label style="font-size:11px;color:#888;font-weight:500;display:block;margin-bottom:3px">Address</label>
+        <textarea id="inv_bill_addr" rows="3" placeholder="Full billing address&hellip;" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;background:#fff;resize:vertical"></textarea>
+      </div>
+      <div>
+        <label style="font-size:11px;color:#888;font-weight:500;display:block;margin-bottom:3px">Attention</label>
+        <input type="text" id="inv_bill_attn" placeholder="Contact person (optional)&hellip;" style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;background:#fff">
+      </div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ddd6">
       <button onclick="document.getElementById('invModal').classList.remove('show')">Cancel</button>
       <button id="invPrintBtn" style="background:#A32D2D;color:#fff;border-color:#A32D2D;font-weight:600" onclick="doPrintInv()">&#128424; Print / PDF</button>
@@ -891,6 +906,13 @@ window.openInvModal = function(id) {
     });
   });
   list.innerHTML=invRows.join('');
+  // Pre-fill bill-to from customer + contact address
+  var _custId = j.customerId||'';
+  var _mgr_contacts = window._mgr_contacts||{};
+  var _custContact = _mgr_contacts[_custId]||{};
+  document.getElementById('inv_bill_name').value = j.customerName||'';
+  document.getElementById('inv_bill_addr').value = _custContact.address||'';
+  document.getElementById('inv_bill_attn').value = j.attn||'';
   document.getElementById('invModal').classList.add('show');
 };
 
@@ -921,12 +943,17 @@ window.doPrintInv = function(){
   });
   var invType = document.querySelector('input[name="inv_type"]:checked').value;
   var invPct = invType==='PROFORMA INVOICE' ? window.getInvPct() : 1;
+  var billTo = {
+    name: document.getElementById('inv_bill_name').value.trim(),
+    addr: document.getElementById('inv_bill_addr').value.trim(),
+    attn: document.getElementById('inv_bill_attn').value.trim()
+  };
   document.getElementById('invModal').classList.remove('show');
   if(!selected.length){toast('Select at least one line item');return;}
-  printInvData(id, selected, invType, invPct);
+  printInvData(id, selected, invType, invPct, billTo);
 };
 
-function printInvData(id, selectedItems, invType, invPct){
+function printInvData(id, selectedItems, invType, invPct, billTo){
   invType = invType||'TAX INVOICE';
   var jobs = window._mgr_jobs||{};
   var fmt = window._mgr_fmt;
@@ -934,6 +961,9 @@ function printInvData(id, selectedItems, invType, invPct){
   if(!fmt||!totals){alert('Page still loading, please try again.');return;}
   var j = jobs[id]||{};
   invPct = invPct||1;
+  var billName = (billTo&&billTo.name)||j.customerName||'';
+  var billAddr = (billTo&&billTo.addr)||'';
+  var billAttn = (billTo&&billTo.attn)||j.attn||'';
   var pctLabel = invPct<1 ? " ("+Math.round(invPct*100)+"% advance)" : "";
   var scaledItems=selectedItems.map(function(it){
     var ch=(it.children||[]).map(function(c){return Object.assign({},c,{unitPrice:(parseFloat(c.unitPrice)||0)*invPct});});
@@ -1025,8 +1055,9 @@ function printInvData(id, selectedItems, invType, invPct){
     +'<div class="tb">'
       +'<div class="cb">'
         +'<div style="font-weight:700">Messrs</div>'
-        +'<div style="font-weight:700">'+(j.customerName||'')+'</div>'
-        +(j.attn?'<div style="margin-top:4px"><span style="font-weight:700">ATTN : </span>'+j.attn+'</div>':'')
+        +'<div style="font-weight:700">'+billName+'</div>'
+        +(billAddr?'<div style="font-size:9pt;margin-top:2px;line-height:1.5">'+billAddr.replace(/\n/g,'<br>')+'</div>':'')
+        +(billAttn?'<div style="margin-top:4px"><span style="font-weight:700">ATTN : </span>'+billAttn+'</div>':'')
       +'</div>'
       +'<div class="di"><table>'
         +'<tr><td>INV NO</td><td>'+(j.ref||'')+'</td></tr>'
