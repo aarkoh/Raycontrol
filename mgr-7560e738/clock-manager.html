@@ -583,6 +583,8 @@ function renderManager(){
 
 // ── Summary ───────────────────────────────────────────────────
 function renderSummary(){
+  // Preserve any open worker detail rows across re-renders
+  const _openDetails=new Set(WORKERS.filter(w=>{const r=document.getElementById('wdrow-'+w);return r&&r.style.display!=='none';}));
   const {start,end}=periodRange(),now=new Date();
   const entries=log.filter(e=>new Date(e.time)>=start&&new Date(e.time)<=end);
   const stats=WORKERS.map(w=>{
@@ -671,6 +673,8 @@ function renderSummary(){
       return outT>=_ps&&inT<=_pe;
     });
   });
+  // Restore previously open detail rows
+  _openDetails.forEach(w=>window.toggleWorkerDetail(w));
 }
 
 
