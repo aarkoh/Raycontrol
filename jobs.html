@@ -565,7 +565,34 @@ window.openDetail=function(id){
       +rows
     +'</div>';
   })()
-+'<div class="sbox"><h3>Documents</h3>'
+++(function(){
+  var sd=j.statusDates||{};
+  // Collect all dated stages sorted by the date they were set
+  var dated=SO.filter(function(st){return sd[st];}).map(function(st){
+    return {st:st,iso:sd[st]};
+  }).sort(function(a,b){return new Date(a.iso)-new Date(b.iso);});
+  if(!dated.length)return '';
+  var rows=dated.map(function(item,i){
+    var d=new Date(item.iso);
+    var dateStr=d.toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+    var timeStr=d.toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Singapore'});
+    var isLast=i===dated.length-1;
+    var colors={quote:'#854F0B',customer_po:'#185FA5',vendor_po:'#8B1A8B',do_wcc:'#854F0B',invoice:'#A32D2D',soa:'#1a6641',closed:'#444'};
+    var col=colors[item.st]||'#888';
+    return '<div style="display:flex;align-items:flex-start;gap:12px;padding:6px 0">'
+      +'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">'
+        +'<div style="width:11px;height:11px;border-radius:50%;background:'+col+';margin-top:3px"></div>'
+        +(!isLast?'<div style="width:2px;flex:1;min-height:18px;background:#e0ddd6;margin-top:2px"></div>':'')
+      +'</div>'
+      +'<div style="padding-bottom:8px">'
+        +'<div style="font-size:13px;font-weight:600;color:'+col+'">'+SL[item.st]+'</div>'
+        +'<div style="font-size:11px;color:#888;margin-top:1px">'+dateStr+' &nbsp;'+timeStr+'</div>'
+      +'</div>'
+    +'</div>';
+  }).join('');
+  return '<div class="sbox"><h3>Progress</h3>'+rows+'</div>';
+})()
+'<div class="sbox"><h3>Documents</h3>'
       +'<div class="ditem"><span>&#128196;</span><span style="font-weight:500;flex:1">Quotation '+(j.ref||"")+"</span>"
         +'<button data-jid="'+id+'" onclick="window.openPrintQuo(this.dataset.jid)" style="font-size:12px;padding:4px 12px;border-color:#185FA5;color:#185FA5;background:#E6F1FB;font-weight:600">&#128424; Print / PDF</button>'
       +'</div>'
@@ -611,8 +638,18 @@ window.setStatus=async function(id,s){
   try{
     var statusUpdate={status:s,updatedAt:new Date().toISOString()};
     if(s==="invoice"&&!jobs[id].invoiceDate){statusUpdate.invoiceDate=new Date().toISOString().slice(0,10);}
+    // Record first-time date for each stage
+    var existingDates=jobs[id].statusDates||{};
+    if(!existingDates[s]){
+      statusUpdate['statusDates/'+s]=new Date().toISOString();
+    }
     await update(ref(db,"jobs/"+id),statusUpdate);
-    jobs[id]=Object.assign({},jobs[id],statusUpdate);
+    // Merge statusDates into local jobs object
+    var mergedDates=Object.assign({},jobs[id].statusDates||{});
+    if(!mergedDates[s])mergedDates[s]=statusUpdate['statusDates/'+s]||new Date().toISOString();
+    jobs[id]=Object.assign({},jobs[id],statusUpdate,{statusDates:mergedDates});
+    // Clean up flat statusDates/x keys from local copy
+    SO.forEach(function(st){delete jobs[id]['statusDates/'+st];});
     exposeGlobals();
     toast("Status → "+SL[s]);
     openDetail(id);
@@ -1369,7 +1406,7 @@ window.printVPO=function(id,selectedItems){
     +"body{font-family:Courier New,Courier,monospace;font-size:10.5pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}"
     +"@page{size:A4;margin:0}"
     +"@media print{body{padding:10mm 14mm}#pb{display:none}}"
-    +"table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}thead{display:table-header-group}.fg{page-break-inside:avoid}.bb{page-break-inside:avoid}.sr{page-break-inside:avoid}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#8B1A8B;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}"
+    +"#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#8B1A8B;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}"
     +"</style></head><body>"
     +'<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
     +pages
@@ -1686,7 +1723,7 @@ window.printSOA = function() {
       +'</tr>';
   }).join('');
   var totalBal=totalInv-totalRcvd;
-  var css='*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}@page{size:A4;margin:0}@media print{body{padding:10mm 14mm}#pb{display:none}}.hdr{width:100%;border-collapse:collapse;border-bottom:2px solid #000;margin-bottom:10px}.hdr td{vertical-align:middle;padding-bottom:8px}.c1{width:45%}.c2{width:30%;text-align:center}.c3{width:25%;text-align:right;font-size:8pt;font-weight:700;line-height:1.7;vertical-align:bottom!important}.addr{font-size:7.5pt;margin-top:3px;line-height:1.5}.logrid{display:grid;grid-template-columns:95px 85px;gap:6px 8px;align-items:center;justify-items:center;margin:0 auto}.ttl{font-size:16pt;font-weight:900;letter-spacing:1px;text-align:center;margin:10px 0 8px}table.it{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:10px}table.it th{font-weight:700;padding:5px 6px;border-top:1px solid #000;border-bottom:1px solid #000;text-align:left;background:#f5f5f5}table.it th.r{text-align:right}table.it th.c{text-align:center}table.it td{padding:4px 6px;border-bottom:1px solid #eee}table.it tfoot td{font-weight:700;border-top:2px solid #000;border-bottom:none;padding:5px 6px}.agrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.abox{border:1px solid #000;padding:6px 8px;text-align:center}.abox .av{font-size:11pt;font-weight:700}.abox .al{font-size:7.5pt;margin-top:2px}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}thead{display:table-header-group}.fg{page-break-inside:avoid}.bb{page-break-inside:avoid}.sr{page-break-inside:avoid}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#A32D2D;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}';
+  var css='*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}@page{size:A4;margin:0}@media print{body{padding:10mm 14mm}#pb{display:none}}.hdr{width:100%;border-collapse:collapse;border-bottom:2px solid #000;margin-bottom:10px}.hdr td{vertical-align:middle;padding-bottom:8px}.c1{width:45%}.c2{width:30%;text-align:center}.c3{width:25%;text-align:right;font-size:8pt;font-weight:700;line-height:1.7;vertical-align:bottom!important}.addr{font-size:7.5pt;margin-top:3px;line-height:1.5}.logrid{display:grid;grid-template-columns:95px 85px;gap:6px 8px;align-items:center;justify-items:center;margin:0 auto}.ttl{font-size:16pt;font-weight:900;letter-spacing:1px;text-align:center;margin:10px 0 8px}table.it{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:10px}table.it th{font-weight:700;padding:5px 6px;border-top:1px solid #000;border-bottom:1px solid #000;text-align:left;background:#f5f5f5}table.it th.r{text-align:right}table.it th.c{text-align:center}table.it td{padding:4px 6px;border-bottom:1px solid #eee}table.it tfoot td{font-weight:700;border-top:2px solid #000;border-bottom:none;padding:5px 6px}.agrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.abox{border:1px solid #000;padding:6px 8px;text-align:center}.abox .av{font-size:11pt;font-weight:700}.abox .al{font-size:7.5pt;margin-top:2px}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#A32D2D;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}';
   var bdy='<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
     +'<table class="hdr"><tr>'
       +'<td class="c1"><div style="display:flex;align-items:flex-end;gap:4px"><img src="'+LRC+'" style="height:50px;max-width:220px;object-fit:contain;object-position:left"><span style="font-size:9.5pt;font-weight:700;margin-bottom:3px">PTE LTD</span></div>'
@@ -1845,13 +1882,6 @@ function rcBaseStyle(pbColor) {
     +'@page{size:A4;margin:0}'
     +'@media print{body{padding:10mm 14mm}#pb{display:none}}'
     +'.jbl{font-weight:700}'
-    +'table{page-break-inside:auto}'
-    +'tr{page-break-inside:avoid;page-break-after:auto}'
-    +'thead{display:table-header-group}'
-    +'.doc-footer{page-break-inside:avoid}'
-    +'.fg{page-break-inside:avoid}'
-    +'.bb{page-break-inside:avoid}'
-    +'.sr{page-break-inside:avoid}'
     +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:'+(pbColor||'#1a1a1a')+';color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}'
     +'</style>';
 }
@@ -2012,7 +2042,7 @@ window.generateCIPL = function() {
   var vesselLine=[j.vessel&&('Vessel: <strong>'+j.vessel+'</strong>'),j.port&&('Port: <strong>'+j.port+'</strong>'),j.equip&&('Equip: <strong>'+j.equip+'</strong>')].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>CIPL '+ciplNo+'</title>'
-    +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;color:#111;background:#fff;padding:18mm 15mm}@page{size:A4;margin:18mm 15mm}@media print{body{padding:0}#pb{display:none}}th{background:#1a1a1a;color:#fff;font-size:10px;font-weight:600;padding:7px 8px;text-align:left}th.r{text-align:right}th.nc{text-align:center}.sr{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #000}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}thead{display:table-header-group}.fg{page-break-inside:avoid}.bb{page-break-inside:avoid}.sr{page-break-inside:avoid}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}</style>'
+    +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;color:#111;background:#fff;padding:18mm 15mm}@page{size:A4;margin:18mm 15mm}@media print{body{padding:0}#pb{display:none}}th{background:#1a1a1a;color:#fff;font-size:10px;font-weight:600;padding:7px 8px;text-align:left}th.r{text-align:right}th.nc{text-align:center}.sr{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #000}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}</style>'
     +'</head><body>'
     +'<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
     +rcHeader('COMMERCIAL INVOICE<br>&amp; PACKING LIST')
@@ -2100,39 +2130,31 @@ window.generateDOWCC = function() {
     selected.forEach(function(it,i){
       var ch=it.children||[];
       rows.push('<tr>'
-        +'<td style="text-align:center;padding:3px 5px;border-bottom:1px solid #eee">'+(i+1)+'</td>'
-        +'<td style="padding:3px 5px;border-bottom:1px solid #eee;white-space:pre-wrap;font-weight:'+(ch.length?'700':'400')+'">'+(it.desc||'')+'</td>'
+        +'<td style="text-align:center;padding:5px 6px;border-bottom:1px solid #eee">'+(i+1)+'</td>'
+        +'<td style="padding:5px 6px;border-bottom:1px solid #eee;white-space:pre-wrap;font-weight:'+(ch.length?'700':'400')+'">'+(it.desc||'')+'</td>'
         +(ch.length
           ?'<td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td>'
-          :'<td style="text-align:right;padding:3px 5px;border-bottom:1px solid #eee">'+(it.qty||'')+'</td>'
-           +'<td style="padding:3px 5px;border-bottom:1px solid #eee">'+(it.unit||'')+'</td>')
+          :'<td style="text-align:right;padding:5px 6px;border-bottom:1px solid #eee">'+(it.qty||'')+'</td>'
+           +'<td style="padding:5px 6px;border-bottom:1px solid #eee">'+(it.unit||'')+'</td>')
       +'</tr>');
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f9f9f9">'
-          +'<td style="text-align:center;padding:2px 5px;border-bottom:1px solid #eee;font-size:8.5pt;color:#185FA5">'+(i+1)+'.'+(ci+1)+'</td>'
-          +'<td style="padding:2px 5px 2px 14px;border-bottom:1px solid #eee;font-size:9pt;white-space:pre-wrap">'+(c.desc||'')+'</td>'
-          +'<td style="text-align:right;padding:2px 5px;border-bottom:1px solid #eee">'+(c.qty||'')+'</td>'
-          +'<td style="padding:2px 5px;border-bottom:1px solid #eee">'+(c.unit||'')+'</td>'
+          +'<td style="text-align:center;padding:4px 6px;border-bottom:1px solid #eee;font-size:9pt;color:#185FA5">'+(i+1)+'.'+(ci+1)+'</td>'
+          +'<td style="padding:4px 6px 4px 16px;border-bottom:1px solid #eee;font-size:9.5pt;white-space:pre-wrap">'+(c.desc||'')+'</td>'
+          +'<td style="text-align:right;padding:4px 6px;border-bottom:1px solid #eee">'+(c.qty||'')+'</td>'
+          +'<td style="padding:4px 6px;border-bottom:1px solid #eee">'+(c.unit||'')+'</td>'
         +'</tr>');
       });
     });
     return rows.join('');
   })();
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+docTitle+' '+(j.ref||'')+'</title>'
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+docTitle+' '+(j.ref||'')+'</title>'+rcBaseStyle()
     +'<style>'
-    +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'@page{size:9.5in 11in;margin:0}'
     +'html,body{height:100%}'
-    +'body{font-family:Courier New,Courier,monospace;font-size:9.5pt;color:#000;background:#fff;'
-    +'padding:6mm 14mm 6mm 14mm;display:flex;flex-direction:column;min-height:279mm}'
-    +'@media print{#pb{display:none}}'
-    +'.jbl{font-weight:700}'
-    +'table{page-break-inside:auto}'
-    +'tr{page-break-inside:avoid;page-break-after:auto}'
-    +'thead{display:table-header-group}'
+    +'body{display:flex;flex-direction:column;min-height:297mm}'
     +'.doc-body{flex:1}'
-    +'.doc-footer{page-break-inside:avoid;margin-top:auto;padding-top:12px}'
-    +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#854F0B;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}'
+    +'.doc-footer{margin-top:auto;padding-top:12px}'
+    +'@media print{html,body{height:100%;min-height:297mm}}'
     +'</style>'
     +'</head><body>'
     +'<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
@@ -2140,13 +2162,13 @@ window.generateDOWCC = function() {
     +rcHeader(docTitle)
     +'<div style="display:flex;gap:0;margin-bottom:8px"><div style="flex:1;font-size:9.5pt;line-height:1.7"><div class="jbl">MASTER AND OWNERS OF MV</div><div style="font-size:11pt;font-weight:700">'+(j.vessel||'').toUpperCase()+'</div>'+(j.attn?'<div style="margin-top:4px"><span class="jbl">ATTN : </span>'+j.attn+'</div>':'')+'</div>'
     +'<div style="min-width:220px;font-size:9.5pt"><table style="border-collapse:collapse;width:100%"><tr><td style="font-weight:700;padding:1px 6px;white-space:nowrap">'+docType+' NO</td><td style="font-weight:900;font-size:11pt;padding:1px 6px">'+docNo+'</td></tr><tr><td style="font-weight:700;padding:1px 6px">JOB NO</td><td style="font-weight:900;font-size:11pt;padding:1px 6px">'+(j.ref||'')+'</td></tr>'+(j.custPO?'<tr><td style="font-weight:700;padding:1px 6px">CUST PO</td><td style="padding:1px 6px">'+j.custPO+'</td></tr>':'')+'<tr><td style="font-weight:700;padding:1px 6px">DATE</td><td style="padding:1px 6px">'+dateFmt+'</td></tr></table></div></div>'
-    +'<div style="border:1px solid #000;display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:6px;font-size:9pt"><div style="padding:3px 6px;border-right:1px solid #000"><span class="jbl">VESSEL: </span>'+(j.vessel||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000"><span class="jbl">PORT: </span>'+(j.port||'').toUpperCase()+'</div><div style="padding:3px 6px"><span class="jbl">TASK: </span>'+(j.task||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000;border-top:1px solid #000"><span class="jbl">EQUIP: </span>'+(j.equip||'').toUpperCase()+'</div><div style="padding:3px 6px;border-right:1px solid #000;border-top:1px solid #000"><span class="jbl">MAKE: </span>'+(j.make||'').toUpperCase()+'</div><div style="padding:3px 6px;border-top:1px solid #000"><span class="jbl">MODEL: </span>'+(j.model||'').toUpperCase()+'</div></div>'
+    +'<div style="border:1px solid #000;display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:8px;font-size:9.5pt"><div style="padding:4px 8px;border-right:1px solid #000"><span class="jbl">VESSEL: </span>'+(j.vessel||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000"><span class="jbl">PORT: </span>'+(j.port||'').toUpperCase()+'</div><div style="padding:4px 8px"><span class="jbl">TASK: </span>'+(j.task||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000;border-top:1px solid #000"><span class="jbl">EQUIP: </span>'+(j.equip||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000;border-top:1px solid #000"><span class="jbl">MAKE: </span>'+(j.make||'').toUpperCase()+'</div><div style="padding:4px 8px;border-top:1px solid #000"><span class="jbl">MODEL: </span>'+(j.model||'').toUpperCase()+'</div></div>'
     +'<div style="font-size:9.5pt;margin-bottom:4px">'+(docType==='DO'?'Received the following goods in good order and condition :-':'Work carried out as follows :-')+'</div>'
-    +'<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:8px"><thead><tr><th style="font-weight:700;padding:3px 5px;border-top:1px solid #000;border-bottom:1px solid #000;width:30px">ITEM</th><th style="font-weight:700;padding:3px 5px;border-top:1px solid #000;border-bottom:1px solid #000">DESCRIPTION</th><th style="font-weight:700;padding:3px 5px;border-top:1px solid #000;border-bottom:1px solid #000;width:48px;text-align:right">QTY</th><th style="font-weight:700;padding:3px 5px;border-top:1px solid #000;border-bottom:1px solid #000;width:48px">UNIT</th></tr></thead><tbody>'+iRows+'</tbody></table>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:12px"><thead><tr><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;width:32px">ITEM</th><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000">DESCRIPTION</th><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;width:52px;text-align:right">QTY</th><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;width:52px">UNIT</th></tr></thead><tbody>'+iRows+'</tbody></table>'
     +(remarks?'<div style="font-size:9.5pt;margin-bottom:12px"><strong>Remarks:</strong> '+remarks+'</div>':'')
     +'</div>'  // close doc-body
     +'<div class="doc-footer">'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><div style="font-size:9pt;padding-left:1.5in"><div class="jbl">ATTENDED BY</div><div style="height:55px"></div><div>'+(engName||'_________________________')+'</div><div>SERVICE ENGINEER</div><div>For Raycontrol Pte Ltd</div></div><div style="font-size:9pt"><div style="padding-left:1.5in"><div class="jbl">ACCEPTANCE BY</div><div style="height:55px"></div><div>Name / Rank :</div><div style="margin-top:20px">Ship Stamp :</div></div></div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px"><div style="font-size:9.5pt"><div class="jbl">ATTENDED BY</div><div style="height:70px"></div><div>'+(engName||'_________________________')+'</div><div>SERVICE ENGINEER</div><div>For Raycontrol Pte Ltd</div></div><div style="font-size:9.5pt;text-align:right"><div class="jbl">ACCEPTANCE BY</div><div style="height:70px"></div><div>Name / Rank :</div><div style="margin-top:6px">Ship Stamp :</div></div></div>'
     +'<div style="border-top:1px solid #000;padding-top:6px;font-size:8pt;margin-top:8px;text-align:center">E.&amp; O.E. &nbsp; <em>Thank you for your support</em></div>'
     +'</div>'  // close doc-footer
     +'</body></html>';
@@ -2306,7 +2328,6 @@ window.printOCData=function(id,selectedItems){
     +'.fg{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:6px}'
     +'.tt{font-weight:700;text-decoration:underline;margin-bottom:3px}'
     +'.bb{border-top:1px solid #000;padding-top:6px;font-size:8pt;margin-top:4px;text-align:center}'
-    +'table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}thead{display:table-header-group}.fg{page-break-inside:avoid}.bb{page-break-inside:avoid}.sr{page-break-inside:avoid}'
     +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a6641;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}'
     +'</style></head><body>'
     +'<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
@@ -2411,7 +2432,6 @@ window.printQuoData = function(id, selectedItems, revNum){
     +'.fg{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:6px}'
     +'.tt{font-weight:700;text-decoration:underline;margin-bottom:3px}'
     +'.bb{border-top:1px solid #000;padding-top:6px;font-size:8pt;margin-top:4px;text-align:center}'
-    +'table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}thead{display:table-header-group}.fg{page-break-inside:avoid}.bb{page-break-inside:avoid}.sr{page-break-inside:avoid}'
     +'#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}'
     +'</style></head><body>'
     +'<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
@@ -2573,7 +2593,7 @@ window.printInvData=function(id,selectedItems,invType,invPct){
     +'<div><strong>SGD Acct No:</strong> 208-307-138-0</div><div><strong>USD Acct No:</strong> 208-900-381-6</div>'
     +'</div>';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+(invType||'Invoice')+' '+(j.ref||'')+'</title>'
-    +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Courier New,Courier,monospace;font-size:10.5pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}@page{size:A4;margin:0}@media print{body{padding:10mm 14mm}#pb{display:none}}.hdr{width:100%;border-collapse:collapse;border-bottom:2px solid #000;margin-bottom:8px}.hdr td{vertical-align:middle;padding-bottom:8px}.c1{width:42%}.c2{width:36%;text-align:center;vertical-align:middle}.c3{width:22%;text-align:right;font-family:Arial,sans-serif;font-size:8pt;font-weight:700;line-height:1.6;vertical-align:bottom!important}.logrid{display:grid;grid-template-columns:95px 85px;gap:6px 8px;align-items:center;justify-items:center;margin:0 auto}.addr{font-size:7.5pt;margin-top:3px;line-height:1.5;font-family:Arial,sans-serif}.tb{display:flex;gap:0;margin-bottom:8px}.cb{flex:1;font-size:9.5pt;line-height:1.5}.di{min-width:220px;font-size:9.5pt}.di table{border-collapse:collapse;width:100%}.di td{padding:1px 6px;vertical-align:top}.di td:first-child{font-weight:700;white-space:nowrap}.di td:last-child{font-weight:900;font-size:11pt}.jb{border:1px solid #000;display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:8px;font-size:9.5pt}.jbc{padding:4px 8px;border-right:1px solid #000}.jbc:last-child{border-right:none}.jbl{font-weight:700}table.it2{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:4px}table.it2 th{font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;text-align:left}table.it2 th.r{text-align:right}table.it2 td{padding:3px 6px;border-bottom:1px solid #eee;vertical-align:top}.tr2{display:flex;justify-content:space-between;padding:1px 6px;font-size:9.5pt}.tfin{font-weight:900;font-size:12pt;border-top:2px solid #000;padding:4px 6px;display:flex;justify-content:space-between}.aw{font-size:9.5pt;border:1px solid #000;padding:5px 10px;margin-bottom:8px;font-style:italic}.fg{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:6px}.tt{font-weight:700;text-decoration:underline;margin-bottom:3px}.bb{border-top:1px solid #000;padding-top:6px;font-size:8pt;margin-top:4px;text-align:center}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}thead{display:table-header-group}.fg{page-break-inside:avoid}.bb{page-break-inside:avoid}.sr{page-break-inside:avoid}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#A32D2D;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}</style>'
+    +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Courier New,Courier,monospace;font-size:10.5pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}@page{size:A4;margin:0}@media print{body{padding:10mm 14mm}#pb{display:none}}.hdr{width:100%;border-collapse:collapse;border-bottom:2px solid #000;margin-bottom:8px}.hdr td{vertical-align:middle;padding-bottom:8px}.c1{width:42%}.c2{width:36%;text-align:center;vertical-align:middle}.c3{width:22%;text-align:right;font-family:Arial,sans-serif;font-size:8pt;font-weight:700;line-height:1.6;vertical-align:bottom!important}.logrid{display:grid;grid-template-columns:95px 85px;gap:6px 8px;align-items:center;justify-items:center;margin:0 auto}.addr{font-size:7.5pt;margin-top:3px;line-height:1.5;font-family:Arial,sans-serif}.tb{display:flex;gap:0;margin-bottom:8px}.cb{flex:1;font-size:9.5pt;line-height:1.5}.di{min-width:220px;font-size:9.5pt}.di table{border-collapse:collapse;width:100%}.di td{padding:1px 6px;vertical-align:top}.di td:first-child{font-weight:700;white-space:nowrap}.di td:last-child{font-weight:900;font-size:11pt}.jb{border:1px solid #000;display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:8px;font-size:9.5pt}.jbc{padding:4px 8px;border-right:1px solid #000}.jbc:last-child{border-right:none}.jbl{font-weight:700}table.it2{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:4px}table.it2 th{font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;text-align:left}table.it2 th.r{text-align:right}table.it2 td{padding:3px 6px;border-bottom:1px solid #eee;vertical-align:top}.tr2{display:flex;justify-content:space-between;padding:1px 6px;font-size:9.5pt}.tfin{font-weight:900;font-size:12pt;border-top:2px solid #000;padding:4px 6px;display:flex;justify-content:space-between}.aw{font-size:9.5pt;border:1px solid #000;padding:5px 10px;margin-bottom:8px;font-style:italic}.fg{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:6px}.tt{font-weight:700;text-decoration:underline;margin-bottom:3px}.bb{border-top:1px solid #000;padding-top:6px;font-size:8pt;margin-top:4px;text-align:center}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#A32D2D;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}</style>'
     +'</head><body>'
     +'<button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
     +'<table class="hdr"><tr>'
