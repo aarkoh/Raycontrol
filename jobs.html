@@ -227,18 +227,6 @@ button:hover{background:#f0f0ee}
   <div style="font-size:11px;color:#854F0B;margin-bottom:0.75rem">* Cost price is internal only — not shown on customer quotation</div>
   <div class="ms">Charges</div>
   <div class="fr2">
-    <div class="fi"><label>Local Courier</label><select id="j_courier" onchange="togCharge('courier')"><option value="TBA">TBA</option><option value="nil">Nil</option><option value="amt">Enter amount</option></select></div>
-    <div class="fi" id="j_courier_w" style="display:none"><label>Amount</label><input type="number" id="j_courier_a" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <div class="fr2">
-    <div class="fi"><label>Packing</label><select id="j_packing" onchange="togCharge('packing')"><option value="TBA">TBA</option><option value="nil">Nil</option><option value="amt">Enter amount</option></select></div>
-    <div class="fi" id="j_packing_w" style="display:none"><label>Amount</label><input type="number" id="j_packing_a" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <div class="fr2">
-    <div class="fi"><label>Freight</label><select id="j_freight" onchange="togCharge('freight')"><option value="TBA">TBA</option><option value="nil">Nil</option><option value="amt">Enter amount</option></select></div>
-    <div class="fi" id="j_freight_w" style="display:none"><label>Amount</label><input type="number" id="j_freight_a" min="0" step="0.01" placeholder="0.00"></div>
-  </div>
-  <div class="fr2">
     <div class="fi"><label>Bank Fee</label><input type="number" id="j_bankfee" min="0" step="0.01" placeholder="0.00" value="0"></div>
     <div class="fi"><label>GST</label><select id="j_gst"><option value="no">No GST</option><option value="9">GST 9%</option></select></div>
   </div>
@@ -501,9 +489,6 @@ window.openDetail=function(id){
       +"</table></div>"
       +'<div style="display:flex;justify-content:flex-end;margin-top:1rem">'
         +'<div style="min-width:260px">'
-          +'<div class="trow"><span>Local Courier</span><span>'+chgL(j.courier,t.ca)+"</span></div>"
-          +'<div class="trow"><span>Packing</span><span>'+chgL(j.packing,t.pa)+"</span></div>"
-          +'<div class="trow"><span>Freight</span><span>'+chgL(j.freight,t.fa)+"</span></div>"
           +'<div class="trow"><span>Sub Total</span><span>'+fmt(t.sub)+"</span></div>"
           +(t.gst>0?'<div class="trow"><span>GST (9%)</span><span>'+fmt(t.gst)+"</span></div>":'<div class="trow"><span style="color:#888;font-size:12px">GSTax not included if applicable</span><span></span></div>')
           +'<div class="trow"><span>Bank Fee</span><span>'+fmt(t.bf)+"</span></div>"
@@ -2410,9 +2395,6 @@ window.printOCData=function(id,selectedItems){
     +'<div style="font-size:9.5pt;margin-bottom:4px">We are pleased to confirm your order for the following :-</div>'
     +'<table class="it2"><thead><tr><th style="width:32px">ITEM</th><th>DESCRIPTION</th><th class="r" style="width:52px">QTY</th><th style="width:52px">UNIT</th><th class="r" style="width:90px">UNIT PRICE</th><th class="r" style="width:90px">AMOUNT</th></tr></thead><tbody>'+iRows+'</tbody></table>'
     +'<div style="display:flex;justify-content:flex-end;margin-bottom:5px"><div style="min-width:260px">'
-      +'<div class="tr2"><span>Local Courier</span><span>'+chg(j.courier,t.ca)+'</span></div>'
-      +'<div class="tr2"><span>Packing</span><span>'+chg(j.packing,t.pa)+'</span></div>'
-      +'<div class="tr2"><span>Freight</span><span>'+chg(j.freight,t.fa)+'</span></div>'
       +'<div class="tr2" style="border-top:1px solid #000;padding-top:2px;margin-top:2px"><span>SUB TOTAL</span><span>'+fmt(t.sub)+'</span></div>'
       +gstRow
       +'<div class="tr2"><span>BANK FEE</span><span>'+fmt(t.bf)+'</span></div>'
@@ -2507,9 +2489,6 @@ window.printQuoData = function(id, selectedItems, revNum){
     +'<div style="font-size:9.5pt;margin-bottom:4px">Being our Quotation for the following :-</div>'
     +'<table class="it2"><thead><tr><th style="width:32px">ITEM</th><th>DESCRIPTION</th><th class="r" style="width:52px">QTY</th><th style="width:52px">UNIT</th><th class="r" style="width:90px">UNIT PRICE</th><th class="r" style="width:90px">AMOUNT</th></tr></thead><tbody>'+iRows+'</tbody></table>'
     +'<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><div style="min-width:260px">'
-      +'<div class="tr2"><span>Local Courier</span><span>'+chg(j.courier,t.ca)+'</span></div>'
-      +'<div class="tr2"><span>Packing</span><span>'+chg(j.packing,t.pa)+'</span></div>'
-      +'<div class="tr2"><span>Freight</span><span>'+chg(j.freight,t.fa)+'</span></div>'
       +'<div class="tr2" style="border-top:1px solid #000;padding-top:2px;margin-top:2px"><span>SUB TOTAL</span><span>'+fmt(t.sub)+'</span></div>'
       +gstRow
       +'<div class="tr2"><span>BANK FEE</span><span>'+fmt(t.bf)+'</span></div>'
@@ -2703,7 +2682,7 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
     +'<div class="jb"><div class="jbc"><span class="jbl">VESSEL: </span>'+(j.vessel||'').toUpperCase()+'</div><div class="jbc"><span class="jbl">PORT: </span>'+(j.port||'').toUpperCase()+'</div><div class="jbc"><span class="jbl">TASK: </span>'+(j.task||'').toUpperCase()+'</div><div class="jbc" style="border-top:1px solid #000"><span class="jbl">EQUIP: </span>'+(j.equip||'').toUpperCase()+'</div><div class="jbc" style="border-top:1px solid #000"><span class="jbl">MAKE: </span>'+(j.make||'').toUpperCase()+'</div><div class="jbc" style="border-top:1px solid #000"><span class="jbl">MODEL: </span>'+(j.model||'').toUpperCase()+'</div></div>'
     +'<div style="font-size:9.5pt;margin-bottom:2px">Being Invoice for the following :-</div>'
     +'<table class="it2"><thead><tr><th style="width:32px">ITEM</th><th>DESCRIPTION</th><th class="r" style="width:52px">QTY</th><th style="width:52px">UNIT</th><th class="r" style="width:90px">UNIT PRICE</th><th class="r" style="width:90px">AMOUNT</th></tr></thead><tbody>'+iRows+'</tbody></table>'
-    +'<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><div style="min-width:260px"><div class="tr2"><span>Local Courier</span><span>'+chg(j.courier,t.ca)+'</span></div><div class="tr2"><span>Packing</span><span>'+chg(j.packing,t.pa)+'</span></div><div class="tr2"><span>Freight</span><span>'+chg(j.freight,t.fa)+'</span></div><div class="tr2" style="border-top:1px solid #000;padding-top:2px;margin-top:2px"><span>SUB TOTAL</span><span>'+fmt(t.sub)+'</span></div>'+gstRow+'<div class="tr2"><span>BANK FEE</span><span>'+fmt(t.bf)+'</span></div><div class="tfin"><span>TOTAL '+cur+'</span><span>'+fmt(t.total)+'</span></div>'+(tOrig?'<div class="tr2" style="font-size:9pt;color:#555"><span>Original Total '+cur+'</span><span>'+fmt(tOrig.total)+'</span></div>':'')+(isPro?'':rcvd>0&&bal>0.005?'<div class="tr2" style="color:#1a6641"><span>PAYMENT RECEIVED</span><span>'+cur+' '+fmt(rcvd)+'</span></div><div class="tr2" style="font-weight:700;font-size:11pt;border-top:1px solid #ccc;margin-top:2px"><span>BALANCE DUE</span><span>'+cur+' '+fmt(bal)+'</span></div>':'')+'</div></div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><div style="min-width:260px"><div class="tr2" style="border-top:1px solid #000;padding-top:2px;margin-top:2px"><span>SUB TOTAL</span><span>'+fmt(t.sub)+'</span></div>'+gstRow+'<div class="tr2"><span>BANK FEE</span><span>'+fmt(t.bf)+'</span></div><div class="tfin"><span>TOTAL '+cur+'</span><span>'+fmt(t.total)+'</span></div>'+(tOrig?'<div class="tr2" style="font-size:9pt;color:#555"><span>Original Total '+cur+'</span><span>'+fmt(tOrig.total)+'</span></div>':'')+(isPro?'':rcvd>0&&bal>0.005?'<div class="tr2" style="color:#1a6641"><span>PAYMENT RECEIVED</span><span>'+cur+' '+fmt(rcvd)+'</span></div><div class="tr2" style="font-weight:700;font-size:11pt;border-top:1px solid #ccc;margin-top:2px"><span>BALANCE DUE</span><span>'+cur+' '+fmt(bal)+'</span></div>':'')+'</div></div>'
     +'<div class="aw">['+amtWords(t.total,cur)+']</div>'
     +bankDetails
     +'<table class="fg"><tr><td style="vertical-align:bottom"><div class="tt">TERMS AND CONDITIONS</div>'+(j.delTime?'<div>DELIVERY TIME : <b>'+j.delTime.toUpperCase()+'</b></div>':'')+(j.delTerms?'<div>DELIVERY TERMS : <b>'+j.delTerms.toUpperCase()+'</b></div>':'')+'<div>PAYMENT: <b>'+((payTermsOverride||j.payTerms||'')).toUpperCase()+'</b></div></td><td style="text-align:right;vertical-align:bottom;font-size:9pt;padding-left:20px;min-width:220px">For Raycontrol Pte Ltd<br><img src="'+LSTAMP+'" style="height:60px;margin:2px 0;opacity:0.85"><br>'+(j.engineer||'')+(j.engineer?'<br>SERVICE ENGINEER':'')+'</td></tr></table>'
