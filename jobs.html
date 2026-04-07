@@ -869,7 +869,6 @@ function getLIs(){
   return result;
 }
 
-window.togCharge=function(f){document.getElementById("j_"+f+"_w").style.display=document.getElementById("j_"+f).value==="amt"?"block":"none";};
 
 // Search dropdowns
 function setupSearch(inpId,dropId,filterFn,onSel){
@@ -924,16 +923,12 @@ window.clrCust=function(){document.getElementById("j_cs_id").value="";document.g
 function resetModal(){
   selVendors=[];liCount=0;subCounts={};
   document.getElementById("liBody").innerHTML="";
-  ["j_ref","j_date","j_eta","j_validity","j_attn","j_yref","j_cpo","j_cpoprice","j_vessel","j_port","j_hull","j_yard","j_equip","j_make","j_model","j_task","j_memo","j_eng","j_dtime","j_dterms","j_courier_a","j_packing_a","j_freight_a"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
+  ["j_ref","j_date","j_eta","j_validity","j_attn","j_yref","j_cpo","j_cpoprice","j_vessel","j_port","j_hull","j_yard","j_equip","j_make","j_model","j_task","j_memo","j_eng","j_dtime","j_dterms",].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   document.getElementById("j_type").value="supply";
   document.getElementById("j_cur").value="SGD";
-  document.getElementById("j_courier").value="TBA";
-  document.getElementById("j_packing").value="TBA";
-  document.getElementById("j_freight").value="TBA";
   document.getElementById("j_bankfee").value="0";
   document.getElementById("j_gst").value="no";
   document.getElementById("j_pay").value="30 Days Nett";
-  ["courier","packing","freight"].forEach(function(f){document.getElementById("j_"+f+"_w").style.display="none";});
   window.clrCust();renderVTags();
 }
 
@@ -968,12 +963,8 @@ window.openEditJob=function(id){
   Object.entries(flds).forEach(function(e){var el=document.getElementById(e[0]);if(el&&e[1])el.value=e[1];});
   document.getElementById("j_type").value=j.type||"supply";
   document.getElementById("j_cur").value=j.currency||"SGD";
-  document.getElementById("j_courier").value=j.courier||"TBA";
-  document.getElementById("j_packing").value=j.packing||"TBA";
-  document.getElementById("j_freight").value=j.freight||"TBA";
   document.getElementById("j_gst").value=j.gst||"no";
   document.getElementById("j_pay").value=j.payTerms||"30 Days Nett";
-  ["courier","packing","freight"].forEach(function(f){document.getElementById("j_"+f+"_w").style.display=j[f]==="amt"?"block":"none";});
   if(j.customerId&&j.customerName){document.getElementById("j_cs_id").value=j.customerId;document.getElementById("j_cs_nm").textContent=j.customerName;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";}
   (j.lineItems||[]).forEach(function(it){
     window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"",it.costCur||"SGD");
