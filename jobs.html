@@ -1294,8 +1294,15 @@ window.printVPO=function(id,selectedItems){
 
   // Group by vendor
   var vendorMap={};
+  var _vContacts=window._contacts||{};
   items.forEach(function(it){
-    if(!vendorMap[it.vendorId]){var _vi=(j.vendors||[]).indexOf(it.vendorId);var _vref=_vi>=0?(j.vendorRefs||[])[_vi]||'':'';vendorMap[it.vendorId]={name:it.vendorName,ref:_vref,items:[]};}
+    if(!vendorMap[it.vendorId]){
+      var _vi=(j.vendors||[]).indexOf(it.vendorId);
+      var _vref=_vi>=0?(j.vendorRefs||[])[_vi]||'':'';
+      var _vContact=_vContacts[it.vendorId]||{};
+      var _vGST=!!_vContact.gst;
+      vendorMap[it.vendorId]={name:it.vendorName,ref:_vref,gst:_vGST,items:[]};
+    }
     vendorMap[it.vendorId].items.push(it);
   });
 
@@ -1322,9 +1329,20 @@ window.printVPO=function(id,selectedItems){
       totByCur[cur]+=(parseFloat(it.qty)||0)*(parseFloat(it.costPrice)||0);
     });
     var totRows=Object.entries(totByCur).map(function(e){
+      var cur2=e[0],sub2=e[1];
+      var gstAmt=vnd.gst&&cur2==="SGD"?Math.round(sub2*0.09*100)/100:0;
+      var total2=sub2+gstAmt;
+      if(vnd.gst&&cur2==="SGD"){
+        return '<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt">'
+          +'<span>SUB TOTAL '+cur2+'</span><span>'+cur2+" "+fmt(sub2)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt">'
+          +'<span>GST (9%)</span><span>'+cur2+" "+fmt(gstAmt)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:12pt;font-weight:900;border-top:2px solid #000">'
+          +'<span>TOTAL '+cur2+'</span><span>'+cur2+" "+fmt(total2)+'</span></div>';
+      }
       return '<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt'
         +(Object.keys(totByCur).length===1?";font-weight:900;font-size:12pt;border-top:2px solid #000":"")
-        +'"><span>TOTAL '+e[0]+"</span><span>"+e[0]+" "+fmt(e[1])+"</span></div>";
+        +'"><span>TOTAL '+cur2+"</span><span>"+cur2+" "+fmt(total2)+"</span></div>";
     }).join("");
 
     return '<div style="page-break-after:always">'
