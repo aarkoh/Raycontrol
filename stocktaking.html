@@ -202,6 +202,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <button class="fbtn active" id="ovAll" onclick="setOvFilter('all',this)">All</button>
       <button class="fbtn" id="ovLow" onclick="setOvFilter('low',this)">Low stock</button>
       <button class="fbtn" id="ovEmpty" onclick="setOvFilter('empty',this)">Empty</button>
+      <button onclick="window.exportStockXL()" style="font-size:12px;padding:4px 12px;border:1px solid #3B6D11;color:#3B6D11;background:#EAF3DE;border-radius:20px;cursor:pointer;font-family:inherit;margin-left:auto">&#128196; Export Excel</button>
     </div>
     <div class="ov-grid" id="ovGrid"></div>
   </div>
@@ -215,6 +216,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <button class="fbtn" onclick="setLogFilter('edit',this)">Edits</button>
       <select id="logItemFilter" onchange="renderLog()" style="font-size:12px;padding:5px 8px"><option value="">All items</option></select>
       <select id="logWorkerFilter" onchange="renderLog()" style="font-size:12px;padding:5px 8px"><option value="">All workers</option></select>
+      <button onclick="window.exportLogXL()" style="font-size:12px;padding:4px 12px;border:1px solid #185FA5;color:#185FA5;background:#E6F1FB;border-radius:20px;cursor:pointer;font-family:inherit">&#128196; Export Excel</button>
     </div>
     <div id="logList"></div>
   </div>
@@ -250,6 +252,8 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
     </div>
   </div>
 </div>
+<!-- SheetJS for Excel export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Staff Login Overlay -->
 <div class="toast" id="toast"></div>
 
@@ -637,6 +641,62 @@ window.saveEditItem=async function(){
 // Expose functions used in HTML attributes to window scope
 window.renderOverview = function() { renderOverview(); };
 window.renderLog = function() { renderLog(); };
+
+// ── Excel Exports ─────────────────────────────────────────────
+window.exportStockXL=function(){
+  const XLSX=window.XLSX;
+  if(!XLSX){toast("Excel library not loaded yet, try again");return;}
+  const wb=XLSX.utils.book_new();
+  const today=new Date().toLocaleDateString("en-SG",{day:"2-digit",month:"short",year:"numeric"});
+  // Sheet 1: Stock Overview
+  const rows=[["Stock Overview — "+today],[""],
+    ["Name","SKU","Category","Make","Model","Qty","Unit","Min Stock","Location","Cost (S$)","Sell (S$)","Status"]];
+  Object.values(items).sort((a,b)=>(a.name||"").localeCompare(b.name||"")).forEach(function(i){
+    const isEmpty=i.qty<=0,isLow=i.minQty>0&&i.qty>0&&i.qty<=i.minQty;
+    const status=isEmpty?"Empty":isLow?"Low stock":"OK";
+    rows.push([i.name||"",i.sku||"",i.category||"",i.make||"",i.model||"",
+      parseFloat(i.qty)||0,i.unit||"pcs",parseFloat(i.minQty)||0,i.location||"",
+      parseFloat(i.cost)||0,parseFloat(i.sell)||0,status]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"]=[{wch:28},{wch:12},{wch:14},{wch:12},{wch:12},{wch:8},{wch:8},{wch:10},{wch:20},{wch:10},{wch:10},{wch:10}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:11}}];
+  XLSX.utils.book_append_sheet(wb,ws,"Stock Overview");
+  const fname="StockOverview_"+new Date().toISOString().slice(0,10)+".xlsx";
+  XLSX.writeFile(wb,fname);
+  toast("Stock overview exported ✓");
+};
+
+window.exportLogXL=function(){
+  const XLSX=window.XLSX;
+  if(!XLSX){toast("Excel library not loaded yet, try again");return;}
+  const wb=XLSX.utils.book_new();
+  const today=new Date().toLocaleDateString("en-SG",{day:"2-digit",month:"short",year:"numeric"});
+  // Apply the same filters currently active in the Log tab
+  const itemF=document.getElementById("logItemFilter").value;
+  const workerF=document.getElementById("logWorkerFilter").value;
+  const list=movements.filter(function(m){
+    return (logFilter==="all"||m.type===logFilter)&&(!itemF||m.itemId===itemF)&&(!workerF||m.worker===workerF);
+  });
+  // Sheet 1: Movement Log
+  const rows=[["Stock Movement Log — "+today],[""],
+    ["Date / Time","Type","Item","SKU","Worker","Qty Change","Unit","Qty Before","Qty After","Job / Invoice Ref","Notes"]];
+  list.forEach(function(m){
+    const t=m.localTime||new Date(m.time).toLocaleString([],{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    const type=m.type==="in"?"IN":m.type==="out"?"OUT":"EDIT";
+    const qtyChange=m.type==="in"?+(m.qty||0):m.type==="out"?-(m.qty||0):0;
+    rows.push([t,type,m.itemName||"",m.sku||"",m.worker||"",
+      qtyChange,m.unit||"pcs",parseFloat(m.qtyBefore)||0,parseFloat(m.qtyAfter)||0,
+      m.job||"",m.notes||""]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"]=[{wch:22},{wch:6},{wch:28},{wch:12},{wch:8},{wch:10},{wch:8},{wch:10},{wch:10},{wch:18},{wch:30}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:10}}];
+  XLSX.utils.book_append_sheet(wb,ws,"Movement Log");
+  const fname="StockLog_"+new Date().toISOString().slice(0,10)+".xlsx";
+  XLSX.writeFile(wb,fname);
+  toast("Log exported ✓ ("+list.length+" entries)");
+};
 
 // Event delegation for edit buttons - avoids inline onclick quote issues
 document.addEventListener('click', function(e) {
