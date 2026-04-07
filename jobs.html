@@ -959,7 +959,7 @@ window.openEditJob=function(id){
   document.getElementById("mTitle").textContent="Edit Job";
   resetModal();
   selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,ref:(j.vendorRefs||[])[i]||""};});
-  var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_cpo:j.custPO,j_cpoprice:j.poPrice,j_vessel:j.vessel,j_port:j.port,j_hull:j.hull,j_yard:j.yard,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0",j_courier_a:j.courierAmt,j_packing_a:j.packingAmt,j_freight_a:j.freightAmt};
+  var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_cpo:j.custPO,j_cpoprice:j.poPrice,j_vessel:j.vessel,j_port:j.port,j_hull:j.hull,j_yard:j.yard,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0"};
   Object.entries(flds).forEach(function(e){var el=document.getElementById(e[0]);if(el&&e[1])el.value=e[1];});
   document.getElementById("j_type").value=j.type||"supply";
   document.getElementById("j_cur").value=j.currency||"SGD";
@@ -992,9 +992,6 @@ window.saveJob=async function(){
     type:document.getElementById("j_type").value,currency:document.getElementById("j_cur").value,
     eta:gv("j_eta"),validity:gv("j_validity"),memo:gv("j_memo"),engineer:gv("j_eng"),
     lineItems:getLIs(),
-    courier:document.getElementById("j_courier").value,courierAmt:gv("j_courier_a"),
-    packing:document.getElementById("j_packing").value,packingAmt:gv("j_packing_a"),
-    freight:document.getElementById("j_freight").value,freightAmt:gv("j_freight_a"),
     bankFee:gv("j_bankfee")||"0",gst:document.getElementById("j_gst").value,
     delTime:gv("j_dtime"),delTerms:gv("j_dterms"),payTerms:document.getElementById("j_pay").value,
     updatedAt:new Date().toISOString()
