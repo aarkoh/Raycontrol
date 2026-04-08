@@ -302,10 +302,8 @@ window.openModal=function(id){
   const ws=e.workers||[];
   const grid=document.getElementById('workerCheckGrid');
   grid.innerHTML=workers.map(w=>{
-    const chk=ws.includes(w)?'checked':'';
-    return `<label class="wcheck${ws.includes(w)?' checked':''}" onclick="toggleWCheck(this)">
-      <input type="checkbox" value="${w}" ${chk}>${w}
-    </label>`;
+    const sel=ws.includes(w);
+    return `<div class="wcheck${sel?' checked':''}" data-worker="${w}" onclick="toggleWCheck(this)">${w}</div>`;
   }).join('');
 
   document.getElementById('jobSugDrop').style.display='none';
@@ -318,9 +316,8 @@ window.closeModal=function(){
   editId=null;selJobId=null;
 };
 
-window.toggleWCheck=function(lbl){
-  lbl.classList.toggle('checked');
-  lbl.querySelector('input').checked=lbl.classList.contains('checked');
+window.toggleWCheck=function(div){
+  div.classList.toggle('checked');
 };
 
 // ── Job autocomplete ────────────────────────────────────────
@@ -369,7 +366,7 @@ window.saveEntry=async function(){
   if(!date){toast('Date is required');return;}
 
   const j=selJobId?jobs[selJobId]:(Object.values(jobs).find(x=>x.ref===jobRef)||{});
-  const ws=[...document.querySelectorAll('#workerCheckGrid .wcheck.checked input')].map(i=>i.value);
+  const ws=[...document.querySelectorAll('#workerCheckGrid .wcheck.checked')].map(d=>d.dataset.worker);
 
   const data={
     jobRef,
