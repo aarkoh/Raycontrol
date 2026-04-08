@@ -2379,9 +2379,20 @@ window.printOCData=function(id,selectedItems){
   var jForTotals=Object.assign({},j,{lineItems:selectedItems});
   var t=totals(jForTotals);
 
+  // Apply customer discount to unit prices before building rows
+  var discItems=selectedItems.map(function(it){
+    var d=parseFloat(it.custDisc)||0;
+    var ch=(it.children||[]).map(function(c){
+      var cd=parseFloat(c.custDisc)||0;
+      return cd?Object.assign({},c,{unitPrice:(parseFloat(c.unitPrice)||0)*(1-cd/100)}):c;
+    });
+    var scaled=d?Object.assign({},it,{unitPrice:(parseFloat(it.unitPrice)||0)*(1-d/100)}):it;
+    if(ch.length)scaled=Object.assign({},scaled,{children:ch});
+    return scaled;
+  });
   var iRows=(function(){
     var rows=[];
-    selectedItems.forEach(function(it,i){
+    discItems.forEach(function(it,i){
       var ch=it.children||[];
       var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
@@ -2407,6 +2418,8 @@ window.printOCData=function(id,selectedItems){
     return rows.join('');
   })();
 
+  var jForTotalsDisc=Object.assign({},j,{lineItems:discItems});
+  var t=totals(jForTotalsDisc);
   var gstRow=t.gst>0
     ?'<div style="display:flex;justify-content:space-between;padding:1px 6px;font-size:9.5pt"><span>GST (9%)</span><span>'+fmt(t.gst)+'</span></div>'
     :'<div style="display:flex;justify-content:space-between;padding:1px 6px;font-size:8.5pt;color:#555;font-style:italic"><span>GST not included if applicable</span><span></span></div>';
@@ -2477,10 +2490,24 @@ window.printQuoData = function(id, selectedItems, revNum){
   var jForTotals=Object.assign({},j,{lineItems:selectedItems});
   var t=totals(jForTotals);
 
+  // Apply customer discount to unit prices before building rows
+  var discItems=selectedItems.map(function(it){
+    var d=parseFloat(it.custDisc)||0;
+    var ch=(it.children||[]).map(function(c){
+      var cd=parseFloat(c.custDisc)||0;
+      return cd?Object.assign({},c,{unitPrice:(parseFloat(c.unitPrice)||0)*(1-cd/100)}):c;
+    });
+    var scaled=d?Object.assign({},it,{unitPrice:(parseFloat(it.unitPrice)||0)*(1-d/100)}):it;
+    if(ch.length)scaled=Object.assign({},scaled,{children:ch});
+    return scaled;
+  });
+  // Recalculate totals with discounted prices
+  var t=totals(Object.assign({},j,{lineItems:discItems}));
+
   // Build line item rows
   var iRows=(function(){
     var rows=[];
-    selectedItems.forEach(function(it,i){
+    discItems.forEach(function(it,i){
       var ch=it.children||[];
       var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
@@ -2659,8 +2686,12 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
   var isPro=(invType||'').includes('PROFORMA');
   var pctLabel=isPro&&invPct<1?'('+Math.round(invPct*100)+'% advance)':'';
   var scaledItems=selectedItems.map(function(it){
-    var ch=(it.children||[]).map(function(c){return Object.assign({},c,{unitPrice:(parseFloat(c.unitPrice)||0)*invPct});});
-    return Object.assign({},it,{unitPrice:(parseFloat(it.unitPrice)||0)*invPct,children:ch.length?ch:undefined});
+    var d=parseFloat(it.custDisc)||0;
+    var ch=(it.children||[]).map(function(c){
+      var cd=parseFloat(c.custDisc)||0;
+      return Object.assign({},c,{unitPrice:(parseFloat(c.unitPrice)||0)*invPct*(1-cd/100)});
+    });
+    return Object.assign({},it,{unitPrice:(parseFloat(it.unitPrice)||0)*invPct*(1-d/100),children:ch.length?ch:undefined});
   });
   var jForTotals=Object.assign({},j,{lineItems:scaledItems,courierAmt:(parseFloat(j.courierAmt)||0)*invPct,packingAmt:(parseFloat(j.packingAmt)||0)*invPct,freightAmt:(parseFloat(j.freightAmt)||0)*invPct,bankFee:(parseFloat(j.bankFee)||0)*invPct});
   var t=totals(jForTotals);
