@@ -214,6 +214,7 @@ button:hover{background:#f0f0ee}
         <th style="width:76px;text-align:right">Unit Price</th>
         <th style="width:76px;text-align:right">Amount</th>
         <th style="width:72px;text-align:right;color:#854F0B" title="Internal cost price - not printed">Cost *</th>
+        <th style="width:54px;color:#854F0B" title="Item discount %">Disc% *</th>
         <th style="width:52px;color:#854F0B" title="Cost currency">Cur *</th>
         <th style="width:68px;text-align:right;color:#1a6641" title="Markup % (unit price vs cost in SGD) - not printed">Markup *</th>
         <th style="width:96px">Vendor</th>
@@ -788,11 +789,13 @@ window.getFxRates=function(cb){
 
 window.updateMarkup=function(n){
   var p=parseFloat((document.getElementById('lp_'+n)||{}).value)||0;
-  var c=parseFloat((document.getElementById('lc_'+n)||{}).value)||0;
+  var rawCost=parseFloat((document.getElementById('lc_'+n)||{}).value)||0;
+  var disc=parseFloat((document.getElementById('ldisc_'+n)||{}).value)||0;
+  var c=rawCost*(1-disc/100);
   var cur=(document.getElementById('lcc_'+n)||{value:'SGD'}).value||'SGD';
   var mkEl=document.getElementById('lmk_'+n);
   if(!mkEl)return;
-  if(!p||!c){mkEl.textContent='—';mkEl.style.color='#1a6641';return;}
+  if(!p||!rawCost){mkEl.textContent='—';mkEl.style.color='#1a6641';return;}
   window.getFxRates(function(fx){
     var fxRate=fx[cur];
     // fxRate should never be missing since _fxCache is seeded with approximates
@@ -810,7 +813,7 @@ window.updateMarkup=function(n){
     mkEl.style.borderColor=markup>=0?'#b8e4c5':'#f5b8b8';
     mkEl.style.background=markup>=0?'#f0faf2':'#fff0f0';
     if(cur!=='SGD'){
-      mkEl.title='Cost '+cur+' '+c.toFixed(2)+' ≈ SGD '+costSGD.toFixed(2)+' (30d avg rate: 1 '+cur+' = SGD '+fxRate.toFixed(4)+')';
+      mkEl.title=(disc>0?'Cost '+cur+' '+rawCost.toFixed(2)+' − '+disc+'% = '+cur+' '+c.toFixed(2)+' ≈ ':'Cost '+cur+' '+c.toFixed(2)+' ≈ ')+'SGD '+costSGD.toFixed(2)+' (30d avg: 1 '+cur+' = SGD '+fxRate.toFixed(4)+')';
     } else {
       mkEl.title='Unit price SGD '+p.toFixed(2)+' vs cost SGD '+c.toFixed(2);
     }
@@ -839,6 +842,7 @@ function getLIs(){
       unit:(document.getElementById('lu_'+n)||{value:''}).value,
       unitPrice:(document.getElementById('lp_'+n)||{value:''}).value,
       costPrice:(document.getElementById('lc_'+n)||{value:''}).value,
+      costDisc:parseFloat((document.getElementById('ldisc_'+n)||{value:''}).value)||0,
       costCur:ccsel?ccsel.value:'SGD',
       vendorId:vsel?vsel.value:'',
       vendorName:vsel&&vsel.value?((selVendors.find(function(v){return v.id===vsel.value;})||{}).name||''):''
@@ -857,6 +861,7 @@ function getLIs(){
         unit:(document.getElementById('lu_'+sid)||{value:''}).value,
         unitPrice:(document.getElementById('lp_'+sid)||{value:''}).value,
         costPrice:(document.getElementById('lc_'+sid)||{value:''}).value,
+        costDisc:parseFloat((document.getElementById('ldisc_'+sid)||{value:''}).value)||0,
         costCur:sccsel?sccsel.value:'SGD',
         vendorId:svsel?svsel.value:'',
         vendorName:svsel&&svsel.value?((selVendors.find(function(v){return v.id===svsel.value;})||{}).name||''):''
@@ -896,6 +901,7 @@ function setupSearch(inpId,dropId,filterFn,onSel){
 }
 
 window.setVendorRef=function(i,val){if(selVendors[i])selVendors[i].ref=val;};
+window.setVendorDisc=function(i,val){if(selVendors[i])selVendors[i].disc=parseFloat(val)||0;};
 function renderVTags(){
   var el=document.getElementById("j_vtags");if(!el)return;
   el.innerHTML=selVendors.map(function(v,i){
@@ -904,6 +910,12 @@ function renderVTags(){
       +'<input type="text" id="j_vref_'+i+'" value="'+( v.ref||'')+'" placeholder="Vendor ref / PO no" '
       +'oninput="window.setVendorRef('+i+',this.value)" '
       +'style="padding:3px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;width:160px;background:#fafaf8">'
+      +'<div style="display:flex;align-items:center;gap:2px" title="Vendor order discount %">'
+      +'<input type="number" id="j_vdisc_'+i+'" value="'+(v.disc||'')+'" placeholder="0" min="0" max="100" step="0.1" '
+      +'oninput="window.setVendorDisc('+i+',this.value)" '
+      +'style="padding:3px 6px;border:1px solid #d4b8d4;border-radius:6px 0 0 6px;font-size:12px;font-family:inherit;width:60px;background:#F3E6F3;text-align:right">'
+      +'<span style="background:#F3E6F3;border:1px solid #d4b8d4;border-left:none;border-radius:0 6px 6px 0;padding:3px 5px;font-size:11px;color:#8B1A8B">% off</span>'
+      +'</div>'
     +'</div>';
   }).join("");
 }
@@ -958,7 +970,7 @@ window.openEditJob=function(id){
   editJobId=id;var j=jobs[id]||{};
   document.getElementById("mTitle").textContent="Edit Job";
   resetModal();
-  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,ref:(j.vendorRefs||[])[i]||""};});
+  selVendors=(j.vendors||[]).map(function(vid,i){return{id:vid,name:(j.vendorNames||[])[i]||vid,ref:(j.vendorRefs||[])[i]||"",disc:(j.vendorDiscs||[])[i]||0};});
   var flds={j_ref:j.ref,j_date:j.date,j_eta:j.eta,j_validity:j.validity,j_attn:j.attn,j_yref:j.yourRef,j_cpo:j.custPO,j_cpoprice:j.poPrice,j_vessel:j.vessel,j_port:j.port,j_hull:j.hull,j_yard:j.yard,j_equip:j.equip,j_make:j.make,j_model:j.model,j_task:j.task,j_memo:j.memo,j_eng:j.engineer,j_dtime:j.delTime,j_dterms:j.delTerms,j_bankfee:j.bankFee||"0"};
   Object.entries(flds).forEach(function(e){var el=document.getElementById(e[0]);if(el&&e[1])el.value=e[1];});
   document.getElementById("j_type").value=j.type||"supply";
@@ -968,9 +980,13 @@ window.openEditJob=function(id){
   if(j.customerId&&j.customerName){document.getElementById("j_cs_id").value=j.customerId;document.getElementById("j_cs_nm").textContent=j.customerName;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";}
   (j.lineItems||[]).forEach(function(it){
     window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"",it.costCur||"SGD");
+  if(it.costDisc){(function(idx,d){setTimeout(function(){var el=document.getElementById("ldisc_"+idx);if(el){el.value=d;window.updateMarkup(idx);}},120);})(liCount,it.costDisc);}
     var pN=liCount;
     (it.children||[]).forEach(function(c){
       window.addSubLI(pN,c.desc,c.qty,c.unit,c.unitPrice,c.vendorId||c.vendor||"",c.costPrice||"",c.costCur||"SGD");
+      if(c.costDisc){(function(pid,sc,disc){
+        setTimeout(function(){var el=document.getElementById("ldisc_"+pid+"_"+sc);if(el){el.value=disc;window.updateMarkup(pid+"_"+sc);}},150);
+      })(pN,subCounts[String(pN)],c.costDisc);}
     });
   });
   if(!(j.lineItems||[]).length)window.addLI();
@@ -988,7 +1004,7 @@ window.saveJob=async function(){
     ref:jref,date:gv("j_date"),customerId:custId,customerName:custName,
     attn:gv("j_attn"),yourRef:gv("j_yref"),custPO:gv("j_cpo"),poPrice:gv("j_cpoprice"),
     vessel:gv("j_vessel"),port:gv("j_port"),hull:gv("j_hull"),yard:gv("j_yard"),equip:gv("j_equip"),make:gv("j_make"),model:gv("j_model"),task:gv("j_task"),
-    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorRefs:selVendors.map(function(v){return v.ref||""}),
+    vendors:selVendors.map(function(v){return v.id;}),vendorNames:selVendors.map(function(v){return v.name;}),vendorRefs:selVendors.map(function(v){return v.ref||""}),vendorDiscs:selVendors.map(function(v){return v.disc||0;}),
     type:document.getElementById("j_type").value,currency:document.getElementById("j_cur").value,
     eta:gv("j_eta"),validity:gv("j_validity"),memo:gv("j_memo"),engineer:gv("j_eng"),
     lineItems:getLIs(),
@@ -1303,7 +1319,9 @@ window.printVPO=function(id,selectedItems){
       var _vContact=_vContacts[it.vendorId]||{};
       var _vGST=!!_vContact.gst;
       var _vPayTerms=_vContact.paymentTerms||j.payTerms||'';
-      vendorMap[it.vendorId]={name:it.vendorName,ref:_vref,gst:_vGST,payTerms:_vPayTerms,items:[]};
+      var _vDiscIdx=(j.vendors||[]).indexOf(it.vendorId);
+      var _vDisc=_vDiscIdx>=0?(j.vendorDiscs||[])[_vDiscIdx]||0:0;
+      vendorMap[it.vendorId]={name:it.vendorName,ref:_vref,gst:_vGST,payTerms:_vPayTerms,disc:_vDisc,items:[]};
     }
     vendorMap[it.vendorId].items.push(it);
   });
@@ -1328,23 +1346,35 @@ window.printVPO=function(id,selectedItems){
     vnd.items.forEach(function(it){
       var cur=it.costCur||"SGD";
       if(!totByCur[cur])totByCur[cur]=0;
-      totByCur[cur]+=(parseFloat(it.qty)||0)*(parseFloat(it.costPrice)||0);
+      var itemDisc=parseFloat(it.costDisc)||0;
+      var effCost=(parseFloat(it.costPrice)||0)*(1-itemDisc/100);
+      totByCur[cur]+=(parseFloat(it.qty)||0)*effCost;
     });
     var totRows=Object.entries(totByCur).map(function(e){
       var cur2=e[0],sub2=e[1];
-      var gstAmt=vnd.gst&&cur2==="SGD"?Math.round(sub2*0.09*100)/100:0;
-      var total2=sub2+gstAmt;
+      var vendorDiscAmt=vnd.disc>0?Math.round(sub2*(vnd.disc/100)*100)/100:0;
+      var afterVendorDisc=sub2-vendorDiscAmt;
+      var gstAmt=vnd.gst&&cur2==="SGD"?Math.round(afterVendorDisc*0.09*100)/100:0;
+      var total2=afterVendorDisc+gstAmt;
       if(vnd.gst&&cur2==="SGD"){
         return '<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt">'
           +'<span>SUB TOTAL '+cur2+'</span><span>'+cur2+" "+fmt(sub2)+'</span></div>'
+          +(vendorDiscAmt>0?'<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt;color:#3B6D11">'
+          +'<span>DISCOUNT ('+vnd.disc+'%)</span><span>− '+cur2+' '+fmt(vendorDiscAmt)+'</span></div>':'')
           +'<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt">'
           +'<span>GST (9%)</span><span>'+cur2+" "+fmt(gstAmt)+'</span></div>'
           +'<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:12pt;font-weight:900;border-top:2px solid #000">'
           +'<span>TOTAL '+cur2+'</span><span>'+cur2+" "+fmt(total2)+'</span></div>';
       }
-      return '<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt'
+      var noGstRows='';
+      if(vendorDiscAmt>0){
+        noGstRows+='<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt"><span>SUB TOTAL '+cur2+'</span><span>'+cur2+' '+fmt(sub2)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt;color:#3B6D11"><span>DISCOUNT ('+vnd.disc+'%)</span><span>− '+cur2+' '+fmt(vendorDiscAmt)+'</span></div>';
+      }
+      noGstRows+='<div style="display:flex;justify-content:space-between;padding:2px 6px;font-size:9.5pt'
         +(Object.keys(totByCur).length===1?";font-weight:900;font-size:12pt;border-top:2px solid #000":"")
         +'"><span>TOTAL '+cur2+"</span><span>"+cur2+" "+fmt(total2)+"</span></div>";
+      return noGstRows;
     }).join("");
 
     return '<div style="page-break-after:always">'
