@@ -326,8 +326,8 @@ window.render=function(){
     return true;
   }).sort((a,b)=>(b[1].createdAt||'').localeCompare(a[1].createdAt||''));
 
-  /* Summary — all jobs always */
-  const all=Object.values(jobs);
+  /* Summary — exclude archived jobs */
+  const all=Object.values(jobs).filter(j=>!j.archived);
   document.getElementById('sJobs').textContent=all.length;
   document.getElementById('sOpen').textContent=all.filter(j=>j.status!=='closed').length;
   const invd=all.filter(j=>['invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+totals(j).total,0);
