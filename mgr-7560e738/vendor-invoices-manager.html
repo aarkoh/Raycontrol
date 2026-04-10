@@ -298,8 +298,8 @@ window.renderTable=function(){
       return s+toSGD(v.amount, v.currency||'SGD', fx);
     },0);
     var paid=all.filter(function(v){return v.status==='paid';}).reduce(function(s,v){
-      // Use paidSGD if explicitly recorded, else convert via FX
-      return s+(v.paidSGD?parseFloat(v.paidSGD):toSGD(v.amount, v.currency||'SGD', fx));
+      // Always convert via FX for consistent SGD totals
+      return s+toSGD(v.amount, v.currency||'SGD', fx);
     },0);
     document.getElementById('sOwed').textContent=fmt(owed);
     document.getElementById('sPaid').textContent=fmt(paid);
