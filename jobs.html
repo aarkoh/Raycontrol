@@ -2896,10 +2896,16 @@ window.printFeedback=function(id){
 <div id="gcOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;overflow-y:auto;padding:20px">
   <div style="background:#fff;border-radius:12px;max-width:920px;margin:auto;padding:0;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25)">
     <div style="background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
-      <span style="font-weight:700;font-size:15px">&#9881; Gas Calibration Certificate</span>
+      <span style="font-weight:700;font-size:15px" id="gcModalTitle">&#9881; Gas Calibration Certificate</span>
       <button onclick="document.getElementById('gcOverlay').style.display='none'" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1">&times;</button>
     </div>
-    <div style="padding:18px 20px">
+    <div style="padding:16px 20px 10px">
+      <!-- Type selector -->
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button id="gcTypeFGDS" onclick="window.gcSetType('FGDS')" style="flex:1;padding:9px;border:2px solid #1e3a5f;border-radius:7px;background:#1e3a5f;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">FGDS<br><span style="font-size:10px;font-weight:400">Fixed Gas Detection System</span></button>
+        <button id="gcTypeVECS" onclick="window.gcSetType('VECS')" style="flex:1;padding:9px;border:2px solid #ddd;border-radius:7px;background:#f9fafb;color:#555;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">VECS<br><span style="font-size:10px;font-weight:400">Vapour Emission Control System</span></button>
+      </div>
+      <!-- Header fields -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
         <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">VESSEL NAME</label><input id="gc_vessel" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
         <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">MODEL</label><input id="gc_model" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
@@ -2911,7 +2917,7 @@ window.printFeedback=function(id){
       </div>
       <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:#1e3a5f">Sensor Readings</div>
       <div style="overflow-x:auto">
-        <table id="gcTable" style="width:100%;border-collapse:collapse;font-size:12px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead>
             <tr style="background:#f0f4f8">
               <th style="width:36px;padding:7px 6px;border:1px solid #ddd;text-align:center">No.</th>
@@ -2939,32 +2945,74 @@ window.printFeedback=function(id){
 </div>
 
 <script>
-var GC_SENSORS = [
-  {name:'HC WBT',                           zero:'0', span:'50 % LEL'},
-  {name:'H2S WBT',                          zero:'0', span:'25 PPM'},
-  {name:'P/R HC',                           zero:'0', span:'50 % LEL'},
-  {name:'P/R H2S',                          zero:'0', span:'25 PPM'},
-  {name:'P/R OXYGEN',                       zero:'0', span:'20.9% VOL'},
-  {name:'GALLEY - HC',                      zero:'0', span:'50 % LEL'},
-  {name:'GALLEY AIR INTAKE - HC',           zero:'0', span:'50 % LEL'},
-  {name:'ACC ENTRANCE SIDE - HC',           zero:'0', span:'50 % LEL'},
-  {name:'ACC ENTRANCE STBD - HC',           zero:'0', span:'50 % LEL'},
-  {name:'FRESH AIR INTAKE - HC',            zero:'0', span:'50 % LEL'},
-  {name:'AIR CONDITION ROOM - HC',          zero:'0', span:'50 % LEL'},
-  {name:'WHEEL HOUSE PORT - HC',            zero:'0', span:'50 % LEL'},
-  {name:'WHEEL HOUSE STBD - HC',            zero:'0', span:'50 % LEL'},
-  {name:'E/R FRESH AIR INTAKE NO 1 - HC',   zero:'0', span:'50 % LEL'},
-  {name:'E/R FRESH AIR INTAKE NO 2 - HC',   zero:'0', span:'50 % LEL'},
-  {name:'E/R FRESH AIR INTAKE NO 3 - HC',   zero:'0', span:'50 % LEL'},
-  {name:'E/R FRESH AIR INTAKE NO 4 - HC',   zero:'0', span:'50 % LEL'},
-  {name:'EGY GEN - HC',                     zero:'0', span:'50 % LEL'},
-  {name:'IN INTAKE COLD CHAMBER - HC',      zero:'0', span:'50 % LEL'},
-  {name:'BWTS ROOM - HC',                   zero:'0', span:'50 % LEL'}
-];
+var GC_TYPE = 'FGDS';
+
+var GC_SYSTEMS = {
+  FGDS: {
+    label: 'FGDS — Fixed Gas Detection System',
+    systemName: 'FIXED GAS SAMPLING SYSTEM',
+    sensors: [
+      {name:'HC WBT',                           zero:'0', span:'50 % LEL'},
+      {name:'H2S WBT',                          zero:'0', span:'25 PPM'},
+      {name:'P/R HC',                           zero:'0', span:'50 % LEL'},
+      {name:'P/R H2S',                          zero:'0', span:'25 PPM'},
+      {name:'P/R OXYGEN',                       zero:'0', span:'20.9% VOL'},
+      {name:'GALLEY - HC',                      zero:'0', span:'50 % LEL'},
+      {name:'GALLEY AIR INTAKE - HC',           zero:'0', span:'50 % LEL'},
+      {name:'ACC ENTRANCE SIDE - HC',           zero:'0', span:'50 % LEL'},
+      {name:'ACC ENTRANCE STBD - HC',           zero:'0', span:'50 % LEL'},
+      {name:'FRESH AIR INTAKE - HC',            zero:'0', span:'50 % LEL'},
+      {name:'AIR CONDITION ROOM - HC',          zero:'0', span:'50 % LEL'},
+      {name:'WHEEL HOUSE PORT - HC',            zero:'0', span:'50 % LEL'},
+      {name:'WHEEL HOUSE STBD - HC',            zero:'0', span:'50 % LEL'},
+      {name:'E/R FRESH AIR INTAKE NO 1 - HC',   zero:'0', span:'50 % LEL'},
+      {name:'E/R FRESH AIR INTAKE NO 2 - HC',   zero:'0', span:'50 % LEL'},
+      {name:'E/R FRESH AIR INTAKE NO 3 - HC',   zero:'0', span:'50 % LEL'},
+      {name:'E/R FRESH AIR INTAKE NO 4 - HC',   zero:'0', span:'50 % LEL'},
+      {name:'EGY GEN - HC',                     zero:'0', span:'50 % LEL'},
+      {name:'IN INTAKE COLD CHAMBER - HC',      zero:'0', span:'50 % LEL'},
+      {name:'BWTS ROOM - HC',                   zero:'0', span:'50 % LEL'}
+    ]
+  },
+  VECS: {
+    label: 'VECS — Vapour Emission Control System',
+    systemName: 'VAPOUR EMISSION CONTROL SYSTEM',
+    sensors: [
+      {name:'OXYGEN',                            zero:'0', span:'20.9% VOL'},
+      {name:'CARGO MANIFOLD PORT - OXYGEN',      zero:'0', span:'20.9% VOL'},
+      {name:'CARGO MANIFOLD STBD - OXYGEN',      zero:'0', span:'20.9% VOL'},
+      {name:'VAPOUR RETURN LINE - OXYGEN',       zero:'0', span:'20.9% VOL'},
+      {name:'VEC UNIT INLET - OXYGEN',           zero:'0', span:'20.9% VOL'},
+      {name:'VEC UNIT OUTLET - OXYGEN',          zero:'0', span:'20.9% VOL'},
+      {name:'DECK MONITOR NO.1 - OXYGEN',        zero:'0', span:'20.9% VOL'},
+      {name:'DECK MONITOR NO.2 - OXYGEN',        zero:'0', span:'20.9% VOL'},
+      {name:'PUMP ROOM - OXYGEN',                zero:'0', span:'20.9% VOL'},
+      {name:'CARGO CONTROL ROOM - OXYGEN',       zero:'0', span:'20.9% VOL'}
+    ]
+  }
+};
+
+window.gcSetType = function(type) {
+  GC_TYPE = type;
+  var sys = GC_SYSTEMS[type];
+  // Toggle button styles
+  document.getElementById('gcTypeFGDS').style.cssText = type === 'FGDS'
+    ? 'flex:1;padding:9px;border:2px solid #1e3a5f;border-radius:7px;background:#1e3a5f;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer'
+    : 'flex:1;padding:9px;border:2px solid #ddd;border-radius:7px;background:#f9fafb;color:#555;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer';
+  document.getElementById('gcTypeVECS').style.cssText = type === 'VECS'
+    ? 'flex:1;padding:9px;border:2px solid #1e3a5f;border-radius:7px;background:#1e3a5f;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer'
+    : 'flex:1;padding:9px;border:2px solid #ddd;border-radius:7px;background:#f9fafb;color:#555;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer';
+  document.getElementById('gcModalTitle').textContent = '\u2699 Gas Calibration Certificate \u2014 ' + type;
+  // Reset table with 5 blank rows for new type
+  var tb = document.getElementById('gcBody');
+  tb.innerHTML = '';
+  for (var i = 0; i < 5; i++) tb.appendChild(gcMakeRow(i));
+};
 
 function gcSensorOpts(selected) {
+  var sensors = GC_SYSTEMS[GC_TYPE].sensors;
   return '<option value="">— Select Sensor —</option>'
-    + GC_SENSORS.map(function(s) {
+    + sensors.map(function(s) {
         return '<option value="' + s.name + '"' + (s.name === selected ? ' selected' : '') + '>' + s.name + '</option>';
       }).join('');
 }
@@ -2998,15 +3046,15 @@ function gcMakeRow(idx, row) {
 function gcRenumber() {
   Array.from(document.getElementById('gcBody').rows).forEach(function(r, i) {
     r.cells[0].textContent = i + 1;
-    var selIdx = i;
-    r.cells[1].querySelector('select').setAttribute('onchange', 'window.gcSensorChange(this,' + selIdx + ')');
-    r.cells[2].querySelector('input').id = 'gc_zero_' + selIdx;
-    r.cells[3].querySelector('input').id = 'gc_span_' + selIdx;
+    r.cells[1].querySelector('select').setAttribute('onchange', 'window.gcSensorChange(this,' + i + ')');
+    r.cells[2].querySelector('input').id = 'gc_zero_' + i;
+    r.cells[3].querySelector('input').id = 'gc_span_' + i;
   });
 }
 
 window.gcSensorChange = function(sel, idx) {
-  var s = GC_SENSORS.find(function(x) { return x.name === sel.value; });
+  var sensors = GC_SYSTEMS[GC_TYPE].sensors;
+  var s = sensors.find(function(x) { return x.name === sel.value; });
   if (s) {
     var zEl = document.getElementById('gc_zero_' + idx);
     var spEl = document.getElementById('gc_span_' + idx);
@@ -3043,21 +3091,22 @@ window.openGasCert = function(id) {
   document.getElementById('gc_expiry').value   = expiryStr;
   document.getElementById('gc_rep').value      = j.attn     || j.customerName || '';
 
-  var tb = document.getElementById('gcBody');
-  tb.innerHTML = '';
-  for (var i = 0; i < 5; i++) tb.appendChild(gcMakeRow(i));
+  // Default to FGDS
+  GC_TYPE = 'FGDS';
+  window.gcSetType('FGDS');
 
   document.getElementById('gcOverlay').style.display = 'block';
 };
 
 window.printGasCert = function() {
-  var vessel  = (document.getElementById('gc_vessel').value.trim()  || '').toUpperCase() || '—';
-  var model   = (document.getElementById('gc_model').value.trim()   || '').toUpperCase() || '—';
-  var ref     = (document.getElementById('gc_ref').value.trim()     || '').toUpperCase() || '—';
-  var loc     = (document.getElementById('gc_location').value.trim()|| '').toUpperCase() || '—';
+  var sys     = GC_SYSTEMS[GC_TYPE];
+  var vessel  = (document.getElementById('gc_vessel').value.trim()   || '').toUpperCase() || '—';
+  var model   = (document.getElementById('gc_model').value.trim()    || '').toUpperCase() || '—';
+  var ref     = (document.getElementById('gc_ref').value.trim()      || '').toUpperCase() || '—';
+  var loc     = (document.getElementById('gc_location').value.trim() || '').toUpperCase() || '—';
   var caldate = document.getElementById('gc_caldate').value;
   var expiry  = document.getElementById('gc_expiry').value;
-  var rep     = (document.getElementById('gc_rep').value.trim()     || '').toUpperCase() || '—';
+  var rep     = (document.getElementById('gc_rep').value.trim()      || '').toUpperCase() || '—';
 
   function fmtDate(s) {
     if (!s) return '—';
@@ -3073,7 +3122,7 @@ window.printGasCert = function() {
     var result = r.cells[4].querySelector('select').value;
     var remark = r.cells[5].querySelector('select').value;
     return '<tr>'
-      + '<td style="text-align:center;padding:6px 4px;border:1px solid #000;font-size:9pt">' + (i+1) + '</td>'
+      + '<td style="text-align:center;padding:6px 4px;border:1px solid #000;font-size:9pt">' + (i + 1) + '</td>'
       + '<td style="padding:6px 8px;border:1px solid #000;font-size:9pt">' + sensor + '</td>'
       + '<td style="text-align:center;padding:6px 4px;border:1px solid #000;font-size:9pt">' + zero + '</td>'
       + '<td style="text-align:center;padding:6px 8px;border:1px solid #000;font-size:9pt">' + span + '</td>'
@@ -3082,13 +3131,13 @@ window.printGasCert = function() {
       + '</tr>';
   }).join('');
 
-  var hdrField = function(label, val) {
+  function hdrField(label, val) {
     return '<div style="display:flex;align-items:baseline;gap:4px;margin:4px 0;font-size:9pt">'
       + '<span style="font-weight:700;white-space:nowrap;min-width:145px">' + label + '</span>'
       + '<span style="margin-right:4px">:</span>'
       + '<span style="border-bottom:1px solid #000;flex:1;padding-bottom:1px">' + val + '</span>'
       + '</div>';
-  };
+  }
 
   var css = '<style>'
     + '*{box-sizing:border-box;margin:0;padding:0;font-family:"Times New Roman",Times,serif}'
@@ -3115,7 +3164,7 @@ window.printGasCert = function() {
     + '<table style="width:100%;margin-bottom:10pt"><tr>'
     + '<td style="width:50%;vertical-align:top;padding-right:16pt">'
     +   hdrField('VESSEL NAME', vessel)
-    +   hdrField('SYSTEM NAME', 'FIXED GAS SAMPLING SYSTEM')
+    +   hdrField('SYSTEM NAME', sys.systemName)
     +   hdrField('MAKER NAME', 'HANLA IMS CO. LTD')
     +   hdrField('MODEL', model)
     + '</td>'
@@ -3153,7 +3202,7 @@ window.printGasCert = function() {
 
   var win = window.open('', '_blank');
   if (!win) { alert('Pop-up blocked. Please allow pop-ups for this page.'); return; }
-  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Gas Calibration Cert ' + ref + '</title>' + css + '</head><body>' + body + '</body></html>');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Calibration Cert (' + GC_TYPE + ') ' + ref + '</title>' + css + '</head><body>' + body + '</body></html>');
   win.document.close();
   setTimeout(function() { win.focus(); }, 300);
 };
