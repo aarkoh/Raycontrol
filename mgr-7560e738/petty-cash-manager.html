@@ -67,7 +67,7 @@ input[readonly]{background:#f9fafb;color:#6b7280}
 <header>
   <h1>&#x1F4B3; Petty Cash Vouchers</h1>
   <div style="display:flex;gap:8px">
-    <a href="jobs-manager.html" class="btn btn-outline btn-sm">Jobs Manager</a>
+    <a href="index.html" class="btn btn-outline btn-sm">&#127968; Manager Hub</a>
     <button class="btn btn-green" onclick="openAdd()">+ New Voucher</button>
   </div>
 </header>
@@ -320,12 +320,12 @@ function renderLineItems(){
   lineItems.forEach((li,i)=>{
     const tr=document.createElement('tr');
     tr.innerHTML=''
-      +'<td><input type="date" value="'+(li.date||'')+'" onchange="window.liChange('+i+',"date",this.value)"></td>'
-      +'<td><input type="text" value="'+(li.billNo||'')+'" placeholder="Bill No" oninput="window.liChange('+i+',"billNo",this.value)"></td>'
-      +'<td><input type="text" value="'+(li.company||'')+'" placeholder="Company name" oninput="window.liChange('+i+',"company",this.value)"></td>'
-      +'<td><select class="li-staff-sel" onchange="window.liChange('+i+',"staff",this.value)">'+staffOptionsHTML(li.staff||'')+'</select></td>'
-      +'<td><input type="number" step="0.01" min="0" value="'+(li.subAmount||'')+'" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',"subAmount",this.value)"></td>'
-      +'<td><input type="number" step="0.01" min="0" value="'+(li.gst||'')+'" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',"gst",this.value)"></td>'
+      +'<td><input type="date" value="'+(li.date||'')+'" onchange="window.liChange('+i+',\'date\',this.value)"></td>'
+      +'<td><input type="text" value="'+(li.billNo||'')+'" placeholder="Bill No" oninput="window.liChange('+i+',\'billNo\',this.value)"></td>'
+      +'<td><input type="text" value="'+(li.company||'')+'" placeholder="Company name" oninput="window.liChange('+i+',\'company\',this.value)"></td>'
+      +'<td><select class="li-staff-sel" onchange="window.liChange('+i+',\'staff\',this.value)">'+staffOptionsHTML(li.staff||'')+'</select></td>'
+      +'<td><input type="number" step="0.01" min="0" value="'+(li.subAmount||'')+'" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',\'subAmount\',this.value)"></td>'
+      +'<td><input type="number" step="0.01" min="0" value="'+(li.gst||'')+'" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',\'gst\',this.value)"></td>'
       +'<td><input type="number" value="'+(li.total||'')+'" readonly style="text-align:right;background:#f9fafb;color:#374151"></td>'
       +'<td style="text-align:center"><button onclick="window.removeLI('+i+')" style="background:none;border:none;cursor:pointer;font-size:18px;color:#dc2626;line-height:1" title="Remove">×</button></td>';
     tb.appendChild(tr);
