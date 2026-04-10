@@ -2979,16 +2979,8 @@ var GC_SYSTEMS = {
     label: 'VECS',
     systemName: 'VAPOUR EMISSION CONTROL SYSTEM',
     sensors: [
-      {name:'OXYGEN',                            zero:'0', span:'20.9% VOL'},
-      {name:'CARGO MANIFOLD PORT - OXYGEN',      zero:'0', span:'20.9% VOL'},
-      {name:'CARGO MANIFOLD STBD - OXYGEN',      zero:'0', span:'20.9% VOL'},
-      {name:'VAPOUR RETURN LINE - OXYGEN',       zero:'0', span:'20.9% VOL'},
-      {name:'VEC UNIT INLET - OXYGEN',           zero:'0', span:'20.9% VOL'},
-      {name:'VEC UNIT OUTLET - OXYGEN',          zero:'0', span:'20.9% VOL'},
-      {name:'DECK MONITOR NO.1 - OXYGEN',        zero:'0', span:'20.9% VOL'},
-      {name:'DECK MONITOR NO.2 - OXYGEN',        zero:'0', span:'20.9% VOL'},
-      {name:'PUMP ROOM - OXYGEN',                zero:'0', span:'20.9% VOL'},
-      {name:'CARGO CONTROL ROOM - OXYGEN',       zero:'0', span:'20.9% VOL'}
+      {name:'OXYGEN',   zero:'0', span:'20.9% VOL'},
+      {name:'PRESSURE', zero:'0', span:'0.2 kg/cm2'}
     ]
   },
   MSC: {
@@ -3063,12 +3055,13 @@ window.gcSetType = function(type) {
   for (var i = 0; i < 5; i++) tb.appendChild(gcMakeRow(i));
 };
 
-function gcSensorOpts(selected) {
+function gcDatalistId(idx) { return 'gc_dl_' + idx; }
+
+function gcSensorDatalist(idx) {
   var sensors = GC_SYSTEMS[GC_TYPE].sensors;
-  return '<option value="">— Select Sensor —</option>'
-    + sensors.map(function(s) {
-        return '<option value="' + s.name + '"' + (s.name === selected ? ' selected' : '') + '>' + s.name + '</option>';
-      }).join('');
+  return '<datalist id="' + gcDatalistId(idx) + '">'
+    + sensors.map(function(s) { return '<option value="' + s.name + '">'; }).join('')
+    + '</datalist>';
 }
 
 function gcMakeRow(idx, row) {
@@ -3077,7 +3070,8 @@ function gcMakeRow(idx, row) {
   tr.innerHTML =
     '<td style="padding:5px 4px;border:1px solid #ddd;text-align:center;color:#888;font-size:12px">' + (idx + 1) + '</td>'
     + '<td style="padding:3px 4px;border:1px solid #ddd">'
-    +   '<select onchange="window.gcSensorChange(this,' + idx + ')" style="width:100%;padding:5px 6px;font-size:12px;font-family:inherit;border:1px solid #ddd;border-radius:4px;background:#fff">' + gcSensorOpts(row.sensor) + '</select>'
+    +   gcSensorDatalist(idx)
+    +   '<input id="gc_sens_' + idx + '" list="' + gcDatalistId(idx) + '" value="' + (row.sensor || '') + '" placeholder="Type or select sensor…" oninput="window.gcSensorChange(this,' + idx + ')" style="width:100%;padding:5px 6px;font-size:12px;font-family:inherit;border:1px solid #ddd;border-radius:4px;background:#fff">'
     + '</td>'
     + '<td style="padding:3px 4px;border:1px solid #ddd"><input id="gc_zero_' + idx + '" value="' + row.zero + '" style="width:100%;padding:5px 4px;font-size:12px;font-family:inherit;border:1px solid #ddd;border-radius:4px;text-align:center;box-sizing:border-box"></td>'
     + '<td style="padding:3px 4px;border:1px solid #ddd"><input id="gc_span_' + idx + '" value="' + row.span + '" style="width:100%;padding:5px 4px;font-size:12px;font-family:inherit;border:1px solid #ddd;border-radius:4px;text-align:center;box-sizing:border-box"></td>'
@@ -3100,15 +3094,18 @@ function gcMakeRow(idx, row) {
 function gcRenumber() {
   Array.from(document.getElementById('gcBody').rows).forEach(function(r, i) {
     r.cells[0].textContent = i + 1;
-    r.cells[1].querySelector('select').setAttribute('onchange', 'window.gcSensorChange(this,' + i + ')');
+    var dl = r.cells[1].querySelector('datalist');
+    var inp = r.cells[1].querySelector('input');
+    if (dl) dl.id = gcDatalistId(i);
+    if (inp) { inp.id = 'gc_sens_' + i; inp.setAttribute('list', gcDatalistId(i)); inp.setAttribute('oninput', 'window.gcSensorChange(this,' + i + ')'); }
     r.cells[2].querySelector('input').id = 'gc_zero_' + i;
     r.cells[3].querySelector('input').id = 'gc_span_' + i;
   });
 }
 
-window.gcSensorChange = function(sel, idx) {
+window.gcSensorChange = function(inp, idx) {
   var sensors = GC_SYSTEMS[GC_TYPE].sensors;
-  var s = sensors.find(function(x) { return x.name === sel.value; });
+  var s = sensors.find(function(x) { return x.name === inp.value; });
   if (s) {
     var zEl = document.getElementById('gc_zero_' + idx);
     var spEl = document.getElementById('gc_span_' + idx);
@@ -3169,7 +3166,7 @@ window.printGasCert = function() {
 
   var tb = document.getElementById('gcBody');
   var rowsHTML = Array.from(tb.rows).map(function(r, i) {
-    var sensor = r.cells[1].querySelector('select').value || '—';
+    var sensor = (r.cells[1].querySelector('input') ? r.cells[1].querySelector('input').value : '') || '—';
     var zero   = r.cells[2].querySelector('input').value  || '—';
     var span   = r.cells[3].querySelector('input').value  || '—';
     var result = r.cells[4].querySelector('select').value;
