@@ -1352,7 +1352,7 @@ window.printVPO=function(id,selectedItems){
       var amt=(parseFloat(it.qty)||0)*(parseFloat(it.costPrice)||0);
       return "<tr>"
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+"</td>"
-        +'<td style="padding:5px 6px;white-space:pre-wrap;font-weight:700">'+(it.desc||"")+"</td>"
+        +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||"").replace(/\n/g,"<br>"))+"</td>"
         +'<td style="text-align:right;padding:5px 6px">'+(it.qty||"")+"</td>"
         +'<td style="padding:5px 6px">'+(it.unit||"")+"</td>"
         +'<td style="text-align:right;padding:5px 6px">'+cur+" "+fmt(it.costPrice||0)+"</td>"
@@ -2234,7 +2234,7 @@ window.generateDOWCC = function() {
       var ch=it.children||[];
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px;border-bottom:1px solid #eee">'+(i+1)+'</td>'
-        +'<td style="padding:5px 6px;border-bottom:1px solid #eee;white-space:pre-wrap;font-weight:'+(ch.length?'700':'400')+'">'+(it.desc||'')+'</td>'
+        +'<td style="padding:5px 6px;border-bottom:1px solid #eee;font-weight:'+(ch.length?'700':'400')+'">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
         +(ch.length
           ?'<td style="border-bottom:1px solid #eee"></td><td style="border-bottom:1px solid #eee"></td>'
           :'<td style="text-align:right;padding:5px 6px;border-bottom:1px solid #eee">'+(it.qty||'')+'</td>'
@@ -2243,7 +2243,7 @@ window.generateDOWCC = function() {
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f9f9f9">'
           +'<td style="text-align:center;padding:4px 6px;border-bottom:1px solid #eee;font-size:9pt;color:#185FA5">'+(i+1)+'.'+(ci+1)+'</td>'
-          +'<td style="padding:4px 6px 4px 16px;border-bottom:1px solid #eee;font-size:9.5pt;white-space:pre-wrap">'+(c.desc||'')+'</td>'
+          +'<td style="padding:4px 6px 4px 16px;border-bottom:1px solid #eee;font-size:9.5pt">'+((c.desc||'').replace(/\n/g,'<br>'))+'</td>'
           +'<td style="text-align:right;padding:4px 6px;border-bottom:1px solid #eee">'+(c.qty||'')+'</td>'
           +'<td style="padding:4px 6px;border-bottom:1px solid #eee">'+(c.unit||'')+'</td>'
         +'</tr>');
@@ -2398,7 +2398,7 @@ window.printOCData=function(id,selectedItems){
       var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
-        +'<td style="padding:5px 6px;white-space:pre-wrap;font-weight:700">'+(it.desc||'')+'</td>'
+        +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
         +(ch.length?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
           +'<td style="padding:5px 6px">'+(it.unit||'')+'</td>'
@@ -2408,7 +2408,7 @@ window.printOCData=function(id,selectedItems){
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f9f9f9">'
           +'<td style="text-align:center;padding:4px 6px;font-size:9pt">'+(i+1)+'.'+(ci+1)+'</td>'
-          +'<td style="padding:4px 6px 4px 16px;font-size:9.5pt;white-space:pre-wrap">'+(c.desc||'')+'</td>'
+          +'<td style="padding:4px 6px 4px 16px;font-size:9.5pt">'+((c.desc||'').replace(/\n/g,'<br>'))+'</td>'
           +'<td style="text-align:right;padding:4px 6px">'+(c.qty||'')+'</td>'
           +'<td style="padding:4px 6px">'+(c.unit||'')+'</td>'
           +'<td style="text-align:right;padding:4px 6px">'+fmt(c.unitPrice)+'</td>'
@@ -2518,7 +2518,7 @@ window.printQuoData = function(id, selectedItems, revNum){
       var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
-        +'<td style="padding:5px 6px;white-space:pre-wrap;font-weight:700">'+(it.desc||'')+'</td>'
+        +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
         +(ch.length?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
           +'<td style="padding:5px 6px">'+(it.unit||'')+'</td>'
@@ -2528,7 +2528,7 @@ window.printQuoData = function(id, selectedItems, revNum){
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f9f9f9">'
           +'<td style="text-align:center;padding:4px 6px;font-size:9pt">'+(i+1)+'.'+(ci+1)+'</td>'
-          +'<td style="padding:4px 6px 4px 16px;font-size:9.5pt;white-space:pre-wrap">'+(c.desc||'')+'</td>'
+          +'<td style="padding:4px 6px 4px 16px;font-size:9.5pt">'+((c.desc||'').replace(/\n/g,'<br>'))+'</td>'
           +'<td style="text-align:right;padding:4px 6px">'+(c.qty||'')+'</td>'
           +'<td style="padding:4px 6px">'+(c.unit||'')+'</td>'
           +'<td style="text-align:right;padding:4px 6px">'+fmt(c.unitPrice)+'</td>'
@@ -2727,7 +2727,7 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
       var parentAmt=sch.length?sch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
-        +'<td style="padding:5px 6px;white-space:pre-wrap;font-weight:700">'+(it.desc||'')+'</td>'
+        +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
         +(sch.length
           ?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
@@ -2738,7 +2738,7 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
       sch.forEach(function(c,ci){
         rows.push('<tr style="background:#f4f8fe">'
           +'<td style="text-align:center;padding:4px 6px;color:#185FA5;font-size:9pt">'+(i+1)+'.'+(ci+1)+'</td>'
-          +'<td style="padding:4px 6px 4px 16px;font-size:9.5pt;color:#222;white-space:pre-wrap">'+(c.desc||'')+'</td>'
+          +'<td style="padding:4px 6px 4px 16px;font-size:9.5pt;color:#222">'+((c.desc||'').replace(/\n/g,'<br>'))+'</td>'
           +'<td style="text-align:right;padding:4px 6px">'+(c.qty||'')+'</td>'
           +'<td style="padding:4px 6px">'+(c.unit||'')+'</td>'
           +'<td style="text-align:right;padding:4px 6px">'+fmt(c.unitPrice)+'</td>'
