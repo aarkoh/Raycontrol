@@ -599,6 +599,57 @@ function buildDetail(id){
         +'</div>'
       +'</div>';
     }).join('');
+    // ── Line item costs from job's own cost prices ──
+    function _liCostSGD(items){
+      var total=0;
+      (items||[]).forEach(function(it){
+        var ch=it.children||[];
+        if(ch.length){
+          ch.forEach(function(c){
+            var costAmt=(parseFloat(c.costPrice)||0)*(parseFloat(c.qty)||0);
+            var cur=c.costCur||'SGD';
+            var rate=window['_fx_'+cur+'_SGD']||FX_FALLBACK[cur]||1;
+            total+=cur==='SGD'?costAmt:costAmt*rate;
+          });
+        } else {
+          var costAmt=(parseFloat(it.costPrice)||0)*(parseFloat(it.qty)||0);
+          var cur=it.costCur||'SGD';
+          var rate=window['_fx_'+cur+'_SGD']||FX_FALLBACK[cur]||1;
+          total+=cur==='SGD'?costAmt:costAmt*rate;
+        }
+      });
+      return total;
+    }
+    var lineItemCostSGD=_liCostSGD(j.lineItems||[]);
+    // ── Build line item cost display rows (per item with a cost price set) ──
+    var liCostRows=(function(){
+      var rows=[];
+      (j.lineItems||[]).forEach(function(it,i){
+        var ch=it.children||[];
+        if(ch.length){
+          ch.forEach(function(c,ci){
+            if(!parseFloat(c.costPrice))return;
+            var costAmt=(parseFloat(c.costPrice)||0)*(parseFloat(c.qty)||0);
+            var cur=c.costCur||'SGD';
+            var rate=window['_fx_'+cur+'_SGD']||FX_FALLBACK[cur]||1;
+            var sgd=cur==='SGD'?costAmt:costAmt*rate;
+            var rateNote=cur!=='SGD'?'<span style="font-size:10px;color:#888"> ('+cur+' '+fmt(costAmt)+' @ '+rate.toFixed(4)+')</span>':'';
+            rows.push('<div class="profit-row"><span style="color:#555">'+(i+1)+'.'+(ci+1)+' '+(c.desc||'—').substring(0,40)+rateNote+'</span>'
+              +'<span style="color:#A32D2D">- SGD '+fmt(sgd)+'</span></div>');
+          });
+        } else {
+          if(!parseFloat(it.costPrice))return;
+          var costAmt=(parseFloat(it.costPrice)||0)*(parseFloat(it.qty)||0);
+          var cur=it.costCur||'SGD';
+          var rate=window['_fx_'+cur+'_SGD']||FX_FALLBACK[cur]||1;
+          var sgd=cur==='SGD'?costAmt:costAmt*rate;
+          var rateNote=cur!=='SGD'?'<span style="font-size:10px;color:#888"> ('+cur+' '+fmt(costAmt)+' @ '+rate.toFixed(4)+')</span>':'';
+          rows.push('<div class="profit-row"><span style="color:#555">'+(i+1)+' '+(it.desc||'—').substring(0,40)+rateNote+'</span>'
+            +'<span style="color:#A32D2D">- SGD '+fmt(sgd)+'</span></div>');
+        }
+      });
+      return rows.join('');
+    })();
     // Totals
     var vendorCostSGD=jobVIs.reduce(function(s,e){
       var v=e[1],vCur=v.currency||'SGD',amt=_viCost(v);
@@ -612,14 +663,20 @@ function buildDetail(id){
       return s+e[1].otH*rate; // otH already rounded
     },0);
     var revSGD2=jobCur==='SGD'?t.total:t.total*(window['_fx_'+jobCur+'_SGD']||1);
-    var profit=revSGD2-vendorCostSGD-claimCostSGD-otCostSGD;
+    var profit=revSGD2-lineItemCostSGD-vendorCostSGD-claimCostSGD-otCostSGD;
     var margin=revSGD2>0?(profit/revSGD2*100):0;
     var profitColor=profit>=0?'#1a6641':'#A32D2D';
     var fxNote=document.getElementById('fxNote_'+id)||'';
     return '<div class="profit-section">'
       +'<h3>&#128200; Profit Analysis <span id="fxStatus_'+id+'" style="font-size:10px;font-weight:400;color:#888"></span></h3>'
       +'<div class="profit-row"><span>Revenue ('+jobCur+'→SGD)</span><span style="color:#1a6641">+ SGD '+fmt(revSGD2)+'</span></div>'
-      +(viRows||'<div class="profit-row" style="color:#aaa;font-size:12px">No vendor invoices linked</div>')
+      +(liCostRows
+        ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Line Item Costs</div>'+liCostRows
+        :''
+      )
+      +(viRows
+        ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Vendor Invoices</div>'+viRows
+        :(lineItemCostSGD===0?'<div class="profit-row" style="color:#aaa;font-size:12px">No costs entered</div>':''))
       +(Object.keys(workerOT).length
         ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Worker OT (from timesheet)</div>'
          +Object.entries(workerOT).map(function(e){
