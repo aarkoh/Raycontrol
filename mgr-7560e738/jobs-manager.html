@@ -566,13 +566,20 @@ function buildDetail(id){
     });
     var revSGD=t.total; // already in job currency
     var jobCur=j.currency||'SGD';
-    // Build vendor cost rows
+    // Build vendor cost rows — use line items sum if available, else v.amount
+    function _viCost(v){
+      var lis=v.lineItems||[];
+      if(lis.length){
+        return lis.reduce(function(s,li){return s+(parseFloat(li.qty)||0)*(parseFloat(li.unitPrice)||0);},0);
+      }
+      return parseFloat(v.amount)||0;
+    }
     var viRows=jobVIs.map(function(e){
       var v=e[1];
       var vCur=v.currency||'SGD';
-      var amt=parseFloat(v.amount)||0;
+      var amt=_viCost(v);
       var rateKey='_fx_'+vCur+'_SGD';
-      var rate=window[rateKey]||1;
+      var rate=window[rateKey]||FX_FALLBACK[vCur]||1;
       var sgd=vCur==='SGD'?amt:amt*rate;
       var rateNote=vCur!=='SGD'?'<span style="font-size:10px;color:#888"> ('+vCur+' '+fmt(amt)+' @ '+rate.toFixed(4)+')</span>':'';
       return '<div class="profit-row">'
@@ -594,9 +601,10 @@ function buildDetail(id){
     }).join('');
     // Totals
     var vendorCostSGD=jobVIs.reduce(function(s,e){
-      var v=e[1],vCur=v.currency||'SGD',amt=parseFloat(v.amount)||0;
+      var v=e[1],vCur=v.currency||'SGD',amt=_viCost(v);
       var rateKey='_fx_'+vCur+'_SGD';
-      return s+(vCur==='SGD'?amt:amt*(window[rateKey]||1));
+      var rate=window[rateKey]||FX_FALLBACK[vCur]||1;
+      return s+(vCur==='SGD'?amt:amt*rate);
     },0);
     var claimCostSGD=claims.reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
     var otCostSGD=Object.entries(workerOT).reduce(function(s,e){
@@ -773,19 +781,17 @@ onAuthStateChanged(auth,user=>{
     if(curId)buildDetail(curId);
   });
 
-  // ── Forex: fetch 30-day average rates for common currencies → SGD ──
+  // ── Forex: hardcoded fallbacks + live /latest endpoint ──
+  const FX_FALLBACK={USD:1.35,EUR:1.46,JPY:0.0092,GBP:1.72,SEK:0.13,CNY:0.19,AUD:0.87,HKD:0.17};
+  Object.entries(FX_FALLBACK).forEach(function(e){window['_fx_'+e[0]+'_SGD']=e[1];});
   window.fetchForex=async function(){
-    const currencies=['USD','EUR','JPY','GBP','CNY','AUD'];
-    const today=new Date();
-    const from=new Date(today); from.setDate(from.getDate()-30);
-    const fmtDate=d=>d.toISOString().slice(0,10);
+    const currencies=['USD','EUR','JPY','GBP','CNY','AUD','SEK','HKD'];
     for(const cur of currencies){
       try{
-        const url=`https://api.frankfurter.app/${fmtDate(from)}..${fmtDate(today)}?from=${cur}&to=SGD`;
-        const r=await fetch(url);
+        const r=await fetch('https://api.frankfurter.app/latest?from='+cur+'&to=SGD');
         const data=await r.json();
-        const rates=Object.values(data.rates||{}).map(d=>d.SGD).filter(Boolean);
-        if(rates.length) window['_fx_'+cur+'_SGD']=rates.reduce((s,r)=>s+r,0)/rates.length;
+        const rate=(data.rates||{}).SGD;
+        if(rate) window['_fx_'+cur+'_SGD']=rate;
       }catch(e){console.warn('Forex fetch failed for '+cur,e);}
     }
     if(curId) buildDetail(curId);
