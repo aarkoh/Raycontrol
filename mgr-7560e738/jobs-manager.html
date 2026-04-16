@@ -566,27 +566,7 @@ function buildDetail(id){
     });
     var revSGD=t.total; // already in job currency
     var jobCur=j.currency||'SGD';
-    // Build vendor cost rows — use line items sum if available, else v.amount
-    function _viCost(v){
-      var lis=v.lineItems||[];
-      if(lis.length){
-        return lis.reduce(function(s,li){return s+(parseFloat(li.qty)||0)*(parseFloat(li.unitPrice)||0);},0);
-      }
-      return parseFloat(v.amount)||0;
-    }
-    var viRows=jobVIs.map(function(e){
-      var v=e[1];
-      var vCur=v.currency||'SGD';
-      var amt=_viCost(v);
-      var rateKey='_fx_'+vCur+'_SGD';
-      var rate=window[rateKey]||(window.FX_FALLBACK||{})[vCur]||1;
-      var sgd=vCur==='SGD'?amt:amt*rate;
-      var rateNote=vCur!=='SGD'?'<span style="font-size:10px;color:#888"> ('+vCur+' '+fmt(amt)+' @ '+rate.toFixed(4)+')</span>':'';
-      return '<div class="profit-row">'
-        +'<span style="color:#555">'+v.vendorName+' — '+v.invNo+rateNote+'</span>'
-        +'<span style="color:#A32D2D">- SGD '+fmt(sgd)+'</span>'
-      +'</div>';
-    }).join('');
+    // Vendor invoice costs removed — tracked via line item cost prices
     // Build claims rows
     var claimRows=claims.map(function(c,i){
       return '<div class="claim-row">'
@@ -670,19 +650,13 @@ function buildDetail(id){
       return rows.join('');
     })();
     // Totals
-    var vendorCostSGD=jobVIs.reduce(function(s,e){
-      var v=e[1],vCur=v.currency||'SGD',amt=_viCost(v);
-      var rateKey='_fx_'+vCur+'_SGD';
-      var rate=window[rateKey]||(window.FX_FALLBACK||{})[vCur]||1;
-      return s+(vCur==='SGD'?amt:amt*rate);
-    },0);
     var claimCostSGD=claims.reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
     var otCostSGD=Object.entries(workerOT).reduce(function(s,e){
       var rate=otRatesMgr[e[0]]||0;
       return s+e[1].otH*rate; // otH already rounded
     },0);
     var revSGD2=jobCur==='SGD'?t.total:t.total*(window['_fx_'+jobCur+'_SGD']||1);
-    var profit=revSGD2-lineItemCostSGD-vendorCostSGD-claimCostSGD-otCostSGD;
+    var profit=revSGD2-lineItemCostSGD-claimCostSGD-otCostSGD;
     var margin=revSGD2>0?(profit/revSGD2*100):0;
     var profitColor=profit>=0?'#1a6641':'#A32D2D';
     var fxNote=document.getElementById('fxNote_'+id)||'';
@@ -693,9 +667,7 @@ function buildDetail(id){
         ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Line Item Costs</div>'+liCostRows
         :''
       )
-      +(viRows
-        ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Vendor Invoices</div>'+viRows
-        :(lineItemCostSGD===0?'<div class="profit-row" style="color:#aaa;font-size:12px">No costs entered</div>':''))
+      +(lineItemCostSGD===0&&!liCostRows?'<div class="profit-row" style="color:#aaa;font-size:12px">No costs entered on line items</div>':'')
       +(Object.keys(workerOT).length
         ?'<div style="font-size:10px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Worker OT (from timesheet)</div>'
          +Object.entries(workerOT).map(function(e){
