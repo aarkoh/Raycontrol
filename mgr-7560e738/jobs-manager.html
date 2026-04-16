@@ -241,6 +241,10 @@ window._mgr_totals=totals;
 window._mgr_jobs=jobs;
 window._mgr_contacts=contacts;
 window.toast=toast;
+window._db=db;
+window._dbRef=ref;
+window._dbUpdate=update;
+window._dbPush=push;
 function totals(j){
   var its=j.lineItems||[];
   var iSub=its.reduce(function(s,it){
@@ -1703,6 +1707,7 @@ window.openJobModal = function(id) {
   jmClrCust();
 
   if(id){
+    var jobs=window._mgr_jobs||{};
     var j=jobs[id]||{};
     document.getElementById('jm_ref').value=j.ref||'';
     document.getElementById('jm_date').value=j.date||'';
@@ -1732,6 +1737,7 @@ window.openJobModal = function(id) {
   } else {
     // Auto-generate ref: year prefix + next seq
     var prefix=new Date().getFullYear().toString().slice(2);
+    var jobs=window._mgr_jobs||{};
     var maxSeq=Object.values(jobs).reduce(function(m,j){
       if(!j.ref)return m;
       var p=j.ref.slice(0,2), n=parseInt(j.ref.slice(2));
@@ -1792,11 +1798,13 @@ window.jmCsSearch = function() {
 };
 
 window.saveJobModal = async function() {
-  var jref=gvj('jm_ref'); if(!jref){toast('Job reference required');return;}
-  var custId=gvj('jm_cs_id'); if(!custId){toast('Please select a customer');return;}
+  var jref=gvj('jm_ref'); if(!jref){window.toast('Job reference required');return;}
+  var custId=gvj('jm_cs_id'); if(!custId){window.toast('Please select a customer');return;}
   var custName=document.getElementById('jm_cs_nm').textContent||'';
   var btn=document.getElementById('jm_save_btn');
   btn.textContent='Saving…'; btn.disabled=true;
+  var _update=window._dbUpdate, _ref=window._dbRef, _db=window._db, _push=window._dbPush;
+  if(!_update||!_ref||!_db){window.toast('Database not ready, try again');btn.textContent='Save Job';btn.disabled=false;return;}
 
   var data={
     ref:jref, date:gvj('jm_date'),
@@ -1815,22 +1823,22 @@ window.saveJobModal = async function() {
 
   try{
     if(_jmEditId){
-      await update(ref(db,'jobs/'+_jmEditId),data);
-      toast('Job updated ✓');
+      await _update(_ref(_db,'jobs/'+_jmEditId),data);
+      window.toast('Job updated ✓');
       closeJobModal();
       buildDetail(_jmEditId);
     } else {
-      // Check for duplicate ref
+      var jobs=window._mgr_jobs||{};
       var exists=Object.values(jobs).some(function(j){return j.ref===jref;});
-      if(exists){toast('Job ref '+jref+' already exists');btn.textContent='Save Job';btn.disabled=false;return;}
+      if(exists){window.toast('Job ref '+jref+' already exists');btn.textContent='Save Job';btn.disabled=false;return;}
       data.status='quote';
       data.createdAt=new Date().toISOString();
-      await push(ref(db,'jobs'),data);
-      toast('Job created ✓');
+      await _push(_ref(_db,'jobs'),data);
+      window.toast('Job created ✓');
       closeJobModal();
     }
   }catch(e){
-    toast('Error: '+e.message);
+    window.toast('Error: '+e.message);
   }
   btn.textContent='Save Job'; btn.disabled=false;
 };
