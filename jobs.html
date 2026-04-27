@@ -1902,7 +1902,16 @@ window.printSOA = function() {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="cipl-fi"><label>DO / WCC No.</label><input type="text" id="dowcc_no"></div>
-      <div class="cipl-fi"><label>Document Date <span style="font-weight:400;color:#888">(set job date, not print date)</span></label><input type="date" id="dowcc_date"></div>
+      <div class="cipl-fi">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          <span>Document Date <span style="font-weight:400;color:#888">(set job date, not print date)</span></span>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:400;color:#666;cursor:pointer">
+            <input type="checkbox" id="dowcc_date_blank" onchange="document.getElementById('dowcc_date').disabled=this.checked;document.getElementById('dowcc_date').style.opacity=this.checked?'0.35':'1'" style="width:13px;height:13px">
+            Leave blank
+          </label>
+        </label>
+        <input type="date" id="dowcc_date">
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="cipl-fi"><label>Service Engineer</label><input type="text" id="dowcc_eng" placeholder="Name of engineer"></div>
@@ -2193,6 +2202,9 @@ window.openDOWCC = function(id) {
   document.getElementById('dowcc_ref_title').textContent=j.ref||'';
   document.getElementById('dowcc_no').value=j.ref||'';
   document.getElementById('dowcc_date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('dowcc_date').disabled=false;
+  document.getElementById('dowcc_date').style.opacity='1';
+  document.getElementById('dowcc_date_blank').checked=false;
   document.getElementById('dowcc_eng').value=j.engineer||'';
   document.getElementById('dowcc_remarks').value='';
   document.getElementById('dowcc_type_do').checked=true;
@@ -2220,6 +2232,7 @@ window.generateDOWCC = function() {
   var j=(window._jobs||{})[id]||{};
   var docType=document.querySelector('input[name="dowcc_type"]:checked').value;
   var docNo=document.getElementById('dowcc_no').value.trim()||j.ref||'';
+  var dateBlank=document.getElementById('dowcc_date_blank').checked;
   var docDate=document.getElementById('dowcc_date').value;
   var engName=document.getElementById('dowcc_eng').value.trim();
   var remarks=document.getElementById('dowcc_remarks').value.trim();
@@ -2234,8 +2247,8 @@ window.generateDOWCC = function() {
     selected.push(entry);
   });
   if(!selected.length){window.toast('Select at least one line item');return;}
-  var dObj=docDate?new Date(docDate+'T12:00:00'):new Date();
-  var dateFmt=dObj.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  var dateFmt='';
+  if(!dateBlank){var dObj=docDate?new Date(docDate+'T12:00:00'):new Date();dateFmt=dObj.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});}
   var docTitle=docType==='DO'?'DELIVERY ORDER':'WORK COMPLETION CERTIFICATE';
   var iRows=(function(){
     var rows=[];
@@ -2273,7 +2286,7 @@ window.generateDOWCC = function() {
     +'<div class="doc-body">'
     +rcHeader(docTitle)
     +'<div style="display:flex;gap:0;margin-bottom:8px"><div style="flex:1;font-size:9.5pt;line-height:1.7"><div class="jbl">MASTER AND OWNERS OF MV</div><div style="font-size:11pt;font-weight:700">'+(j.vessel||'').toUpperCase()+'</div>'+(j.attn?'<div style="margin-top:4px"><span class="jbl">ATTN : </span>'+j.attn+'</div>':'')+'</div>'
-    +'<div style="min-width:220px;font-size:9.5pt"><table style="border-collapse:collapse;width:100%"><tr><td style="font-weight:700;padding:1px 6px;white-space:nowrap">'+docType+' NO</td><td style="font-weight:900;font-size:11pt;padding:1px 6px">'+docNo+'</td></tr><tr><td style="font-weight:700;padding:1px 6px">JOB NO</td><td style="font-weight:900;font-size:11pt;padding:1px 6px">'+(j.ref||'')+'</td></tr>'+(j.custPO?'<tr><td style="font-weight:700;padding:1px 6px">CUST PO</td><td style="padding:1px 6px">'+j.custPO+'</td></tr>':'')+'<tr><td style="font-weight:700;padding:1px 6px">DATE</td><td style="padding:1px 6px">'+dateFmt+'</td></tr></table></div></div>'
+    +'<div style="min-width:220px;font-size:9.5pt"><table style="border-collapse:collapse;width:100%"><tr><td style="font-weight:700;padding:1px 6px;white-space:nowrap">'+docType+' NO</td><td style="font-weight:900;font-size:11pt;padding:1px 6px">'+docNo+'</td></tr><tr><td style="font-weight:700;padding:1px 6px">JOB NO</td><td style="font-weight:900;font-size:11pt;padding:1px 6px">'+(j.ref||'')+'</td></tr>'+(j.custPO?'<tr><td style="font-weight:700;padding:1px 6px">CUST PO</td><td style="padding:1px 6px">'+j.custPO+'</td></tr>':'')+'<tr><td style="font-weight:700;padding:1px 6px">DATE</td><td style="padding:1px 6px">'+(dateFmt||'<span style="display:inline-block;min-width:120px;border-bottom:1px solid #000">&nbsp;</span>')+'</td></tr></table></div></div>'
     +'<div style="border:1px solid #000;display:grid;grid-template-columns:1fr 1fr 1fr;margin-bottom:8px;font-size:9.5pt"><div style="padding:4px 8px;border-right:1px solid #000"><span class="jbl">VESSEL: </span>'+(j.vessel||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000"><span class="jbl">PORT: </span>'+(j.port||'').toUpperCase()+'</div><div style="padding:4px 8px"><span class="jbl">TASK: </span>'+(j.task||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000;border-top:1px solid #000"><span class="jbl">EQUIP: </span>'+(j.equip||'').toUpperCase()+'</div><div style="padding:4px 8px;border-right:1px solid #000;border-top:1px solid #000"><span class="jbl">MAKE: </span>'+(j.make||'').toUpperCase()+'</div><div style="padding:4px 8px;border-top:1px solid #000"><span class="jbl">MODEL: </span>'+(j.model||'').toUpperCase()+'</div></div>'
     +'<div style="font-size:9.5pt;margin-bottom:4px">'+(docType==='DO'?'Received the following goods in good order and condition :-':'Work carried out as follows :-')+'</div>'
     +'<table style="width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:12px"><thead><tr><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;width:32px">ITEM</th><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000">DESCRIPTION</th><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;width:52px;text-align:right">QTY</th><th style="font-weight:700;padding:4px 6px;border-top:1px solid #000;border-bottom:1px solid #000;width:52px">UNIT</th></tr></thead><tbody>'+iRows+'</tbody></table>'
