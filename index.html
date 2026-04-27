@@ -160,20 +160,85 @@ var WORKERS_LIST=['HS','TM','RG','MU','AY','IL','SA','AN'];
 var staffPins={HS:'1111',TM:'2222',RG:'3333',MU:'4444',AY:'5555',IL:'6666',SA:'7777',AN:'8888'};
 var adminPin='9999';
 var loggedInStaff=null;
+
+// ── Offline IndexedDB helpers ──────────────────────────────────
+var _idb=null;
+function openOfflineDB(){
+  return new Promise(function(resolve,reject){
+    if(_idb){resolve(_idb);return;}
+    var req=indexedDB.open('raycontrol_offline',1);
+    req.onupgradeneeded=function(e){
+      var db=e.target.result;
+      if(!db.objectStoreNames.contains('pins')) db.createObjectStore('pins');
+      if(!db.objectStoreNames.contains('session')) db.createObjectStore('session');
+    };
+    req.onsuccess=function(e){_idb=e.target.result;resolve(_idb);};
+    req.onerror=function(){reject(req.error);};
+  });
+}
+function idbSet(store,key,value){
+  return openOfflineDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction(store,'readwrite');
+      tx.objectStore(store).put(value,key);
+      tx.oncomplete=resolve; tx.onerror=reject;
+    });
+  });
+}
+function idbGet(store,key){
+  return openOfflineDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction(store,'readonly');
+      var req=tx.objectStore(store).get(key);
+      req.onsuccess=function(){resolve(req.result);};
+      req.onerror=reject;
+    });
+  });
+}
+// Save PINs to IndexedDB after Firebase loads them
+function cachePinsOffline(pins,workers,admin){
+  idbSet('pins','staffPins',pins).catch(function(){});
+  idbSet('pins','workers',workers).catch(function(){});
+  if(admin) idbSet('pins','adminPin',admin).catch(function(){});
+}
+// Save session to IndexedDB so cold starts remember who was logged in
+function cacheSession(worker){
+  idbSet('session','current',{worker:worker,ts:Date.now()}).catch(function(){});
+}
+function clearCachedSession(){
+  idbSet('session','current',null).catch(function(){});
+}
+function _applyLogin(worker){
+  loggedInStaff=worker;
+  sessionStorage.setItem('rc_staff',worker);
+  document.getElementById('loginOverlay').style.display='none';
+  var lb=document.getElementById('logoutBtn');if(lb)lb.classList.add('visible');
+  var ls=document.getElementById('loadingScreen');if(ls)ls.classList.add('hide');
+  if(typeof showApprovalBell==='function') showApprovalBell();
+  if(typeof renderOverview==='function') renderOverview();
+  if(typeof renderWorkers==='function') renderWorkers();
+}
 function initStaffLogin(){
+  // Option B: session still alive
   var saved=sessionStorage.getItem('rc_staff');
-  if(saved){
-    loggedInStaff=saved;
-    document.getElementById('loginOverlay').style.display='none';
-    var lb=document.getElementById('logoutBtn');if(lb)lb.classList.add('visible');
-    var ls=document.getElementById('loadingScreen');if(ls)ls.classList.add('hide');
-    if(typeof showApprovalBell==='function') showApprovalBell();
-    if(typeof renderOverview==='function') renderOverview();
-    if(typeof renderWorkers==='function') renderWorkers();
-    return;
-  }
-  document.getElementById('loginOverlay').style.display='flex';
-  setTimeout(function(){var el=document.getElementById('staffPin');if(el)el.focus();},300);
+  if(saved){_applyLogin(saved);return;}
+  // Option A: cold start — check IndexedDB for a recent session
+  idbGet('session','current').then(function(sess){
+    if(sess&&sess.worker&&(Date.now()-sess.ts)<86400000*7){
+      // Session cached within 7 days — restore it silently
+      _applyLogin(sess.worker);
+    } else {
+      document.getElementById('loginOverlay').style.display='flex';
+      setTimeout(function(){var el=document.getElementById('staffPin');if(el)el.focus();},300);
+      // Load cached PINs so offline login works
+      idbGet('pins','staffPins').then(function(p){if(p)staffPins=Object.assign({},staffPins,p);});
+      idbGet('pins','adminPin').then(function(p){if(p)adminPin=p;});
+      idbGet('pins','workers').then(function(w){if(w&&Array.isArray(w))WORKERS_LIST=w;});
+    }
+  }).catch(function(){
+    document.getElementById('loginOverlay').style.display='flex';
+    setTimeout(function(){var el=document.getElementById('staffPin');if(el)el.focus();},300);
+  });
 }
 function onStaffPinInput(){
   var val=document.getElementById('staffPin').value;
@@ -192,19 +257,13 @@ function doStaffLogin(){
   for(var i=0;i<WORKERS_LIST.length;i++){if(staffPins[WORKERS_LIST[i]]===val){matched=WORKERS_LIST[i];break;}}
   if(!matched&&val===adminPin) matched='ADMIN';
   if(!matched){document.getElementById('loginErr').textContent='Invalid code — try again';document.getElementById('staffPin').value='';document.getElementById('loginName').textContent='';document.getElementById('loginBtn').disabled=true;return;}
-  loggedInStaff=matched;
-  sessionStorage.setItem('rc_staff',matched);
-  document.getElementById('loginOverlay').style.display='none';
-  var lb=document.getElementById('logoutBtn');if(lb)lb.classList.add('visible');
-  // Hide loading screen and trigger page render in case data already loaded
-  var ls=document.getElementById('loadingScreen');if(ls)ls.classList.add('hide');
-  if(typeof showApprovalBell==='function') showApprovalBell();
-  if(typeof renderOverview==='function') renderOverview();
-  if(typeof renderWorkers==='function') renderWorkers();
+  cacheSession(matched); // Save to IndexedDB for offline cold starts
+  _applyLogin(matched);
 }
 function doLogout(){
   if(!confirm('Log out of this device?')) return;
   sessionStorage.removeItem('rc_staff');
+  clearCachedSession();
   loggedInStaff=null;
   document.getElementById('logoutBtn').classList.remove('visible');
   document.getElementById('loginOverlay').style.display='flex';
@@ -266,10 +325,18 @@ onAuthStateChanged(auth,async user=>{
     }
   });
   onValue(ref(db,'config/staffPins'),snap=>{
-    if(snap.exists()) window.staffPins={...window.staffPins,...snap.val()};
+    if(snap.exists()){
+      window.staffPins={...window.staffPins,...snap.val()};
+      staffPins=window.staffPins;
+      cachePinsOffline(staffPins,WORKERS_LIST,adminPin); // cache for offline use
+    }
   });
   onValue(ref(db,'config/workers'),snap=>{
-    if(snap.exists()&&Array.isArray(snap.val())&&snap.val().length>0) window.WORKERS_LIST=snap.val();
+    if(snap.exists()&&Array.isArray(snap.val())&&snap.val().length>0){
+      window.WORKERS_LIST=snap.val();
+      WORKERS_LIST=snap.val();
+      cachePinsOffline(staffPins,WORKERS_LIST,adminPin);
+    }
   });
   // One-time migration: only push default PINs if Firebase still has old single-digit PINs or nothing
   try{

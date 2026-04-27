@@ -82,3 +82,19 @@ self.addEventListener('fetch', function(event) {
       })
   );
 });
+
+// ── Background Sync (Android Chrome only) ────────────────────
+// When the OS wakes the SW after network is restored,
+// send a message to the open page to trigger the pending sync
+self.addEventListener('sync', function(event) {
+  if (event.tag === 'clock-sync') {
+    event.waitUntil(
+      self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+        .then(function(clients) {
+          clients.forEach(function(client) {
+            client.postMessage({ type: 'SYNC_PENDING_CLOCK' });
+          });
+        })
+    );
+  }
+});

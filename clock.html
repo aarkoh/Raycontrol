@@ -72,6 +72,7 @@ button:disabled{opacity:0.35;cursor:default;transform:none}
     <h1>Work Tracker</h1>
     <span id="staffTag" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:#E6F1FB;color:#185FA5;display:none"></span>
     <span class="conn syncing" id="connBadge">Connecting…</span>
+      <span id="pendingBadge" style="display:none;font-size:11px;padding:3px 8px;border-radius:20px;font-weight:500;background:#FAEEDA;color:#854F0B;cursor:pointer" onclick="window.syncPending()">⏳ <span id="pendingCount">0</span> pending</span>
     <span class="liveclock" id="liveClock"></span>
     <a href="https://aarkoh.github.io/Raycontrol/" style="font-size:11px;color:#aaa;text-decoration:none;padding:4px 8px;border:1px solid #eee;border-radius:8px;white-space:nowrap">&#8962; Hub</a>
   </div>
@@ -255,9 +256,32 @@ window.doAction=async function(type){
       hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
     });
     const coordStr=geo?`${geo.lat.toFixed(5)}, ${geo.lon.toFixed(5)}`:'';
-    await update(ref(db,'workers/'+w),{status:type,since:type==='in'?nowISO:null,sinceLocal:type==='in'?localTimeStr:null,lastTime:nowISO,loc:type==='in'?coordStr:'',job:type==='in'?jobNum:'',tz:localTZ});
     const jobVessel=document.getElementById('jobVessel')?document.getElementById('jobVessel').value:'';
     const entry={worker:w,type,time:nowISO,localTime:localTimeStr,tz:localTZ,lat:geo?geo.lat:null,lon:geo?geo.lon:null,acc:geo?geo.acc:null,loc:coordStr,job:jobNum,vessel:type==='in'?jobVessel:''};
+    const workerStatus={status:type,since:type==='in'?nowISO:null,sinceLocal:type==='in'?localTimeStr:null,lastTime:nowISO,loc:type==='in'?coordStr:'',job:type==='in'?jobNum:'',tz:localTZ};
+
+    // ── Offline path: queue and update local state optimistically ──
+    if(!navigator.onLine){
+      await queueClockEntry(entry,workerStatus);
+      // Update local state so UI reflects the action immediately
+      workers[w]=Object.assign(workers[w]||{},workerStatus);
+      cacheWorkersState(workers);
+      renderWorkers();
+      setGeoUI(geo?'ok':'err',geo?`${geo.lat.toFixed(4)}, ${geo.lon.toFixed(4)} (±${geo.acc}m)`:'Offline — location not captured');
+      toast(`${w} clocked ${type==='in'?'in':'out'} (saved offline)`);
+      updatePendingBadge();
+      setTimeout(resetPanel,2000);
+      // Register background sync for Android (ignored gracefully on iOS)
+      if('serviceWorker' in navigator&&navigator.serviceWorker.controller){
+        navigator.serviceWorker.ready.then(function(reg){
+          if(reg.sync) reg.sync.register('clock-sync').catch(function(){});
+        });
+      }
+      return;
+    }
+
+    // ── Online path: write directly to Firebase ──
+    await update(ref(db,'workers/'+w),workerStatus);
     try{
       debug(`Writing ${type} for ${w}…`);
       const newRef=await push(ref(db,'log'),entry);
@@ -279,8 +303,20 @@ window.doAction=async function(type){
 };
 
 // ── Auth & Init ───────────────────────────────────────────────
-signInAnonymously(auth).catch(e=>{
-  document.getElementById('loadingScreen').innerHTML='<p style="color:#A32D2D;padding:2rem;text-align:center">Connection failed. Please refresh.</p>';
+signInAnonymously(auth).catch(async e=>{
+  // Offline or auth failed — try to load from IndexedDB cache
+  const cached=await getCachedWorkers().catch(()=>null);
+  if(cached){
+    workers=cached;
+    WORKERS.forEach(w=>{if(!workers[w])workers[w]={status:'out',since:null,loc:'',lastTime:null};});
+    renderWorkers();
+    const b=document.getElementById('connBadge');
+    if(b){b.textContent='Offline';b.className='conn offline';}
+    document.getElementById('loadingScreen').classList.add('hide');
+    updatePendingBadge();
+  } else {
+    document.getElementById('loadingScreen').innerHTML='<p style="color:#A32D2D;padding:2rem;text-align:center">No connection and no cached data. Please connect to the internet and try again.</p>';
+  }
 });
 onAuthStateChanged(auth,async user=>{
   if(!user)return;
@@ -353,6 +389,7 @@ onAuthStateChanged(auth,async user=>{
     onValue(ref(db,'workers'),snap=>{
     workers=snap.val()||{};
     WORKERS.forEach(w=>{if(!workers[w])workers[w]={status:'out',since:null,loc:'',lastTime:null};});
+    cacheWorkersState(workers); // cache for offline display
     renderWorkers();if(sel)window.selectW(sel);
     document.getElementById('loadingScreen').classList.add('hide');
   });
@@ -361,6 +398,137 @@ onAuthStateChanged(auth,async user=>{
   try{
   }catch(e){}
 });
+
+// ── Offline IndexedDB queue ────────────────────────────────────
+var _clockIdb=null;
+function openClockDB(){
+  return new Promise(function(resolve,reject){
+    if(_clockIdb){resolve(_clockIdb);return;}
+    var req=indexedDB.open('raycontrol_offline',1);
+    req.onupgradeneeded=function(e){
+      var db=e.target.result;
+      if(!db.objectStoreNames.contains('pins')) db.createObjectStore('pins');
+      if(!db.objectStoreNames.contains('session')) db.createObjectStore('session');
+      if(!db.objectStoreNames.contains('pending_clock')) db.createObjectStore('pending_clock',{autoIncrement:true});
+      if(!db.objectStoreNames.contains('workers_cache')) db.createObjectStore('workers_cache');
+    };
+    req.onsuccess=function(e){_clockIdb=e.target.result;resolve(_clockIdb);};
+    req.onerror=function(){reject(req.error);};
+  });
+}
+function queueClockEntry(entry,workerStatus){
+  return openClockDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction('pending_clock','readwrite');
+      tx.objectStore('pending_clock').add({entry,workerStatus});
+      tx.oncomplete=resolve; tx.onerror=reject;
+    });
+  });
+}
+function getPendingEntries(){
+  return openClockDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction('pending_clock','readonly');
+      var req=tx.objectStore('pending_clock').getAll();
+      req.onsuccess=function(){resolve(req.result);};
+      req.onerror=reject;
+    });
+  });
+}
+function getPendingKeys(){
+  return openClockDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction('pending_clock','readonly');
+      var req=tx.objectStore('pending_clock').getAllKeys();
+      req.onsuccess=function(){resolve(req.result);};
+      req.onerror=reject;
+    });
+  });
+}
+function deletePendingEntry(key){
+  return openClockDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction('pending_clock','readwrite');
+      tx.objectStore('pending_clock').delete(key);
+      tx.oncomplete=resolve; tx.onerror=reject;
+    });
+  });
+}
+function cacheWorkersState(ws){
+  openClockDB().then(function(db){
+    var tx=db.transaction('workers_cache','readwrite');
+    tx.objectStore('workers_cache').put(ws,'all');
+  }).catch(function(){});
+}
+function getCachedWorkers(){
+  return openClockDB().then(function(db){
+    return new Promise(function(resolve,reject){
+      var tx=db.transaction('workers_cache','readonly');
+      var req=tx.objectStore('workers_cache').get('all');
+      req.onsuccess=function(){resolve(req.result);};
+      req.onerror=function(){resolve(null);};
+    });
+  });
+}
+
+function updatePendingBadge(){
+  getPendingEntries().then(function(entries){
+    var n=entries.length;
+    var badge=document.getElementById('pendingBadge');
+    var count=document.getElementById('pendingCount');
+    if(badge){badge.style.display=n>0?'':'none';}
+    if(count)count.textContent=n;
+  }).catch(function(){});
+}
+
+window.syncPending=async function(){
+  var entries=await getPendingEntries();
+  var keys=await getPendingKeys();
+  if(!entries.length) return;
+  var synced=0,failed=0;
+  const b=document.getElementById('connBadge');
+  if(b){b.textContent='Syncing…';b.className='conn syncing';}
+  for(var i=0;i<entries.length;i++){
+    var item=entries[i];
+    var key=keys[i];
+    var e=item.entry;
+    var ws=item.workerStatus;
+    try{
+      await update(ref(db,'workers/'+e.worker),ws);
+      const newRef=await push(ref(db,'log'),e);
+      if(e.lat&&e.lon){
+        revGeo(e.lat,e.lon,function(loc){
+          update(newRef,{loc});
+          if(e.type==='in') update(ref(db,'workers/'+e.worker),{loc});
+        });
+      }
+      await deletePendingEntry(key);
+      synced++;
+    }catch(err){
+      failed++;
+      debug('Sync failed: '+err.message);
+    }
+  }
+  updatePendingBadge();
+  if(synced>0) toast(synced+' entr'+(synced===1?'y':'ies')+' synced ✓');
+  if(failed>0) toast(failed+' failed to sync — will retry');
+};
+
+// Try sync when connection is restored
+// Listen for SW background sync message (Android)
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message',function(e){
+    if(e.data&&e.data.type==='SYNC_PENDING_CLOCK') window.syncPending();
+  });
+}
+
+window.addEventListener('online',function(){
+  setTimeout(function(){window.syncPending();},1500);
+});
+
+// Check pending on load
+updatePendingBadge();
+
 renderWorkers();
 setGeoUI('','Geolocation ready');
 liveClock();setInterval(liveClock,1000);
