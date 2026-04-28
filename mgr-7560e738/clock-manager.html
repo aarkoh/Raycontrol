@@ -1163,7 +1163,7 @@ onAuthStateChanged(auth,async user=>{
         for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
           const k=dateKey(d);
           if(!leaveMap[k])leaveMap[k]=[];
-          if(!leaveMap[k].includes(r.worker))leaveMap[k].push(r.worker);
+          if(!leaveMap[k].includes(r.staffName))leaveMap[k].push(r.staffName);
         }
       });
     }
