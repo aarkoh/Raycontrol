@@ -808,7 +808,7 @@ window.printWorkerSummary=function(workerName){
     const lat=s.in.lat,lon=s.in.lon,loc=s.in.loc||'';
     const overseas=lat!=null?(isInSingapore(lat,lon)===false):(isLocSingapore(loc)===false);
     const shiftTZ=s.in.tz||(overseas?tzFromLoc(loc):'Asia/Singapore');
-    const otM=calcOTMins(eIn,eOut,shiftTZ);
+    const otM=s.in.otOverride!=null?s.in.otOverride*60:calcOTMins(eIn,eOut,shiftTZ);
     const otH=(otM/60).toFixed(1);
     const inFmt=eIn.toLocaleString('en-SG',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false});
     const outFmt=s.out?eOut.toLocaleString('en-SG',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false}):'(open)';
