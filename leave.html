@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leave Application</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
+.app{max-width:680px;margin:0 auto;padding:1.25rem 1rem}
+.topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;border-bottom:1px solid #e0ddd6;padding-bottom:1rem}
+.topbar h1{font-size:20px;font-weight:600;flex:1}
+.back{font-size:12px;color:#185FA5;text-decoration:none;padding:5px 10px;border:1px solid #B5D4F4;border-radius:8px;background:#E6F1FB;white-space:nowrap}
+button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:#f0f0ee}
+.bp{background:#1a1a1a;color:#fff;border-color:#1a1a1a;font-weight:600}.bp:hover{background:#333}
+.bd{border-color:#A32D2D;color:#A32D2D}.bd:hover{background:#FCEBEB}
+.bsm{font-size:11px;padding:4px 10px}
+.fi{margin-bottom:.75rem}
+.fi label{font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500}
+.fi input,.fi select,.fi textarea{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
+.fi input:focus,.fi select:focus,.fi textarea:focus{outline:none;border-color:#185FA5;background:#fff}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:500px){.fr2{grid-template-columns:1fr}}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:1rem;overflow-y:auto}
+.mbg.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:500px;border:1px solid #e0ddd6;margin:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:1rem}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #e0ddd6}
+.ms{font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.08em;margin:1.25rem 0 .75rem;padding-top:1rem;border-top:1px solid #f0ede6}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
+.b-pending{background:#FAEEDA;color:#854F0B}
+.b-approved{background:#EAF3DE;color:#1a6641}
+.b-rejected{background:#FCEBEB;color:#A32D2D}
+.empty{text-align:center;padding:3rem;color:#aaa;font-size:13px;border:1px dashed #ddd;border-radius:12px}
+.lcard{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:1rem;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;border-left:4px solid #e0ddd6}
+.lcard.pending{border-left-color:#e0aa30}
+.lcard.approved{border-left-color:#1a6641}
+.lcard.rejected{border-left-color:#A32D2D}
+.lcard-body{flex:1}
+.lcard-type{font-size:14px;font-weight:600;margin-bottom:2px}
+.lcard-dates{font-size:12px;color:#666;margin-bottom:4px}
+.lcard-reason{font-size:12px;color:#888;margin-bottom:4px}
+.lcard-remarks{font-size:12px;color:#A32D2D;font-style:italic;margin-top:4px}
+.lcard-meta{font-size:11px;color:#bbb;margin-top:4px}
+.ls{position:fixed;inset:0;background:#f5f5f3;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;gap:12px}
+.ls.hide{display:none}
+.sp{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#185FA5;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-size:13px;padding:9px 20px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+
+<div class="ls" id="ls"><div class="sp"></div><p>Loading&hellip;</p></div>
+
+<div class="app">
+  <div class="topbar">
+    <h1>&#127774; Leave Application</h1>
+    <a href="https://aarkoh.github.io/Raycontrol/" class="back" id="hubLink">&#8962; Hub</a>
+  </div>
+  <div class="toolbar">
+    <div>
+      <div style="font-size:14px;font-weight:600">My Leave Requests</div>
+      <div style="font-size:12px;color:#888" id="staffLabel"></div>
+    </div>
+    <button class="bp" onclick="openApply()">+ Apply for Leave</button>
+  </div>
+  <div id="leaveList"><div class="empty">No leave requests yet.</div></div>
+</div>
+
+<div class="mbg" id="applyModal">
+  <div class="modal">
+    <h2>&#128197; Apply for Leave</h2>
+    <div class="ms">Leave Details</div>
+    <div class="fi">
+      <label>Leave Type</label>
+      <select id="leaveType">
+        <option value="Annual Leave">Annual Leave</option>
+        <option value="Unpaid Leave">Unpaid Leave</option>
+      </select>
+    </div>
+    <div class="fr2">
+      <div class="fi"><label>Start Date</label><input type="date" id="leaveStart" onchange="calcDays()"></div>
+      <div class="fi"><label>End Date</label><input type="date" id="leaveEnd" onchange="calcDays()"></div>
+    </div>
+    <div class="fi">
+      <label>Number of Days</label>
+      <input type="text" id="leaveDays" readonly style="background:#f0f0ee;color:#888">
+    </div>
+    <div class="fi">
+      <label>Reason <span style="font-weight:400;color:#bbb">(optional)</span></label>
+      <textarea id="leaveReason" rows="3" placeholder="Brief reason for leave&hellip;"></textarea>
+    </div>
+    <div class="mfoot">
+      <button onclick="closeApply()">Cancel</button>
+      <button class="bp" onclick="submitLeave()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getDatabase,ref,onValue,push,remove}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import{getAuth,signInAnonymously}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const db=getDatabase(initializeApp({apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"}));
+signInAnonymously(getAuth()).catch(()=>{});
+
+// Auth guard — same pattern as jobs.html
+const rcStaff=sessionStorage.getItem("rc_staff");
+const _mgrT=localStorage.getItem("rc_manager");
+const rcMgr=(_mgrT&&(Date.now()-parseInt(_mgrT))<28800000)?"1":null;
+if(!rcStaff&&!rcMgr){window.location.href="https://aarkoh.github.io/Raycontrol/";}
+if(rcMgr&&!rcStaff){
+  document.getElementById("hubLink").href="https://aarkoh.github.io/Raycontrol/mgr-7560e738/";
+  document.getElementById("hubLink").textContent="\u25B3 Manager Hub";
+}
+
+const staffName=rcStaff||"Manager";
+document.getElementById("staffLabel").textContent="Logged in as "+staffName;
+
+onValue(ref(db,"leaveRequests"),snap=>{
+  renderLeave(snap.val()||{});
+  document.getElementById("ls").classList.add("hide");
+});
+
+function renderLeave(all){
+  const mine=Object.entries(all)
+    .filter(([,v])=>v.staffName===staffName)
+    .sort((a,b)=>b[1].submittedAt-a[1].submittedAt);
+  const list=document.getElementById("leaveList");
+  if(!mine.length){
+    list.innerHTML='<div class="empty">No leave requests yet.<br><span style="font-size:12px">Click <strong>+ Apply for Leave</strong> to submit one.</span></div>';
+    return;
+  }
+  list.innerHTML=mine.map(([id,v])=>{
+    const badge='<span class="badge b-'+v.status+'">'+cap(v.status)+'</span>';
+    const cancel=v.status==="pending"?'<button class="bsm bd" onclick="cancelLeave(\''+id+'\')">Cancel</button>':"";
+    const remarks=v.remarks?'<div class="lcard-remarks">Manager note: '+v.remarks+'</div>':"";
+    return '<div class="lcard '+v.status+'">'+
+      '<div class="lcard-body">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="lcard-type">'+v.type+'</span>'+badge+'</div>'+
+      '<div class="lcard-dates">&#128197; '+fd(v.startDate)+' &rarr; '+fd(v.endDate)+'&ensp;&middot;&ensp;<strong>'+v.days+' day'+(v.days>1?"s":"")+'</strong></div>'+
+      (v.reason?'<div class="lcard-reason">'+v.reason+'</div>':"")+
+      remarks+
+      '<div class="lcard-meta">Submitted '+fts(v.submittedAt)+(v.reviewedAt?" &middot; Reviewed "+fts(v.reviewedAt):" &middot; Awaiting review")+'</div>'+
+      '</div>'+(cancel?'<div>'+cancel+'</div>':"")+
+      '</div>';
+  }).join("");
+}
+
+window.cancelLeave=function(id){
+  if(!confirm("Cancel this leave request?"))return;
+  remove(ref(db,"leaveRequests/"+id)).then(()=>toast("Request cancelled.")).catch(()=>toast("Error."));
+};
+
+window.openApply=function(){
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById("leaveStart").value=today;
+  document.getElementById("leaveEnd").value=today;
+  document.getElementById("leaveDays").value="1";
+  document.getElementById("leaveReason").value="";
+  document.getElementById("applyModal").classList.add("show");
+};
+window.closeApply=function(){document.getElementById("applyModal").classList.remove("show");};
+window.calcDays=function(){
+  const s=document.getElementById("leaveStart").value;
+  const e=document.getElementById("leaveEnd").value;
+  if(s&&e&&e>=s){document.getElementById("leaveDays").value=Math.round((new Date(e+"T12:00:00")-new Date(s+"T12:00:00"))/864e5)+1;}
+  else{document.getElementById("leaveDays").value="";}
+};
+window.submitLeave=function(){
+  const type=document.getElementById("leaveType").value;
+  const start=document.getElementById("leaveStart").value;
+  const end=document.getElementById("leaveEnd").value;
+  const days=parseInt(document.getElementById("leaveDays").value)||0;
+  const reason=document.getElementById("leaveReason").value.trim();
+  if(!start||!end||end<start){toast("Please select valid dates.");return;}
+  if(days<1){toast("Invalid date range.");return;}
+  push(ref(db,"leaveRequests"),{staffName,type,startDate:start,endDate:end,days,reason,status:"pending",submittedAt:Date.now()})
+    .then(()=>{closeApply();toast("Leave request submitted!");})
+    .catch(()=>toast("Error submitting."));
+};
+
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+function fd(d){return d?new Date(d+"T12:00:00").toLocaleDateString("en-SG",{day:"2-digit",month:"short",year:"numeric"}):"—";}
+function fts(ts){return ts?new Date(ts).toLocaleDateString("en-SG",{day:"2-digit",month:"short",year:"numeric"}):"—";}
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
+</script>
+</body>
+</html>
