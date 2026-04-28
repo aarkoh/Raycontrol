@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leave Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
+.app{max-width:900px;margin:0 auto;padding:1.25rem 1rem}
+.topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;border-bottom:1px solid #e0ddd6;padding-bottom:1rem;flex-wrap:wrap}
+.topbar h1{font-size:20px;font-weight:600;flex:1}
+.back{font-size:12px;color:#185FA5;text-decoration:none;padding:5px 10px;border:1px solid #B5D4F4;border-radius:8px;background:#E6F1FB;white-space:nowrap}
+button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:#f0f0ee}
+.bp{background:#1a1a1a;color:#fff;border-color:#1a1a1a;font-weight:600}.bp:hover{background:#333}
+.bd{border-color:#A32D2D;color:#A32D2D}.bd:hover{background:#FCEBEB}
+.bg{border-color:#1a6641;color:#1a6641;background:#EAF3DE}.bg:hover{background:#d5edca}
+.bsm{font-size:11px;padding:4px 10px}
+.fi{margin-bottom:.75rem}
+.fi label{font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500}
+.fi input,.fi select,.fi textarea{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
+.fi input:focus,.fi select:focus,.fi textarea:focus{outline:none;border-color:#185FA5;background:#fff}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:1rem;overflow-y:auto}
+.mbg.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:520px;border:1px solid #e0ddd6;margin:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:1rem}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #e0ddd6}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
+.b-pending{background:#FAEEDA;color:#854F0B}
+.b-approved{background:#EAF3DE;color:#1a6641}
+.b-rejected{background:#FCEBEB;color:#A32D2D}
+.empty{text-align:center;padding:2.5rem;color:#aaa;font-size:13px;border:1px dashed #ddd;border-radius:12px}
+.lcard{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:1rem;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;border-left:4px solid #e0ddd6}
+.lcard.pending{border-left-color:#e0aa30}
+.lcard.approved{border-left-color:#1a6641}
+.lcard.rejected{border-left-color:#A32D2D}
+.lcard-body{flex:1}
+.lcard-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.lcard-type{font-size:13px;color:#444;margin-bottom:2px}
+.lcard-dates{font-size:12px;color:#666;margin-bottom:4px}
+.lcard-reason{font-size:12px;color:#888;margin-bottom:4px}
+.lcard-remarks{font-size:12px;color:#A32D2D;font-style:italic;margin-top:4px}
+.lcard-meta{font-size:11px;color:#bbb;margin-top:4px}
+.lcard-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.toolbar{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+.toolbar select{padding:7px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#fff}
+.ls{position:fixed;inset:0;background:#f5f5f3;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;gap:12px}
+.ls.hide{display:none}
+.sp{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#185FA5;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;font-size:13px;padding:9px 20px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}
+.stat-bar{display:flex;gap:8px;margin-bottom:1.25rem;flex-wrap:wrap}
+.stat{background:#fff;border:1px solid #e0ddd6;border-radius:10px;padding:12px 16px;text-align:center;min-width:90px}
+.stat-n{font-size:24px;font-weight:700}
+.stat-l{font-size:11px;color:#888;margin-top:2px}
+.stat.orange .stat-n{color:#854F0B}
+.stat.green .stat-n{color:#1a6641}
+.stat.red .stat-n{color:#A32D2D}
+/* Tabs */
+.tabs{display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#efefed;margin-bottom:1.25rem;width:fit-content}
+.tab{font-family:inherit;font-size:13px;padding:7px 18px;border:none;background:transparent;cursor:pointer;color:#666}
+.tab.active{background:#fff;color:#1a1a1a;font-weight:600}
+.panel{display:none}.panel.active{display:block}
+/* Balance table */
+.btable{width:100%;border-collapse:collapse;font-size:13px}
+.btable th{text-align:left;font-size:11px;font-weight:600;color:#888;padding:7px 10px;border-bottom:2px solid #e0ddd6;background:#f9f9f7;white-space:nowrap}
+.btable td{padding:10px 10px;border-bottom:1px solid #f0ede6;vertical-align:middle}
+.btable tr:last-child td{border:none}
+.btable input[type=date]{padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;width:130px}
+.btable input[type=date]:focus{outline:none;border-color:#185FA5}
+.bal-good{color:#1a6641;font-weight:600}
+.bal-warn{color:#854F0B;font-weight:600}
+.bal-bad{color:#A32D2D;font-weight:600}
+.pill{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;background:#E6F1FB;color:#185FA5}
+</style>
+</head>
+<body>
+
+<div class="ls" id="ls"><div class="sp"></div><p>Loading&hellip;</p></div>
+
+<div class="app">
+  <div class="topbar">
+    <h1>&#127774; Leave Manager</h1>
+    <a href="https://aarkoh.github.io/Raycontrol/mgr-7560e738/" class="back">&#9651; Manager Hub</a>
+  </div>
+
+  <div class="stat-bar">
+    <div class="stat orange"><div class="stat-n" id="sPending">—</div><div class="stat-l">Pending</div></div>
+    <div class="stat green"><div class="stat-n" id="sApproved">—</div><div class="stat-l">Approved</div></div>
+    <div class="stat red"><div class="stat-n" id="sRejected">—</div><div class="stat-l">Rejected</div></div>
+    <div class="stat"><div class="stat-n" id="sTotal">—</div><div class="stat-l">Total</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('requests',this)">&#128203; Leave Requests</button>
+    <button class="tab" onclick="switchTab('balances',this)">&#9878; Leave Balances</button>
+  </div>
+
+  <!-- ── REQUESTS PANEL ──────────────────────────────────────────────── -->
+  <div class="panel active" id="tab-requests">
+    <div class="toolbar">
+      <select id="fStatus" onchange="renderLeave()">
+        <option value="all">All Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <select id="fStaff" onchange="renderLeave()">
+        <option value="all">All Staff</option>
+      </select>
+      <select id="fType" onchange="renderLeave()">
+        <option value="all">All Types</option>
+        <option value="Annual Leave">Annual Leave</option>
+        <option value="Unpaid Leave">Unpaid Leave</option>
+      </select>
+    </div>
+    <div id="leaveList"><div class="empty">No leave requests found.</div></div>
+  </div>
+
+  <!-- ── BALANCES PANEL ──────────────────────────────────────────────── -->
+  <div class="panel" id="tab-balances">
+    <p style="font-size:12px;color:#888;margin-bottom:1rem">
+      Entitlement: 7 days base &plus; 1 day per completed year of service, up to 14 days maximum.<br>
+      Set each staff member's join date below. Changes save automatically.
+    </p>
+    <div style="overflow-x:auto">
+      <table class="btable" id="balanceTable">
+        <thead>
+          <tr>
+            <th>Staff</th>
+            <th>Join Date</th>
+            <th>Service</th>
+            <th>AL Entitlement</th>
+            <th>AL Used <span style="font-weight:400">(this year)</span></th>
+            <th>AL Remaining</th>
+            <th>UL Used <span style="font-weight:400">(this year)</span></th>
+          </tr>
+        </thead>
+        <tbody id="balanceBody">
+          <tr><td colspan="7" style="text-align:center;color:#aaa;padding:2rem">Loading staff&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Review Modal -->
+<div class="mbg" id="reviewModal">
+  <div class="modal">
+    <h2 id="reviewTitle">Review Leave Request</h2>
+    <div id="reviewSummary" style="background:#f9f9f7;border:1px solid #e0ddd6;border-radius:10px;padding:12px;margin-bottom:1rem;font-size:13px;line-height:1.9"></div>
+    <div id="balanceWarning" style="display:none;background:#FAEEDA;border:1px solid #e0c88a;border-radius:8px;padding:8px 12px;font-size:12px;color:#854F0B;margin-bottom:1rem"></div>
+    <div class="fi">
+      <label>Remarks <span style="font-weight:400;color:#bbb">(optional for approval, recommended for rejection)</span></label>
+      <textarea id="reviewRemarks" rows="3" placeholder="Leave a note for the staff member&hellip;"></textarea>
+    </div>
+    <div class="mfoot">
+      <button onclick="closeReview()">Cancel</button>
+      <button class="bd" onclick="submitReview('rejected')">&#10007; Reject</button>
+      <button class="bg" onclick="submitReview('approved')">&#10003; Approve</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getDatabase,ref,onValue,update,set,remove}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import{getAuth,signInAnonymously}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const db=getDatabase(initializeApp({apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"}));
+signInAnonymously(getAuth()).catch(()=>{});
+
+const _mgrT=localStorage.getItem("rc_manager");
+if(!(_mgrT&&(Date.now()-parseInt(_mgrT))<28800000)){window.location.href="https://aarkoh.github.io/Raycontrol/";}
+
+let allLeave={},workers=[],workerMeta={},reviewId=null;
+const thisYear=new Date().getFullYear();
+
+// Load all data in parallel
+onValue(ref(db,"leaveRequests"),snap=>{allLeave=snap.val()||{};refresh();});
+onValue(ref(db,"config/workers"),snap=>{
+  const raw=snap.val();
+  workers=Array.isArray(raw)?raw:(raw?Object.values(raw):[]);
+  refresh();
+});
+onValue(ref(db,"config/workerMeta"),snap=>{workerMeta=snap.val()||{};refresh();});
+
+function refresh(){
+  updateStats();
+  populateStaffFilter();
+  renderLeave();
+  renderBalances();
+  document.getElementById("ls").classList.add("hide");
+}
+
+// ── UTILS ────────────────────────────────────────────────────────────────────
+function safeKey(name){return name.replace(/[.$#[\]/\s]/g,"_");}
+function yearsOfService(joinDate){
+  if(!joinDate)return null;
+  const ms=Date.now()-new Date(joinDate+"T00:00:00").getTime();
+  return Math.floor(ms/(365.25*864e5));
+}
+function entitlement(joinDate){
+  const y=yearsOfService(joinDate);
+  if(y===null)return null;
+  return Math.min(7+y,14);
+}
+function alUsedThisYear(staffName){
+  return Object.values(allLeave).filter(v=>
+    v.staffName===staffName&&v.status==="approved"&&v.type==="Annual Leave"&&
+    (new Date(v.startDate).getFullYear()===thisYear||new Date(v.endDate).getFullYear()===thisYear)
+  ).reduce((s,v)=>{
+    // Count only days that fall in this year
+    let d=new Date(Math.max(new Date(v.startDate+"T12:00:00"),new Date(thisYear+"-01-01")));
+    const end=new Date(Math.min(new Date(v.endDate+"T12:00:00"),new Date(thisYear+"-12-31")));
+    let count=0;while(d<=end){count++;d=new Date(d.getTime()+864e5);}
+    return s+count;
+  },0);
+}
+function ulUsedThisYear(staffName){
+  return Object.values(allLeave).filter(v=>
+    v.staffName===staffName&&v.status==="approved"&&v.type==="Unpaid Leave"&&
+    (new Date(v.startDate).getFullYear()===thisYear||new Date(v.endDate).getFullYear()===thisYear)
+  ).reduce((s,v)=>s+v.days,0);
+}
+
+// ── TABS ─────────────────────────────────────────────────────────────────────
+window.switchTab=function(id,btn){
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById("tab-"+id).classList.add("active");
+  btn.classList.add("active");
+};
+
+// ── STATS ────────────────────────────────────────────────────────────────────
+function updateStats(){
+  const vals=Object.values(allLeave);
+  document.getElementById("sPending").textContent=vals.filter(v=>v.status==="pending").length;
+  document.getElementById("sApproved").textContent=vals.filter(v=>v.status==="approved").length;
+  document.getElementById("sRejected").textContent=vals.filter(v=>v.status==="rejected").length;
+  document.getElementById("sTotal").textContent=vals.length;
+}
+
+// ── REQUESTS ─────────────────────────────────────────────────────────────────
+function populateStaffFilter(){
+  const sel=document.getElementById("fStaff");
+  const cur=sel.value;
+  const names=[...new Set(Object.values(allLeave).map(v=>v.staffName).filter(Boolean))].sort();
+  sel.innerHTML='<option value="all">All Staff</option>'+names.map(n=>'<option value="'+n+'"'+(n===cur?" selected":"")+">"+n+"</option>").join("");
+}
+
+window.renderLeave=function(){
+  const fS=document.getElementById("fStatus").value;
+  const fSt=document.getElementById("fStaff").value;
+  const fT=document.getElementById("fType").value;
+  const entries=Object.entries(allLeave).filter(([,v])=>{
+    if(fS!=="all"&&v.status!==fS)return false;
+    if(fSt!=="all"&&v.staffName!==fSt)return false;
+    if(fT!=="all"&&v.type!==fT)return false;
+    return true;
+  }).sort((a,b)=>{
+    if(a[1].status==="pending"&&b[1].status!=="pending")return -1;
+    if(b[1].status==="pending"&&a[1].status!=="pending")return 1;
+    return b[1].submittedAt-a[1].submittedAt;
+  });
+  const list=document.getElementById("leaveList");
+  if(!entries.length){list.innerHTML='<div class="empty">No requests match the current filters.</div>';return;}
+  list.innerHTML=entries.map(([id,v])=>{
+    const badge='<span class="badge b-'+v.status+'">'+cap(v.status)+"</span>";
+    const remarks=v.remarks?'<div class="lcard-remarks">Note: '+v.remarks+"</div>":"";
+    const actions=v.status==="pending"
+      ?'<div class="lcard-actions"><button class="bsm bg" onclick="openReview(\''+id+'\')">Review</button></div>'
+      :'<div class="lcard-actions"><button class="bsm" style="font-size:11px;padding:4px 10px" onclick="openReview(\''+id+'\')">Edit</button></div>';
+    return '<div class="lcard '+v.status+'">'+
+      '<div class="lcard-body">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px"><span class="lcard-name">'+v.staffName+"</span>"+badge+"</div>"+
+      '<div class="lcard-type">'+v.type+"</div>"+
+      '<div class="lcard-dates">&#128197; '+fd(v.startDate)+" &rarr; "+fd(v.endDate)+"&ensp;&middot;&ensp;<strong>"+v.days+" day"+(v.days>1?"s":"")+"</strong></div>"+
+      (v.reason?'<div class="lcard-reason">'+v.reason+"</div>":"")+
+      remarks+
+      '<div class="lcard-meta">Submitted '+fts(v.submittedAt)+(v.reviewedAt?" &middot; Reviewed "+fts(v.reviewedAt):"")+"</div>"+
+      "</div>"+actions+"</div>";
+  }).join("");
+};
+
+window.openReview=function(id){
+  reviewId=id;
+  const v=allLeave[id];if(!v)return;
+  document.getElementById("reviewTitle").textContent=(v.status==="pending"?"Review":"Update")+" Leave Request";
+  // Balance info for AL
+  let balHtml="";
+  if(v.type==="Annual Leave"){
+    const k=safeKey(v.staffName);
+    const jd=workerMeta[k]?.joinDate;
+    const ent=entitlement(jd);
+    const used=alUsedThisYear(v.staffName);
+    const rem=ent!==null?ent-used:null;
+    if(ent!==null){
+      balHtml="AL Entitlement "+thisYear+": <strong>"+ent+" days</strong>&emsp;Used: <strong>"+used+" days</strong>&emsp;Remaining: <strong style='color:"+(rem>=0?"#1a6641":"#A32D2D")+"'>"+rem+" days</strong>";
+    }
+  }
+  document.getElementById("reviewSummary").innerHTML=
+    "<strong>"+v.staffName+"</strong> &mdash; "+v.type+"<br>"+
+    "&#128197; "+fd(v.startDate)+" to "+fd(v.endDate)+" (<strong>"+v.days+" day"+(v.days>1?"s":"")+"</strong>)<br>"+
+    (v.reason?"Reason: "+v.reason+"<br>":"")+
+    "Submitted: "+fts(v.submittedAt)+
+    (balHtml?"<br><span style='font-size:11px;color:#666'>"+balHtml+"</span>":"");
+  // Balance warning
+  const warn=document.getElementById("balanceWarning");
+  if(v.type==="Annual Leave"){
+    const k=safeKey(v.staffName);
+    const jd=workerMeta[k]?.joinDate;
+    const ent=entitlement(jd);
+    if(ent===null){
+      warn.style.display="block";
+      warn.textContent="&#9888; No join date set for this staff member. Set it in the Leave Balances tab to track entitlement accurately.";
+    } else {
+      const used=alUsedThisYear(v.staffName);
+      const rem=ent-used;
+      if(rem<v.days){
+        warn.style.display="block";
+        warn.textContent="&#9888; This request ("+v.days+" day"+(v.days>1?"s":"")+") exceeds the remaining AL balance of "+rem+" day"+(rem===1?"":"s")+".";
+      } else {warn.style.display="none";}
+    }
+  } else {warn.style.display="none";}
+  document.getElementById("reviewRemarks").value=v.remarks||"";
+  document.getElementById("reviewModal").classList.add("show");
+};
+window.closeReview=function(){document.getElementById("reviewModal").classList.remove("show");reviewId=null;};
+
+window.submitReview=function(newStatus){
+  if(!reviewId)return;
+  const remarks=document.getElementById("reviewRemarks").value.trim();
+  const v=allLeave[reviewId];
+  if(!v)return;
+  if(newStatus==="rejected"&&!remarks){
+    if(!confirm("Reject without a reason? The staff member will not know why."))return;
+  }
+  const updates={};
+  updates["leaveRequests/"+reviewId+"/status"]=newStatus;
+  updates["leaveRequests/"+reviewId+"/remarks"]=remarks;
+  updates["leaveRequests/"+reviewId+"/reviewedAt"]=Date.now();
+
+  // Write/clear calendar entries for timesheet integration
+  const sKey=safeKey(v.staffName);
+  // First clear any existing calendar entries for this request
+  const prevStatus=v.status;
+  if(prevStatus==="approved"){
+    // Remove old calendar entries before re-writing
+    eachDay(v.startDate,v.endDate,d=>{
+      updates["leaveCalendar/"+d+"/"+sKey]=null;
+    });
+  }
+  if(newStatus==="approved"){
+    eachDay(v.startDate,v.endDate,d=>{
+      updates["leaveCalendar/"+d+"/"+sKey]=v.type;
+    });
+  }
+
+  update(ref(db),updates)
+    .then(()=>{closeReview();toast("Request "+newStatus+".");})
+    .catch(()=>toast("Error updating request."));
+};
+
+function eachDay(start,end,fn){
+  let d=new Date(start+"T12:00:00");
+  const e=new Date(end+"T12:00:00");
+  while(d<=e){fn(d.toISOString().slice(0,10));d=new Date(d.getTime()+864e5);}
+}
+
+// ── BALANCES ─────────────────────────────────────────────────────────────────
+function renderBalances(){
+  if(!workers.length){
+    document.getElementById("balanceBody").innerHTML='<tr><td colspan="7" style="text-align:center;color:#aaa;padding:2rem">No staff found in config/workers.</td></tr>';
+    return;
+  }
+  const rows=workers.filter(Boolean).sort().map(name=>{
+    const k=safeKey(name);
+    const jd=workerMeta[k]?.joinDate||"";
+    const yrs=jd?yearsOfService(jd):null;
+    const ent=jd?entitlement(jd):null;
+    const alUsed=alUsedThisYear(name);
+    const ulUsed=ulUsedThisYear(name);
+    const rem=ent!==null?ent-alUsed:null;
+    const remClass=rem===null?"":rem>=3?"bal-good":rem>=1?"bal-warn":"bal-bad";
+    const yrsLabel=yrs===null?"—":yrs===0?"<1 yr":yrs+" yr"+(yrs>1?"s":"");
+    const entLabel=ent===null?'<span style="color:#bbb">Set join date</span>':ent+" days"+(ent===14?' <span class="pill">max</span>':"");
+    const remLabel=rem===null?'<span style="color:#bbb">—</span>':'<span class="'+remClass+'">'+rem+" day"+(rem===1?"":"s")+"</span>";
+    return '<tr>'+
+      '<td><strong>'+name+'</strong></td>'+
+      '<td><input type="date" value="'+jd+'" data-key="'+k+'" onchange="saveJoinDate(this)" style="width:130px"></td>'+
+      '<td style="color:#888">'+yrsLabel+'</td>'+
+      '<td>'+entLabel+'</td>'+
+      '<td>'+(alUsed||"0")+" day"+(alUsed===1?"":"s")+'</td>'+
+      '<td>'+remLabel+'</td>'+
+      '<td style="color:#666">'+(ulUsed||"0")+" day"+(ulUsed===1?"":"s")+'</td>'+
+      '</tr>';
+  });
+  document.getElementById("balanceBody").innerHTML=rows.join("");
+}
+
+window.saveJoinDate=function(el){
+  const k=el.dataset.key;
+  const val=el.value;
+  set(ref(db,"config/workerMeta/"+k+"/joinDate"),val||null)
+    .then(()=>toast("Join date saved."))
+    .catch(()=>toast("Error saving."));
+};
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+function fd(d){return d?new Date(d+"T12:00:00").toLocaleDateString("en-SG",{day:"2-digit",month:"short",year:"numeric"}):"—";}
+function fts(ts){return ts?new Date(ts).toLocaleDateString("en-SG",{day:"2-digit",month:"short",year:"numeric"}):"—";}
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
+</script>
+</body>
+</html>
