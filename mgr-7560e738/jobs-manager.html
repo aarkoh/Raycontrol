@@ -1382,8 +1382,18 @@ window.soaSelectOverdue = function(btn) {
   document.getElementById('soa_cs_nm').textContent = nm;
   document.getElementById('soa_cs_sel').style.display = 'flex';
   document.getElementById('soa_cs_inp').style.display = 'none';
-  // Clear from filter and generate preview
   document.getElementById('soaPreviewName').textContent = nm;
+  // Auto-set From date to the oldest invoice date for this customer so nothing is filtered out
+  var jobs = window._mgr_jobs||{};
+  var oldest = null;
+  Object.values(jobs).forEach(function(j){
+    if(j.customerId !== id) return;
+    if(!['invoice','soa','closed'].includes(j.status)) return;
+    var d = (j.invoiceDate||j.date||j.createdAt||'').slice(0,10);
+    if(d && (!oldest || d < oldest)) oldest = d;
+  });
+  if(oldest) document.getElementById('soa_from').value = oldest;
+  document.getElementById('soa_to').value = new Date().toISOString().slice(0,10);
   generateSOAPreview();
 };
 
