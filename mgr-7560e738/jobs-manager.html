@@ -555,27 +555,39 @@ function buildDetail(id){
     // ── Auto-calculate worker OT from timesheet ──
     var jobLog=(window._mgr_log||[]).filter(function(e){return e.job===j.ref;});
     var otRatesMgr=window._mgr_otRates||{};
-    var workerOT={}; // {worker: {otMins, normalMins}}
+    var workerOT={}; // {worker: {otMins, normalMins, ovsDays}}
+    function _isInSG(lat,lon){if(lat!=null&&lon!=null)return lat>=1.15&&lat<=1.48&&lon>=103.59&&lon<=104.10;return null;}
+    function _isLocSG(loc){if(!loc)return null;return loc.toLowerCase().includes('singapore');}
     // Pair in/out entries per worker
     var workers=[...new Set(jobLog.map(function(e){return e.worker;}))];
     workers.forEach(function(w){
       var wLog=jobLog.filter(function(e){return e.worker===w;}).sort(function(a,b){return new Date(a.time)-new Date(b.time);});
-      var openIn=null; var otMins=0; var normMins=0;
+      var openIn=null; var otMins=0; var normMins=0; var ovsDaySet=new Set();
       wLog.forEach(function(e){
         if(e.type==='in') openIn=e;
         else if(e.type==='out'&&openIn){
           var inT=new Date(openIn.time),outT=new Date(e.time);
           var totalMs=outT-inT;
+          var lat=openIn.lat,lon=openIn.lon,loc=openIn.loc||'';
+          var overseas=lat!=null?(_isInSG(lat,lon)===false):(_isLocSG(loc)===false);
           var tz=openIn.tz||'Asia/Singapore';
           var otMs=_calcOTMins(inT,outT,tz)*60000;
           otMins+=otMs/60000;
           normMins+=(totalMs-otMs)/60000;
+          // Count each calendar day of an overseas shift
+          if(overseas){
+            var d=new Date(inT);d.setHours(0,0,0,0);
+            while(d<=outT){
+              var k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+              ovsDaySet.add(k);d.setDate(d.getDate()+1);
+            }
+          }
           openIn=null;
         }
       });
       var rawOtH=otMins/60;
-      var otHRounded=Math.round(rawOtH); // <0.5 rounds down, >=0.5 rounds up
-      if(otMins>0||normMins>0) workerOT[w]={otMins:otMins,normMins:normMins,otH:otHRounded,otHRaw:rawOtH};
+      var otHRounded=Math.round(rawOtH);
+      if(otMins>0||normMins>0||ovsDaySet.size>0) workerOT[w]={otMins:otMins,normMins:normMins,otH:otHRounded,otHRaw:rawOtH,ovsDays:ovsDaySet.size};
     });
     var revSGD=t.total; // already in job currency
     var jobCur=j.currency||'SGD';
@@ -664,12 +676,17 @@ function buildDetail(id){
     })();
     // Totals
     var claimCostSGD=claims.reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
+    var ovsRatesMgr=window._mgr_ovsRates||{};
     var otCostSGD=Object.entries(workerOT).reduce(function(s,e){
       var rate=otRatesMgr[e[0]]||0;
-      return s+e[1].otH*rate; // otH already rounded
+      return s+e[1].otH*rate;
+    },0);
+    var ovsCostSGD=Object.entries(workerOT).reduce(function(s,e){
+      var rate=ovsRatesMgr[e[0]]||0;
+      return s+(e[1].ovsDays||0)*rate;
     },0);
     var revSGD2=jobCur==='SGD'?t.total:t.total*(window['_fx_'+jobCur+'_SGD']||1);
-    var profit=revSGD2-lineItemCostSGD-claimCostSGD-otCostSGD;
+    var profit=revSGD2-lineItemCostSGD-claimCostSGD-otCostSGD-ovsCostSGD;
     var margin=revSGD2>0?(profit/revSGD2*100):0;
     var profitColor=profit>=0?'#1a6641':'#A32D2D';
     var fxNote=document.getElementById('fxNote_'+id)||'';
@@ -686,15 +703,25 @@ function buildDetail(id){
          +Object.entries(workerOT).map(function(e){
            var w=e[0],d=e[1];
            var rate=otRatesMgr[w]||0;
+           var ovsRate=ovsRatesMgr[w]||0;
            var cost=d.otH*rate;
+           var ovsCost=(d.ovsDays||0)*ovsRate;
            var normH=(d.normMins/60);
-           return '<div class="profit-row">'
+           var otRow='<div class="profit-row">'
              +'<span style="color:#555">'+w
                +' <span style="font-size:11px;color:#888">'+d.otH+'h OT'+(d.otHRaw!==d.otH?' <span style="font-size:10px;color:#aaa">(raw '+d.otHRaw.toFixed(2)+'h)</span>':'')+'</span>'
                +(rate?'<span style="font-size:10px;color:#aaa"> @ S$'+rate+'/h</span>':'<span style="font-size:10px;color:#aaa"> (no OT rate set)</span>')
              +'</span>'
              +'<span style="color:#A32D2D">'+( cost>0?'- SGD '+fmt(cost):'—')+'</span>'
            +'</div>';
+           var ovsRow=d.ovsDays>0?'<div class="profit-row">'
+             +'<span style="color:#555">'+w
+               +' <span style="font-size:11px;color:#888">'+d.ovsDays+' OVS day'+(d.ovsDays>1?'s':'')+'</span>'
+               +(ovsRate?'<span style="font-size:10px;color:#aaa"> @ S$'+ovsRate+'/day</span>':'<span style="font-size:10px;color:#aaa"> (no OVS rate set)</span>')
+             +'</span>'
+             +'<span style="color:#A32D2D">'+( ovsCost>0?'- SGD '+fmt(ovsCost):'—')+'</span>'
+           +'</div>':'';
+           return otRow+ovsRow;
          }).join('')
         :'<div class="profit-row" style="color:#aaa;font-size:12px">No timesheet entries for this job</div>'
       )
