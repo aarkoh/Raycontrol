@@ -801,10 +801,11 @@ function render(){
   const INVOICED=['invoice','soa','closed'];
   const CONFIRMED=['customer_po','vendor_po','do_wcc','invoice','soa','closed'];
   const WIP_ST=['customer_po','vendor_po','do_wcc'];
-  // Revenue-recognised: formally invoiced OR a confirmed job with invoiceDate that has received payment
-  // (covers proforma invoices that are paid before a tax invoice is issued)
+  // Revenue-recognised: formally invoiced OR confirmed with invoiceDate + payment received
+  // (handles proforma paid before tax invoice). Cancelled jobs always excluded.
   function isRevRecognized(x){
     if(!x.j.invoiceDate) return false;
+    if(x.j.status==='cancelled') return false;
     if(INVOICED.includes(x.j.status)) return true;
     return CONFIRMED.includes(x.j.status) && (parseFloat(x.j.paymentReceived)||0)>0;
   }
@@ -1009,8 +1010,8 @@ function render(){
   (function(){
     var container=document.getElementById('monthlyDrilldown');
     if(!container)return;
-    // Show revenue-recognised jobs: formally invoiced (invoice/soa/closed) OR confirmed jobs
-    // with an invoiceDate that have received payment (e.g. proforma paid before tax invoice issued)
+    // Show revenue-recognised jobs: formally invoiced OR confirmed+paid (proforma scenario).
+    // Cancelled jobs are always excluded via isRevRecognized.
     var invoicedJd=jd.filter(function(x){ return isRevRecognized(x); });
     // Group by invoice month (strict — only invoiceDate, not fallback to job date)
     var byMonth={};
