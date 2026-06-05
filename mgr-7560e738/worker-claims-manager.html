@@ -127,13 +127,11 @@ button:hover{background:#f0f0ee}
     <table>
       <thead>
         <tr>
-          <th style="width:130px">Worker</th>
-          <th>Invoice / Receipt No.</th>
-          <th>Job Ref</th>
-          <th>Customer / Vessel</th>
-          <th>Inv. Date</th>
-          <th>Description</th>
-          <th class="nr">Amount (SGD)</th>
+          <th style="width:32px"></th>
+          <th>Worker</th>
+          <th>Payment Date</th>
+          <th>Payment Ref</th>
+          <th class="nr">Total (SGD)</th>
           <th style="text-align:center">Actions</th>
         </tr>
       </thead>
@@ -212,6 +210,8 @@ const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDate
 
 // payments: { pushId: { worker, payDate, payRef, lineItems:[{invNo,jobRef,date,desc,amount}], totalAmount, createdAt } }
 let payments={}, jobs={}, workers=[], workerFilt='all', editId=null, lineCount=0;
+const expanded=new Set();
+window.toggleExpand=function(pid){expanded.has(pid)?expanded.delete(pid):expanded.add(pid);render();};
 
 // ── Toast ──
 function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
@@ -286,67 +286,65 @@ window.render=function(){
   document.getElementById('rcLbl').textContent=list.length+' payment'+(list.length!==1?'s':'')+' shown';
 
   const tbody=document.getElementById('clTbody');
-  if(!list.length){tbody.innerHTML='<tr><td colspan="8" class="empty">No payments found.</td></tr>';return;}
+  if(!list.length){tbody.innerHTML='<tr><td colspan="6" class="empty">No payments found.</td></tr>';return;}
 
   const rows=[];
   list.forEach(([pid,p])=>{
     const lines=p.lineItems||[];
-    const rowspan=Math.max(lines.length,1);
-    // Payment header row (spans line count)
-    const payLabel='<span style="font-weight:700;font-size:13px">'+p.worker+'</span>'
-      +' <span style="font-size:11px;color:#888;font-weight:400">'+fmtD(p.payDate)+'</span>'
-      +(p.payRef?' <span style="font-size:11px;color:#854F0B">'+p.payRef+'</span>':'');
+    const hasDup=lines.some(li=>li.invNo&&dupSet.has(li.invNo.trim().toLowerCase()));
+    const isExp=expanded.has(pid);
+    const chevron=isExp?'&#9650;':'&#9660;';
+    const lineCount_=lines.length;
 
-    if(!lines.length){
-      rows.push('<tr class="payment-group">'
-        +'<td colspan="6">'+payLabel+'</td>'
-        +'<td class="nr" style="font-weight:700;color:#854F0B">'+fmt(p.totalAmount)+'</td>'
-        +'<td style="text-align:center;white-space:nowrap">'
-          +'<button class="bsm btn-edit" onclick="openEdit(\''+pid+'\')">Edit</button> '
-          +'<button class="bsm bd" onclick="deletePayment(\''+pid+'\')">Delete</button>'
+    // ── Summary row (always visible) ──
+    rows.push('<tr class="payment-group" style="cursor:default">'
+      +'<td style="text-align:center;padding:8px 6px">'
+        +'<button class="bsm" style="padding:3px 7px;font-size:10px;border-color:#ccc;color:#666;min-width:28px" onclick="toggleExpand(\''+pid+'\')">'+chevron+'</button>'
+      +'</td>'
+      +'<td style="font-weight:700">'+p.worker+(hasDup?'<span class="dup-badge" style="margin-left:6px">DUP</span>':'')+'</td>'
+      +'<td style="color:#555">'+fmtD(p.payDate)+'</td>'
+      +'<td style="color:#854F0B;font-size:12px">'+(p.payRef||'<span style="color:#ccc">—</span>')+'</td>'
+      +'<td class="nr" style="font-weight:700;color:#1a6641">SGD '+fmt(p.totalAmount)+'</td>'
+      +'<td style="text-align:center;white-space:nowrap">'
+        +'<button class="bsm btn-edit" onclick="openEdit(\''+pid+'\')" style="margin-right:4px">Edit</button>'
+        +'<button class="bsm bd" onclick="deletePayment(\''+pid+'\')">Delete</button>'
+      +'</td>'
+    +'</tr>');
+
+    // ── Line items (only when expanded) ──
+    if(isExp&&lines.length){
+      // Sub-header
+      rows.push('<tr style="background:#f5f3ef">'
+        +'<td></td>'
+        +'<td colspan="5" style="padding:0">'
+          +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+          +'<thead><tr style="background:#e8e3da">'
+            +'<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;width:180px">Invoice / Receipt No.</th>'
+            +'<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;width:100px">Job Ref</th>'
+            +'<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666">Customer / Vessel</th>'
+            +'<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;width:110px">Inv. Date</th>'
+            +'<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666">Description</th>'
+            +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#666;width:110px">Amount</th>'
+          +'</tr></thead><tbody>'
+          +lines.map(li=>{
+            const isDup=li.invNo&&dupSet.has(li.invNo.trim().toLowerCase());
+            const job=li.jobRef?jobs[li.jobRef]:null;
+            const jobInfo=job?[job.customerName,job.vessel].filter(Boolean).join(' / '):'';
+            return '<tr style="border-top:1px solid #f0ede6">'
+              +'<td style="padding:6px 10px;font-weight:500'+(isDup?';color:#A32D2D':'')+'">'+((li.invNo||'—'))+(isDup?'<span class="dup-badge">DUP</span>':'')+'</td>'
+              +'<td style="padding:6px 10px">'+(li.jobRef?'<span class="job-tag">'+li.jobRef+'</span>':'<span style="color:#aaa">—</span>')+'</td>'
+              +'<td style="padding:6px 10px;color:#555">'+jobInfo+'</td>'
+              +'<td style="padding:6px 10px;color:#888">'+fmtD(li.date)+'</td>'
+              +'<td style="padding:6px 10px;color:#555">'+(li.desc||'—')+'</td>'
+              +'<td style="padding:6px 10px;text-align:right;color:#A32D2D;font-weight:600">'+fmt(li.amount)+'</td>'
+            +'</tr>';
+          }).join('')
+          +'</tbody></table>'
         +'</td>'
       +'</tr>');
-      return;
     }
 
-    lines.forEach((li,i)=>{
-      const isDup=li.invNo&&dupSet.has(li.invNo.trim().toLowerCase());
-      const job=li.jobRef?jobs[li.jobRef]:null;
-      const jobInfo=job?'<div style="font-size:11px;color:#555">'+[job.customerName,job.vessel].filter(Boolean).join(' / ')+'</div>':'';
-
-      if(i===0){
-        // First line: include worker cell with rowspan + action buttons
-        rows.push('<tr class="payment-group">'
-          +'<td rowspan="'+rowspan+'" style="border-right:1px solid #f0ede6;vertical-align:top;padding-top:12px">'
-            +'<div style="font-weight:700">'+p.worker+'</div>'
-            +'<div style="font-size:11px;color:#888;margin-top:2px">'+fmtD(p.payDate)+'</div>'
-            +(p.payRef?'<div style="font-size:11px;color:#854F0B;margin-top:2px">'+p.payRef+'</div>':'')
-          +'</td>'
-          +'<td><span style="font-weight:500'+(isDup?';color:#A32D2D':'')+'">'+((li.invNo||'—'))+'</span>'+(isDup?'<span class="dup-badge">DUP</span>':'')+'</td>'
-          +'<td>'+(li.jobRef?'<span class="job-tag">'+li.jobRef+'</span>':'<span style="color:#aaa">—</span>')+'</td>'
-          +'<td>'+jobInfo+'</td>'
-          +'<td style="white-space:nowrap;color:#888;font-size:12px">'+fmtD(li.date)+'</td>'
-          +'<td style="color:#555;font-size:12px">'+(li.desc||'—')+'</td>'
-          +'<td class="nr" style="color:#A32D2D;font-weight:600">'+fmt(li.amount)+'</td>'
-          +'<td rowspan="'+rowspan+'" style="text-align:center;vertical-align:middle;border-left:1px solid #f0ede6;white-space:nowrap">'
-            +'<div style="font-weight:700;color:#854F0B;font-size:13px;margin-bottom:6px">SGD '+fmt(p.totalAmount)+'</div>'
-            +'<button class="bsm btn-edit" onclick="openEdit(\''+pid+'\')">Edit</button><br style="margin:3px 0">'
-            +'<button class="bsm bd" style="margin-top:4px" onclick="deletePayment(\''+pid+'\')">Delete</button>'
-          +'</td>'
-        +'</tr>');
-      } else {
-        rows.push('<tr class="line-item">'
-          +'<td><span style="font-weight:500'+(isDup?';color:#A32D2D':'')+'">'+((li.invNo||'—'))+'</span>'+(isDup?'<span class="dup-badge">DUP</span>':'')+'</td>'
-          +'<td>'+(li.jobRef?'<span class="job-tag">'+li.jobRef+'</span>':'<span style="color:#aaa">—</span>')+'</td>'
-          +'<td>'+jobInfo+'</td>'
-          +'<td style="white-space:nowrap;color:#888;font-size:12px">'+fmtD(li.date)+'</td>'
-          +'<td style="color:#555;font-size:12px">'+(li.desc||'—')+'</td>'
-          +'<td class="nr" style="color:#A32D2D;font-weight:600">'+fmt(li.amount)+'</td>'
-        +'</tr>');
-      }
-    });
-    // Subtle separator between payments
-    rows.push('<tr><td colspan="8" style="padding:0;height:6px;background:#f5f5f3;border:none"></td></tr>');
+    rows.push('<tr><td colspan="6" style="padding:0;height:4px;background:#f5f5f3;border:none"></td></tr>');
   });
   tbody.innerHTML=rows.join('');
 };
