@@ -545,7 +545,9 @@ function buildDetail(id){
 +(function(){
     var allVI=window._vendorInvoices||{};
     var jobVIs=Object.entries(allVI).filter(function(e){return e[1].jobRef===j.ref;});
-    var claims=j.workerClaims||[];
+    var claims=(j.workerClaims||[]).concat(
+      Object.values(window._standaloneWorkerClaims||{}).filter(function(c){return c.jobRef===j.ref;}).map(function(c){return {worker:c.worker,amount:c.amount,date:c.date,desc:c.desc+(c.invNo?' ['+c.invNo+']':'')}; })
+    );
     // ── Auto-calculate worker OT from timesheet ──
     var jobLog=(window._mgr_log||[]).filter(function(e){return e.job===j.ref;});
     var otRatesMgr=window._mgr_otRates||{};
@@ -853,6 +855,10 @@ onAuthStateChanged(auth,user=>{
   });
   onValue(ref(db,'vendorInvoices'),snap=>{
     window._vendorInvoices=snap.val()||{};
+    if(curId)buildDetail(curId);
+  });
+  onValue(ref(db,'workerClaims'),snap=>{
+    window._standaloneWorkerClaims=snap.val()||{};
     if(curId)buildDetail(curId);
   });
   onValue(ref(db,'jobs'),snap=>{

@@ -588,7 +588,9 @@ function calcProfit(j){
   });
 
   /* worker claims */
-  const claimCost=(j.workerClaims||[]).reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
+  const _embeddedClaims=j.workerClaims||[];
+  const _standaloneClaims=Object.values(window._standaloneWorkerClaims||{}).filter(function(c){return c.jobRef===j.ref;});
+  const claimCost=[..._embeddedClaims,..._standaloneClaims].reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
 
   /* OT + overseas from timesheet */
   const jobLog=mgrLog.filter(function(e){return e.job===j.ref;});
@@ -801,14 +803,6 @@ function render(){
   const INVOICED=['invoice','soa','closed'];
   const CONFIRMED=['customer_po','vendor_po','do_wcc','invoice','soa','closed'];
   const WIP_ST=['customer_po','vendor_po','do_wcc'];
-  // Revenue-recognised: formally invoiced OR confirmed with invoiceDate + payment received
-  // (handles proforma paid before tax invoice). Cancelled jobs always excluded.
-  function isRevRecognized(x){
-    if(!x.j.invoiceDate) return false;
-    if(x.j.status==='cancelled') return false;
-    if(INVOICED.includes(x.j.status)) return true;
-    return CONFIRMED.includes(x.j.status) && (parseFloat(x.j.paymentReceived)||0)>0;
-  }
 
   const revenueEntries=Object.entries(jobs).filter(([,j])=>{
     if(j.archived) return false;
@@ -978,8 +972,8 @@ function render(){
   jd.forEach(function(x){
     var ds=x.j.invoiceDate||'';
     if(!ds) return;
-    // Chart must match drilldown: only count revenue-recognised jobs so both totals agree
-    if(!isRevRecognized(x)) return;
+    // Chart must match drilldown: only count truly invoiced jobs so both totals agree
+    if(!INVOICED.includes(x.j.status)) return;
     var ym=ds.slice(0,7);
     ensureMonth(ym);
     mMap[ym].rev+=x.revSGD;
@@ -1010,9 +1004,10 @@ function render(){
   (function(){
     var container=document.getElementById('monthlyDrilldown');
     if(!container)return;
-    // Show revenue-recognised jobs: formally invoiced OR confirmed+paid (proforma scenario).
-    // Cancelled jobs are always excluded via isRevRecognized.
-    var invoicedJd=jd.filter(function(x){ return isRevRecognized(x); });
+    // Only show actually invoiced jobs — exclude WIP, pipeline, and jobs without an invoice date
+    var invoicedJd=jd.filter(function(x){
+      return ['invoice','soa','closed'].includes(x.j.status) && x.j.invoiceDate;
+    });
     // Group by invoice month (strict — only invoiceDate, not fallback to job date)
     var byMonth={};
     invoicedJd.forEach(function(x){
@@ -1204,6 +1199,10 @@ onAuthStateChanged(auth,user=>{
   onValue(ref(db,'jobs'),snap=>{
     jobs=snap.val()||{};
     dataReady.jobs=true;
+    tryRender();
+  });
+  onValue(ref(db,'workerClaims'),snap=>{
+    window._standaloneWorkerClaims=snap.val()||{};
     tryRender();
   });
   onValue(ref(db,'log'),snap=>{
