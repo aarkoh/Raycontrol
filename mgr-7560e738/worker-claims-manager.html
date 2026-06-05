@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="RC Manager">
+<meta name="theme-color" content="#1a1a1a">
+<link rel="manifest" href="/Raycontrol/mgr-7560e738/mgr-manifest.json">
+<link rel="apple-touch-icon" href="/Raycontrol/icons/icon-mgr-192.png">
+<title>Worker Claims — Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
+.app{max-width:1100px;margin:0 auto;padding:1.25rem 1rem}
+.topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;border-bottom:3px solid #854F0B;padding-bottom:1rem;flex-wrap:wrap}
+.topbar h1{font-size:20px;font-weight:700;flex:1}
+.mgr-tag{background:#854F0B;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px}
+.btn-hub{font-size:12px;text-decoration:none;padding:5px 12px;border-radius:8px;font-weight:500;color:#854F0B;background:#FAEEDA;border:1px solid #F0C08A;white-space:nowrap}
+.conn{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:500}
+.conn.online{background:#EAF3DE;color:#3B6D11}.conn.offline{background:#FCEBEB;color:#A32D2D}.conn.syncing{background:#FAEEDA;color:#854F0B}
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:1.5rem}
+.sc{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:.9rem 1rem;border-top:3px solid #e0ddd6}
+.sc.a{border-top-color:#854F0B}.sc.r{border-top-color:#A32D2D}.sc.b{border-top-color:#185FA5}.sc.g{border-top-color:#1a6641}
+.sv{font-size:20px;font-weight:700;margin-bottom:2px}.sv.a{color:#854F0B}.sv.r{color:#A32D2D}.sv.g{color:#1a6641}
+.sl-lbl{font-size:11px;color:#888}
+.toolbar{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+.toolbar input{flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit}
+.toolbar input:focus{outline:none;border-color:#854F0B}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#666;white-space:nowrap}
+.chip.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.tw{overflow-x:auto;border-radius:12px;border:1px solid #e0ddd6}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:#854F0B}
+th{color:#fff;font-size:11px;font-weight:600;padding:10px 12px;text-align:left;white-space:nowrap}
+th.nr{text-align:right}
+td{padding:10px 12px;border-bottom:1px solid #f0ede6;vertical-align:middle;background:#fff}
+tr:last-child td{border-bottom:none}
+td.nr{text-align:right}
+.empty{text-align:center;color:#aaa;font-size:13px;padding:32px}
+button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:#f0f0ee}
+.bsm{font-size:11px;padding:4px 10px}
+.bg{background:#854F0B;color:#fff;border-color:#854F0B;font-weight:600}.bg:hover{background:#6b3e08}
+.bd{border-color:#A32D2D;color:#A32D2D}.bd:hover{background:#FCEBEB}
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:1rem}
+.mbg.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:520px;border:1px solid #e0ddd6;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:1.25rem}
+.fi{margin-bottom:.75rem}
+.fi label{font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500}
+.fi input,.fi select,.fi textarea{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
+.fi input:focus,.fi select:focus,.fi textarea:focus{outline:none;border-color:#854F0B;background:#fff}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.dup-banner{background:#FCEBEB;border:1px solid #f5c6cb;border-radius:10px;padding:10px 14px;margin-bottom:1rem;font-size:13px;color:#A32D2D;display:none}
+.dup-banner.show{display:block}
+.dup-badge{display:inline-block;background:#A32D2D;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:4px;vertical-align:middle}
+.job-tag{font-size:11px;padding:2px 8px;border-radius:10px;background:#FAEEDA;color:#854F0B;font-weight:600;white-space:nowrap}
+.rc-lbl{font-size:11px;color:#aaa;margin-top:4px}
+.ls{position:fixed;inset:0;background:#f5f5f3;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:12px}
+.ls.hide{display:none}
+.spin{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#854F0B;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="ls" id="ls"><div class="spin"></div><div style="font-size:14px;color:#888">Loading claims…</div></div>
+
+<div class="app">
+  <div class="topbar">
+    <h1>&#129534; Worker Claims</h1>
+    <span class="mgr-tag">Manager</span>
+    <span class="conn syncing" id="connBadge">Connecting…</span>
+    <a href="index.html" class="btn-hub">&#8592; Hub</a>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="sum-grid">
+    <div class="sc a"><div class="sv a" id="sTotalClaims">—</div><div class="sl-lbl">Total Claims</div></div>
+    <div class="sc r"><div class="sv r" id="sTotalAmt">—</div><div class="sl-lbl">Total SGD</div></div>
+    <div class="sc b"><div class="sv" id="sWorkers">—</div><div class="sl-lbl">Workers</div></div>
+    <div class="sc g"><div class="sv" id="sJobs">—</div><div class="sl-lbl">Jobs Linked</div></div>
+  </div>
+
+  <!-- Duplicate alert banner -->
+  <div class="dup-banner" id="dupBanner"></div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input type="text" id="srch" placeholder="Search worker, invoice no., job ref, description…" oninput="render()">
+    <button class="bg" onclick="openAdd()">+ Add Claim</button>
+  </div>
+  <div class="chips" id="workerChips">
+    <div class="chip on" onclick="setW('all',this)">All Workers</div>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice No.</th>
+          <th>Worker</th>
+          <th>Job Ref</th>
+          <th>Customer / Vessel</th>
+          <th>Date</th>
+          <th>Description</th>
+          <th class="nr">Amount (SGD)</th>
+          <th style="text-align:center">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="clTbody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="rc-lbl" id="rcLbl"></div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div class="mbg" id="addModal">
+  <div class="modal">
+    <h2 id="modalTitle">+ Add Worker Claim</h2>
+    <div class="fr2">
+      <div class="fi">
+        <label>Worker *</label>
+        <select id="f_worker">
+          <option value="">— select —</option>
+        </select>
+      </div>
+      <div class="fi">
+        <label>Invoice / Receipt No. *</label>
+        <input type="text" id="f_invno" placeholder="e.g. INV-2026-001" oninput="checkDupLive()">
+        <div id="dup_warn" style="font-size:11px;color:#A32D2D;margin-top:3px;display:none">⚠ Duplicate invoice number detected</div>
+      </div>
+    </div>
+    <div class="fr2">
+      <div class="fi">
+        <label>Job Reference</label>
+        <div style="position:relative">
+          <input type="text" id="f_jobref_inp" placeholder="Type job ref or customer…" autocomplete="off" oninput="jobSearch()" onfocus="jobSearch()">
+          <div id="f_jobref_drop" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:160px;overflow-y:auto;margin-top:2px"></div>
+        </div>
+        <input type="hidden" id="f_jobref">
+      </div>
+      <div class="fi">
+        <label>Date *</label>
+        <input type="date" id="f_date">
+      </div>
+    </div>
+    <div class="fi">
+      <label>Amount (SGD) *</label>
+      <input type="number" id="f_amount" placeholder="0.00" min="0" step="0.01">
+    </div>
+    <div class="fi">
+      <label>Description</label>
+      <input type="text" id="f_desc" placeholder="e.g. Transport, materials, overtime reimbursement">
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="bg" onclick="saveClaim()">Save Claim</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getDatabase,ref,onValue,push,update,remove,get}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+const firebaseConfig={apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"};
+const db=getDatabase(initializeApp(firebaseConfig));
+
+const fmt=n=>Number(n||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
+
+let claims={}, jobs={}, workers=[], workerFilt='all', editId=null;
+
+// ── Toast ──
+function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+window.toast=toast;
+
+// ── Worker chips filter ──
+window.setW=function(w,el){
+  workerFilt=w;
+  document.querySelectorAll('#workerChips .chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  render();
+};
+
+function buildWorkerChips(){
+  const ws=[...new Set(Object.values(claims).map(c=>c.worker).filter(Boolean))].sort();
+  const container=document.getElementById('workerChips');
+  container.innerHTML='<div class="chip'+(workerFilt==='all'?' on':'')+'" onclick="setW(\'all\',this)">All Workers</div>'
+    +ws.map(w=>'<div class="chip'+(workerFilt===w?' on':'')+'" onclick="setW(\''+w+'\',this)">'+w+'</div>').join('');
+}
+
+// ── Duplicate detection ──
+function getDuplicates(){
+  const map={};
+  Object.entries(claims).forEach(([id,c])=>{
+    if(!c.invNo)return;
+    const key=c.invNo.trim().toLowerCase();
+    if(!map[key])map[key]=[];
+    map[key].push({id,...c});
+  });
+  return Object.entries(map).filter(([,arr])=>arr.length>1).map(([key,arr])=>({invNo:arr[0].invNo,entries:arr}));
+}
+
+function showDupBanner(){
+  const dups=getDuplicates();
+  const banner=document.getElementById('dupBanner');
+  if(!dups.length){banner.classList.remove('show');return;}
+  banner.classList.add('show');
+  banner.innerHTML='<strong>⚠ Duplicate Invoice Numbers Detected</strong><br>'
+    +dups.map(d=>'<div style="margin-top:6px">Invoice <strong>'+d.invNo+'</strong> appears <span class="dup-badge">'+d.entries.length+'×</span> — '
+      +d.entries.map(e=>(e.worker||'?')+' ('+fmtD(e.date)+(e.jobRef?', Job '+e.jobRef:'')+')').join(' · ')+'</div>').join('');
+}
+
+// ── Render table ──
+window.render=function(){
+  const q=(document.getElementById('srch').value||'').toLowerCase();
+  const list=Object.entries(claims).filter(([,c])=>{
+    if(workerFilt!=='all'&&c.worker!==workerFilt)return false;
+    if(q&&![c.worker,c.invNo,c.jobRef,c.desc].filter(Boolean).some(x=>x.toLowerCase().includes(q)))return false;
+    return true;
+  }).sort((a,b)=>(b[1].date||b[1].createdAt||'').localeCompare(a[1].date||a[1].createdAt||''));
+
+  // Summary
+  const all=Object.values(claims);
+  document.getElementById('sTotalClaims').textContent=all.length;
+  document.getElementById('sTotalAmt').textContent='SGD '+fmt(all.reduce((s,c)=>s+(parseFloat(c.amount)||0),0));
+  document.getElementById('sWorkers').textContent=[...new Set(all.map(c=>c.worker).filter(Boolean))].length;
+  document.getElementById('sJobs').textContent=[...new Set(all.map(c=>c.jobRef).filter(Boolean))].length;
+
+  document.getElementById('rcLbl').textContent=list.length+' claim'+(list.length!==1?'s':'')+' shown';
+  showDupBanner();
+
+  const tbody=document.getElementById('clTbody');
+  if(!list.length){tbody.innerHTML='<tr><td colspan="8" class="empty">No claims found.</td></tr>';return;}
+
+  // Build a set of duplicate invNos for highlighting
+  const dups=new Set(getDuplicates().map(d=>d.invNo.trim().toLowerCase()));
+
+  tbody.innerHTML=list.map(([id,c])=>{
+    const isDup=c.invNo&&dups.has(c.invNo.trim().toLowerCase());
+    const job=c.jobRef?jobs[c.jobRef]:null;
+    const jobInfo=job?'<div style="font-size:11px;color:#555">'+[job.customerName,job.vessel].filter(Boolean).join(' / ')+'</div>':'';
+    return '<tr>'
+      +'<td><span style="font-weight:600'+(isDup?';color:#A32D2D':'')+'">'+(c.invNo||'—')+'</span>'+(isDup?'<span class="dup-badge">DUP</span>':'')+'</td>'
+      +'<td style="font-weight:500">'+(c.worker||'—')+'</td>'
+      +'<td>'+(c.jobRef?'<span class="job-tag">'+c.jobRef+'</span>':'<span style="color:#aaa">—</span>')+'</td>'
+      +'<td>'+jobInfo+'</td>'
+      +'<td style="white-space:nowrap;color:#888;font-size:12px">'+fmtD(c.date)+'</td>'
+      +'<td style="color:#555;font-size:12px">'+(c.desc||'—')+'</td>'
+      +'<td class="nr" style="font-weight:600;color:#A32D2D">'+fmt(c.amount)+'</td>'
+      +'<td style="text-align:center;white-space:nowrap">'
+        +'<button class="bsm" style="border-color:#185FA5;color:#185FA5;margin-right:4px" onclick="openEdit(\''+id+'\')">Edit</button>'
+        +'<button class="bsm bd" onclick="deleteClaim(\''+id+'\')">Delete</button>'
+      +'</td>'
+      +'</tr>';
+  }).join('');
+};
+
+// ── Job search dropdown ──
+window.jobSearch=function(){
+  const q=(document.getElementById('f_jobref_inp').value||'').toLowerCase();
+  const drop=document.getElementById('f_jobref_drop');
+  const matches=Object.entries(jobs).filter(([ref,j])=>{
+    if(j.archived)return false;
+    return !q||[ref,j.customerName,j.vessel].filter(Boolean).some(x=>x.toLowerCase().includes(q));
+  }).slice(0,12);
+  if(!matches.length){drop.style.display='none';return;}
+  drop.style.display='block';
+  drop.innerHTML=matches.map(([ref,j])=>
+    '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0ede6" '
+    +'onmousedown="selectJob(\''+ref+'\',\''+((j.customerName||'').replace(/'/g,"\\'"))+'\')">'
+    +'<span style="font-weight:600;color:#854F0B">'+ref+'</span>'
+    +(j.customerName?' <span style="color:#888;font-size:12px">'+j.customerName+'</span>':'')
+    +(j.vessel?' <span style="color:#aaa;font-size:11px">— '+j.vessel+'</span>':'')
+    +'</div>'
+  ).join('');
+};
+window.selectJob=function(ref,customer){
+  document.getElementById('f_jobref_inp').value=ref+(customer?' — '+customer:'');
+  document.getElementById('f_jobref').value=ref;
+  document.getElementById('f_jobref_drop').style.display='none';
+};
+
+// ── Live duplicate check in modal ──
+window.checkDupLive=function(){
+  const val=(document.getElementById('f_invno').value||'').trim().toLowerCase();
+  const warn=document.getElementById('dup_warn');
+  if(!val){warn.style.display='none';return;}
+  const isDup=Object.entries(claims).some(([id,c])=>
+    c.invNo&&c.invNo.trim().toLowerCase()===val&&id!==editId
+  );
+  warn.style.display=isDup?'block':'none';
+};
+
+// ── Modal open/close ──
+window.openAdd=function(){
+  editId=null;
+  document.getElementById('modalTitle').textContent='+ Add Worker Claim';
+  document.getElementById('f_worker').value='';
+  document.getElementById('f_invno').value='';
+  document.getElementById('f_jobref_inp').value='';
+  document.getElementById('f_jobref').value='';
+  document.getElementById('f_date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('f_amount').value='';
+  document.getElementById('f_desc').value='';
+  document.getElementById('dup_warn').style.display='none';
+  document.getElementById('addModal').classList.add('show');
+};
+
+window.openEdit=function(id){
+  const c=claims[id];if(!c)return;
+  editId=id;
+  document.getElementById('modalTitle').textContent='Edit Claim';
+  document.getElementById('f_worker').value=c.worker||'';
+  document.getElementById('f_invno').value=c.invNo||'';
+  const job=c.jobRef?jobs[c.jobRef]:null;
+  document.getElementById('f_jobref_inp').value=c.jobRef?(c.jobRef+(job&&job.customerName?' — '+job.customerName:'')):'';
+  document.getElementById('f_jobref').value=c.jobRef||'';
+  document.getElementById('f_date').value=c.date||'';
+  document.getElementById('f_amount').value=c.amount||'';
+  document.getElementById('f_desc').value=c.desc||'';
+  document.getElementById('dup_warn').style.display='none';
+  document.getElementById('addModal').classList.add('show');
+};
+
+window.closeModal=function(){
+  document.getElementById('addModal').classList.remove('show');
+  document.getElementById('f_jobref_drop').style.display='none';
+  editId=null;
+};
+
+// ── Save claim ──
+window.saveClaim=async function(){
+  const worker=document.getElementById('f_worker').value.trim();
+  const invNo=document.getElementById('f_invno').value.trim();
+  const jobRef=document.getElementById('f_jobref').value.trim();
+  const date=document.getElementById('f_date').value;
+  const amount=parseFloat(document.getElementById('f_amount').value||0);
+  const desc=document.getElementById('f_desc').value.trim();
+
+  if(!worker){toast('Select a worker');return;}
+  if(!invNo){toast('Enter an invoice / receipt number');return;}
+  if(!date){toast('Select a date');return;}
+  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+
+  // Duplicate check — warn but allow override after confirm
+  const dupKey=invNo.trim().toLowerCase();
+  const dupExists=Object.entries(claims).some(([id,c])=>
+    c.invNo&&c.invNo.trim().toLowerCase()===dupKey&&id!==editId
+  );
+  if(dupExists&&!confirm('⚠ Invoice number "'+invNo+'" already exists in another claim.\n\nProceed anyway?'))return;
+
+  const data={worker,invNo,jobRef:jobRef||'',date,amount,desc,updatedAt:new Date().toISOString()};
+
+  try{
+    if(editId){
+      await update(ref(db,'workerClaims/'+editId),data);
+      toast('Claim updated ✓');
+    }else{
+      data.createdAt=new Date().toISOString();
+      await push(ref(db,'workerClaims'),data);
+      toast('Claim added ✓');
+    }
+    closeModal();
+  }catch(e){toast('Error: '+e.message);}
+};
+
+// ── Delete claim ──
+window.deleteClaim=async function(id){
+  if(!confirm('Delete this claim? This cannot be undone.'))return;
+  try{
+    await remove(ref(db,'workerClaims/'+id));
+    toast('Claim deleted');
+  }catch(e){toast('Error: '+e.message);}
+};
+
+// ── Populate worker dropdown ──
+function buildWorkerSelect(){
+  const sel=document.getElementById('f_worker');
+  sel.innerHTML='<option value="">— select worker —</option>'
+    +workers.map(w=>'<option value="'+w+'">'+w+'</option>').join('');
+}
+
+// ── Firebase listeners ──
+const badge=document.getElementById('connBadge');
+
+// Load active workers list
+get(ref(db,'config/workers')).then(snap=>{
+  workers=snap.exists()&&Array.isArray(snap.val())?snap.val():['HS','TM','RG','MU','AY','IL','SA','AN'];
+  buildWorkerSelect();
+}).catch(()=>{
+  workers=['HS','TM','RG','MU','AY','IL','SA','AN'];
+  buildWorkerSelect();
+});
+
+// Load jobs (for linking)
+onValue(ref(db,'jobs'),snap=>{
+  jobs={};
+  if(snap.exists()){
+    // Index jobs by their ref field for quick lookup
+    Object.values(snap.val()||{}).forEach(j=>{if(j.ref)jobs[j.ref]=j;});
+  }
+  render();
+});
+
+// Load worker claims
+onValue(ref(db,'workerClaims'),snap=>{
+  claims={};
+  if(snap.exists())claims=snap.val()||{};
+  badge.textContent='Online';badge.className='conn online';
+  buildWorkerChips();
+  render();
+  document.getElementById('ls').classList.add('hide');
+},(err)=>{
+  badge.textContent='Offline';badge.className='conn offline';
+  document.getElementById('ls').classList.add('hide');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#f_jobref_inp')&&!e.target.closest('#f_jobref_drop'))
+    document.getElementById('f_jobref_drop').style.display='none';
+});
+
+setTimeout(()=>document.getElementById('ls').classList.add('hide'),8000);
+</script>
+</body>
+</html>
