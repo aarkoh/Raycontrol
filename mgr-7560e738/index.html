@@ -483,9 +483,12 @@ window.removeWorker=async function(w){
     let workers=snap.exists()&&Array.isArray(snap.val())?snap.val():['HS','TM','RG','MU','AY','IL','SA','AN'];
     workers=workers.filter(x=>x!==w);
     await set(ref(db,'config/workers'),workers);
-    msg.style.color='#3B6D11';msg.textContent='✓ '+w+' removed';
+    const pSnap=await get(ref(db,'config/staffPins'));
+    if(pSnap.exists()){const pins=pSnap.val();delete pins[w];await set(ref(db,'config/staffPins'),pins);staffPins={...pins};}
+    msg.style.color='#3B6D11';msg.textContent='✓ '+w+' removed and PIN cleared';
     setTimeout(()=>msg.textContent='',3000);
     renderWorkerList(workers);
+    renderStaffPins();
   }catch(e){msg.style.color='#A32D2D';msg.textContent='Error: '+e.message;}
 };
 
