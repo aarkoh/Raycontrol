@@ -171,6 +171,7 @@ button:hover{background:#f0f0ee}
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getDatabase,ref,onValue,push,update,remove,get}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import{getAuth,signInAnonymously,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 const firebaseConfig={apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"};
 const db=getDatabase(initializeApp(firebaseConfig));
@@ -401,43 +402,50 @@ function buildWorkerSelect(){
     +workers.map(w=>'<option value="'+w+'">'+w+'</option>').join('');
 }
 
-// ── Firebase listeners ──
+// ── Firebase auth + listeners ──
 const badge=document.getElementById('connBadge');
+const auth=getAuth();
 
-// Load active workers list
-get(ref(db,'config/workers')).then(snap=>{
-  workers=snap.exists()&&Array.isArray(snap.val())?snap.val():['HS','TM','RG','MU','AY','IL','SA','AN'];
-  buildWorkerSelect();
-}).catch(()=>{
-  workers=['HS','TM','RG','MU','AY','IL','SA','AN'];
-  buildWorkerSelect();
-});
+signInAnonymously(auth).catch(e=>console.error('Auth error:',e));
 
-// Load jobs (for linking)
-onValue(ref(db,'jobs'),snap=>{
-  jobs={};
-  if(snap.exists()){
-    // Index jobs by their ref field for quick lookup
-    Object.values(snap.val()||{}).forEach(j=>{if(j.ref)jobs[j.ref]=j;});
-  }
-  render();
-  // Refresh dropdown if modal is open and field has focus
-  const inp=document.getElementById('f_jobref_inp');
-  const drop=document.getElementById('f_jobref_drop');
-  if(drop&&drop.style.display==='block'&&inp===document.activeElement) window.jobSearch();
-});
+onAuthStateChanged(auth,user=>{
+  if(!user)return;
 
-// Load worker claims
-onValue(ref(db,'workerClaims'),snap=>{
-  claims={};
-  if(snap.exists())claims=snap.val()||{};
-  badge.textContent='Online';badge.className='conn online';
-  buildWorkerChips();
-  render();
-  document.getElementById('ls').classList.add('hide');
-},(err)=>{
-  badge.textContent='Offline';badge.className='conn offline';
-  document.getElementById('ls').classList.add('hide');
+  // Connection status
+  onValue(ref(db,'.info/connected'),snap=>{
+    badge.textContent=snap.val()?'Online':'Offline';
+    badge.className='conn '+(snap.val()?'online':'offline');
+  });
+
+  // Load active workers list
+  get(ref(db,'config/workers')).then(snap=>{
+    workers=snap.exists()&&Array.isArray(snap.val())?snap.val():['HS','TM','RG','MU','AY','IL','SA','AN'];
+    buildWorkerSelect();
+  }).catch(()=>{
+    workers=['HS','TM','RG','MU','AY','IL','SA','AN'];
+    buildWorkerSelect();
+  });
+
+  // Load jobs (for linking)
+  onValue(ref(db,'jobs'),snap=>{
+    jobs={};
+    if(snap.exists()){
+      Object.values(snap.val()||{}).forEach(j=>{if(j.ref)jobs[j.ref]=j;});
+    }
+    render();
+    // Refresh dropdown if open
+    const _drop=document.getElementById('f_jobref_drop');
+    if(_drop&&_drop.style.display==='block') window.jobSearch();
+  });
+
+  // Load worker claims
+  onValue(ref(db,'workerClaims'),snap=>{
+    claims={};
+    if(snap.exists())claims=snap.val()||{};
+    buildWorkerChips();
+    render();
+    document.getElementById('ls').classList.add('hide');
+  });
 });
 
 // Close dropdown when clicking outside
