@@ -270,16 +270,26 @@ window.render=function(){
 window.jobSearch=function(){
   const q=(document.getElementById('f_jobref_inp').value||'').toLowerCase();
   const drop=document.getElementById('f_jobref_drop');
-  const matches=Object.entries(jobs).filter(([ref,j])=>{
+  const allJobs=Object.entries(jobs);
+  if(!allJobs.length){
+    drop.style.display='block';
+    drop.innerHTML='<div style="padding:10px 12px;font-size:12px;color:#aaa">Loading jobs…</div>';
+    return;
+  }
+  const matches=allJobs.filter(([jobRef,j])=>{
     if(j.archived)return false;
-    return !q||[ref,j.customerName,j.vessel].filter(Boolean).some(x=>x.toLowerCase().includes(q));
-  }).slice(0,12);
-  if(!matches.length){drop.style.display='none';return;}
+    return !q||[jobRef,j.customerName,j.vessel].filter(Boolean).some(x=>x.toLowerCase().includes(q));
+  }).slice(0,15);
+  if(!matches.length){
+    drop.style.display='block';
+    drop.innerHTML='<div style="padding:10px 12px;font-size:12px;color:#aaa">No jobs found</div>';
+    return;
+  }
   drop.style.display='block';
-  drop.innerHTML=matches.map(([ref,j])=>
+  drop.innerHTML=matches.map(([jobRef,j])=>
     '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0ede6" '
-    +'onmousedown="selectJob(\''+ref+'\',\''+((j.customerName||'').replace(/'/g,"\\'"))+'\')">'
-    +'<span style="font-weight:600;color:#854F0B">'+ref+'</span>'
+    +'onmousedown="selectJob(\''+jobRef+'\',\''+((j.customerName||'').replace(/\'/g,"\\'"))+'\')">'
+    +'<span style="font-weight:600;color:#854F0B">'+jobRef+'</span>'
     +(j.customerName?' <span style="color:#888;font-size:12px">'+j.customerName+'</span>':'')
     +(j.vessel?' <span style="color:#aaa;font-size:11px">— '+j.vessel+'</span>':'')
     +'</div>'
@@ -411,6 +421,10 @@ onValue(ref(db,'jobs'),snap=>{
     Object.values(snap.val()||{}).forEach(j=>{if(j.ref)jobs[j.ref]=j;});
   }
   render();
+  // Refresh dropdown if modal is open and field has focus
+  const inp=document.getElementById('f_jobref_inp');
+  const drop=document.getElementById('f_jobref_drop');
+  if(drop&&drop.style.display==='block'&&inp===document.activeElement) window.jobSearch();
 });
 
 // Load worker claims
