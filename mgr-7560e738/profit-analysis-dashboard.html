@@ -589,7 +589,9 @@ function calcProfit(j){
 
   /* worker claims */
   const _embeddedClaims=j.workerClaims||[];
-  const _standaloneClaims=Object.values(window._standaloneWorkerClaims||{}).filter(function(c){return c.jobRef===j.ref;});
+  const _standaloneClaims=Object.values(window._standaloneWorkerClaims||{}).flatMap(function(p){
+    return (p.lineItems||[]).filter(function(li){return li.jobRef===j.ref;});
+  });
   const claimCost=[..._embeddedClaims,..._standaloneClaims].reduce(function(s,c){return s+(parseFloat(c.amount)||0);},0);
 
   /* OT + overseas from timesheet */

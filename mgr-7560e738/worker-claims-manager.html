@@ -14,7 +14,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
-.app{max-width:1100px;margin:0 auto;padding:1.25rem 1rem}
+.app{max-width:1200px;margin:0 auto;padding:1.25rem 1rem}
 .topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;border-bottom:3px solid #854F0B;padding-bottom:1rem;flex-wrap:wrap}
 .topbar h1{font-size:20px;font-weight:700;flex:1}
 .mgr-tag{background:#854F0B;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px}
@@ -32,6 +32,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem}
 .chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#666;white-space:nowrap}
 .chip.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+/* Table */
 .tw{overflow-x:auto;border-radius:12px;border:1px solid #e0ddd6}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead{background:#854F0B}
@@ -40,37 +41,62 @@ th.nr{text-align:right}
 td{padding:10px 12px;border-bottom:1px solid #f0ede6;vertical-align:middle;background:#fff}
 tr:last-child td{border-bottom:none}
 td.nr{text-align:right}
+.payment-group td{background:#faf8f5}
+.payment-group-header td{background:#FAEEDA;font-weight:600;font-size:12px}
+.line-item td{background:#fff;font-size:12px}
 .empty{text-align:center;color:#aaa;font-size:13px;padding:32px}
+/* Buttons */
 button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;white-space:nowrap}
 button:hover{background:#f0f0ee}
 .bsm{font-size:11px;padding:4px 10px}
 .bg{background:#854F0B;color:#fff;border-color:#854F0B;font-weight:600}.bg:hover{background:#6b3e08}
 .bd{border-color:#A32D2D;color:#A32D2D}.bd:hover{background:#FCEBEB}
-.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:1rem}
+.btn-edit{border-color:#185FA5;color:#185FA5}.btn-edit:hover{background:#E6F1FB}
+/* Modal */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto}
 .mbg.show{display:flex}
-.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:520px;border:1px solid #e0ddd6;max-height:90vh;overflow-y:auto}
-.modal h2{font-size:16px;font-weight:600;margin-bottom:1.25rem}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:780px;border:1px solid #e0ddd6;margin:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:1.25rem;color:#854F0B}
 .fi{margin-bottom:.75rem}
 .fi label{font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500}
-.fi input,.fi select,.fi textarea{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
-.fi input:focus,.fi select:focus,.fi textarea:focus{outline:none;border-color:#854F0B;background:#fff}
+.fi input,.fi select{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
+.fi input:focus,.fi select:focus{outline:none;border-color:#854F0B;background:#fff}
 .fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
-.toast.show{opacity:1}
+.modal-footer{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #f0ede6}
+/* Line items table in modal */
+.li-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:.5rem}
+.li-table th{text-align:left;font-size:11px;font-weight:600;color:#888;padding:6px 6px 8px;border-bottom:2px solid #e0ddd6}
+.li-table td{padding:4px 4px;vertical-align:middle;border-bottom:1px solid #f0ede6}
+.li-table tr:last-child td{border-bottom:none}
+.li-table input{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff}
+.li-table input:focus{outline:none;border-color:#854F0B}
+.li-table input.dup-input{border-color:#A32D2D;background:#fff8f8}
+.li-section{background:#f9f9f7;border:1px solid #e0ddd6;border-radius:10px;padding:1rem;margin-top:1rem}
+.li-section-title{font-size:11px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem}
+.total-row{display:flex;justify-content:space-between;align-items:center;padding:.75rem 0;border-top:2px solid #854F0B;margin-top:.5rem;font-size:14px;font-weight:700}
+.total-row .total-val{color:#854F0B;font-size:18px}
+.add-line-btn{font-size:12px;padding:5px 12px;border:1px dashed #854F0B;color:#854F0B;background:transparent;border-radius:6px;cursor:pointer;margin-top:.5rem;display:block}
+.add-line-btn:hover{background:#FAEEDA}
+/* Badges */
 .dup-banner{background:#FCEBEB;border:1px solid #f5c6cb;border-radius:10px;padding:10px 14px;margin-bottom:1rem;font-size:13px;color:#A32D2D;display:none}
 .dup-banner.show{display:block}
 .dup-badge{display:inline-block;background:#A32D2D;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:4px;vertical-align:middle}
 .job-tag{font-size:11px;padding:2px 8px;border-radius:10px;background:#FAEEDA;color:#854F0B;font-weight:600;white-space:nowrap}
+.pmt-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#EAF3DE;color:#1a6641;font-weight:600}
 .rc-lbl{font-size:11px;color:#aaa;margin-top:4px}
+/* Job dropdown */
+.jdrop{display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:400;max-height:150px;overflow-y:auto;margin-top:2px}
+/* Loading */
 .ls{position:fixed;inset:0;background:#f5f5f3;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:12px}
 .ls.hide{display:none}
 .spin{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#854F0B;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
 </style>
 </head>
 <body>
-<div class="ls" id="ls"><div class="spin"></div><div style="font-size:14px;color:#888">Loading claims…</div></div>
+<div class="ls" id="ls"><div class="spin"></div><div style="font-size:14px;color:#888">Loading…</div></div>
 
 <div class="app">
   <div class="topbar">
@@ -80,21 +106,18 @@ button:hover{background:#f0f0ee}
     <a href="index.html" class="btn-hub">&#8592; Hub</a>
   </div>
 
-  <!-- Summary cards -->
   <div class="sum-grid">
-    <div class="sc a"><div class="sv a" id="sTotalClaims">—</div><div class="sl-lbl">Total Claims</div></div>
+    <div class="sc a"><div class="sv a" id="sTotalPmts">—</div><div class="sl-lbl">Payments</div></div>
     <div class="sc r"><div class="sv r" id="sTotalAmt">—</div><div class="sl-lbl">Total SGD</div></div>
     <div class="sc b"><div class="sv" id="sWorkers">—</div><div class="sl-lbl">Workers</div></div>
-    <div class="sc g"><div class="sv" id="sJobs">—</div><div class="sl-lbl">Jobs Linked</div></div>
+    <div class="sc g"><div class="sv" id="sLineItems">—</div><div class="sl-lbl">Line Items</div></div>
   </div>
 
-  <!-- Duplicate alert banner -->
   <div class="dup-banner" id="dupBanner"></div>
 
-  <!-- Toolbar -->
   <div class="toolbar">
     <input type="text" id="srch" placeholder="Search worker, invoice no., job ref, description…" oninput="render()">
-    <button class="bg" onclick="openAdd()">+ Add Claim</button>
+    <button class="bg" onclick="openAdd()">+ Add Payment</button>
   </div>
   <div class="chips" id="workerChips">
     <div class="chip on" onclick="setW('all',this)">All Workers</div>
@@ -104,11 +127,11 @@ button:hover{background:#f0f0ee}
     <table>
       <thead>
         <tr>
-          <th>Invoice No.</th>
-          <th>Worker</th>
+          <th style="width:130px">Worker</th>
+          <th>Invoice / Receipt No.</th>
           <th>Job Ref</th>
           <th>Customer / Vessel</th>
-          <th>Date</th>
+          <th>Inv. Date</th>
           <th>Description</th>
           <th class="nr">Amount (SGD)</th>
           <th style="text-align:center">Actions</th>
@@ -120,48 +143,56 @@ button:hover{background:#f0f0ee}
   <div class="rc-lbl" id="rcLbl"></div>
 </div>
 
-<!-- Add / Edit Modal -->
+<!-- Payment Modal -->
 <div class="mbg" id="addModal">
   <div class="modal">
-    <h2 id="modalTitle">+ Add Worker Claim</h2>
+    <h2 id="modalTitle">&#129534; Add Payment</h2>
+
     <div class="fr2">
       <div class="fi">
         <label>Worker *</label>
-        <select id="f_worker">
-          <option value="">— select —</option>
+        <select id="f_worker" onchange="updateTotal()">
+          <option value="">— select worker —</option>
         </select>
       </div>
       <div class="fi">
-        <label>Invoice / Receipt No. *</label>
-        <input type="text" id="f_invno" placeholder="e.g. INV-2026-001" oninput="checkDupLive()">
-        <div id="dup_warn" style="font-size:11px;color:#A32D2D;margin-top:3px;display:none">⚠ Duplicate invoice number detected</div>
-      </div>
-    </div>
-    <div class="fr2">
-      <div class="fi">
-        <label>Job Reference</label>
-        <div style="position:relative">
-          <input type="text" id="f_jobref_inp" placeholder="Type job ref or customer…" autocomplete="off" oninput="jobSearch()" onfocus="jobSearch()">
-          <div id="f_jobref_drop" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300;max-height:160px;overflow-y:auto;margin-top:2px"></div>
-        </div>
-        <input type="hidden" id="f_jobref">
-      </div>
-      <div class="fi">
-        <label>Date *</label>
-        <input type="date" id="f_date">
+        <label>Payment Date *</label>
+        <input type="date" id="f_paydate">
       </div>
     </div>
     <div class="fi">
-      <label>Amount (SGD) *</label>
-      <input type="number" id="f_amount" placeholder="0.00" min="0" step="0.01">
+      <label>Payment Reference <span style="color:#aaa;font-weight:400">(cheque / transfer no., optional)</span></label>
+      <input type="text" id="f_payref" placeholder="e.g. CHQ-001, TT-20260605">
     </div>
-    <div class="fi">
-      <label>Description</label>
-      <input type="text" id="f_desc" placeholder="e.g. Transport, materials, overtime reimbursement">
+
+    <!-- Line items -->
+    <div class="li-section">
+      <div class="li-section-title">&#128196; Invoices / Receipts</div>
+      <table class="li-table">
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th style="min-width:130px">Invoice / Receipt No. *</th>
+            <th style="min-width:120px">Job Reference</th>
+            <th style="min-width:90px">Inv. Date *</th>
+            <th style="min-width:180px">Description</th>
+            <th style="min-width:100px;text-align:right">Amount (SGD) *</th>
+            <th style="width:32px"></th>
+          </tr>
+        </thead>
+        <tbody id="liBody"></tbody>
+      </table>
+      <button class="add-line-btn" onclick="addLine()">+ Add line</button>
+
+      <div class="total-row">
+        <span>Total Payment</span>
+        <span class="total-val" id="modalTotal">SGD 0.00</span>
+      </div>
     </div>
+
     <div class="modal-footer">
-      <button onclick="closeModal()">Cancel</button>
-      <button class="bg" onclick="saveClaim()">Save Claim</button>
+      <button onclick="closeModal()" style="color:#666">Cancel</button>
+      <button class="bg" onclick="savePayment()">&#10003; Save Payment</button>
     </div>
   </div>
 </div>
@@ -179,230 +210,357 @@ const db=getDatabase(initializeApp(firebaseConfig));
 const fmt=n=>Number(n||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
 
-let claims={}, jobs={}, workers=[], workerFilt='all', editId=null;
+// payments: { pushId: { worker, payDate, payRef, lineItems:[{invNo,jobRef,date,desc,amount}], totalAmount, createdAt } }
+let payments={}, jobs={}, workers=[], workerFilt='all', editId=null, lineCount=0;
 
 // ── Toast ──
 function toast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
-window.toast=toast;
 
-// ── Worker chips filter ──
+// ── Worker filter chips ──
 window.setW=function(w,el){
   workerFilt=w;
   document.querySelectorAll('#workerChips .chip').forEach(c=>c.classList.remove('on'));
   el.classList.add('on');
   render();
 };
-
 function buildWorkerChips(){
-  const ws=[...new Set(Object.values(claims).map(c=>c.worker).filter(Boolean))].sort();
-  const container=document.getElementById('workerChips');
-  container.innerHTML='<div class="chip'+(workerFilt==='all'?' on':'')+'" onclick="setW(\'all\',this)">All Workers</div>'
+  const ws=[...new Set(Object.values(payments).map(p=>p.worker).filter(Boolean))].sort();
+  document.getElementById('workerChips').innerHTML=
+    '<div class="chip'+(workerFilt==='all'?' on':'')+'" onclick="setW(\'all\',this)">All Workers</div>'
     +ws.map(w=>'<div class="chip'+(workerFilt===w?' on':'')+'" onclick="setW(\''+w+'\',this)">'+w+'</div>').join('');
 }
 
-// ── Duplicate detection ──
-function getDuplicates(){
+// ── Duplicate detection across all line items ──
+function getAllInvNos(){
+  // Returns map of invNo.lower -> [{payId, worker, payDate, jobRef}]
   const map={};
-  Object.entries(claims).forEach(([id,c])=>{
-    if(!c.invNo)return;
-    const key=c.invNo.trim().toLowerCase();
-    if(!map[key])map[key]=[];
-    map[key].push({id,...c});
+  Object.entries(payments).forEach(([pid,p])=>{
+    (p.lineItems||[]).forEach(li=>{
+      if(!li.invNo)return;
+      const key=li.invNo.trim().toLowerCase();
+      if(!map[key])map[key]=[];
+      map[key].push({payId:pid,worker:p.worker,payDate:p.payDate,jobRef:li.jobRef,invNo:li.invNo});
+    });
   });
-  return Object.entries(map).filter(([,arr])=>arr.length>1).map(([key,arr])=>({invNo:arr[0].invNo,entries:arr}));
+  return map;
 }
-
+function getDupSet(){
+  const map=getAllInvNos();
+  return new Set(Object.entries(map).filter(([,arr])=>arr.length>1).map(([k])=>k));
+}
 function showDupBanner(){
-  const dups=getDuplicates();
+  const map=getAllInvNos();
+  const dups=Object.entries(map).filter(([,arr])=>arr.length>1);
   const banner=document.getElementById('dupBanner');
   if(!dups.length){banner.classList.remove('show');return;}
   banner.classList.add('show');
   banner.innerHTML='<strong>⚠ Duplicate Invoice Numbers Detected</strong><br>'
-    +dups.map(d=>'<div style="margin-top:6px">Invoice <strong>'+d.invNo+'</strong> appears <span class="dup-badge">'+d.entries.length+'×</span> — '
-      +d.entries.map(e=>(e.worker||'?')+' ('+fmtD(e.date)+(e.jobRef?', Job '+e.jobRef:'')+')').join(' · ')+'</div>').join('');
+    +dups.map(([,arr])=>'<div style="margin-top:6px">Invoice <strong>'+arr[0].invNo+'</strong> appears <span class="dup-badge">'+arr.length+'×</span> — '
+      +arr.map(e=>(e.worker||'?')+' ('+fmtD(e.payDate)+(e.jobRef?', Job '+e.jobRef:'')+')').join(' · ')+'</div>').join('');
 }
 
-// ── Render table ──
+// ── Render table — grouped by payment ──
 window.render=function(){
   const q=(document.getElementById('srch').value||'').toLowerCase();
-  const list=Object.entries(claims).filter(([,c])=>{
-    if(workerFilt!=='all'&&c.worker!==workerFilt)return false;
-    if(q&&![c.worker,c.invNo,c.jobRef,c.desc].filter(Boolean).some(x=>x.toLowerCase().includes(q)))return false;
-    return true;
-  }).sort((a,b)=>(b[1].date||b[1].createdAt||'').localeCompare(a[1].date||a[1].createdAt||''));
+  const allPmts=Object.entries(payments);
 
   // Summary
-  const all=Object.values(claims);
-  document.getElementById('sTotalClaims').textContent=all.length;
-  document.getElementById('sTotalAmt').textContent='SGD '+fmt(all.reduce((s,c)=>s+(parseFloat(c.amount)||0),0));
-  document.getElementById('sWorkers').textContent=[...new Set(all.map(c=>c.worker).filter(Boolean))].length;
-  document.getElementById('sJobs').textContent=[...new Set(all.map(c=>c.jobRef).filter(Boolean))].length;
+  const allLines=allPmts.flatMap(([,p])=>p.lineItems||[]);
+  document.getElementById('sTotalPmts').textContent=allPmts.length;
+  document.getElementById('sTotalAmt').textContent='SGD '+fmt(allPmts.reduce((s,[,p])=>s+(parseFloat(p.totalAmount)||0),0));
+  document.getElementById('sWorkers').textContent=[...new Set(allPmts.map(([,p])=>p.worker).filter(Boolean))].length;
+  document.getElementById('sLineItems').textContent=allLines.length;
 
-  document.getElementById('rcLbl').textContent=list.length+' claim'+(list.length!==1?'s':'')+' shown';
   showDupBanner();
 
+  const dupSet=getDupSet();
+
+  // Filter — match against any line item or worker
+  const list=allPmts.filter(([,p])=>{
+    if(workerFilt!=='all'&&p.worker!==workerFilt)return false;
+    if(!q)return true;
+    const haystack=[p.worker,p.payRef,...(p.lineItems||[]).flatMap(li=>[li.invNo,li.jobRef,li.desc])].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  }).sort((a,b)=>(b[1].payDate||b[1].createdAt||'').localeCompare(a[1].payDate||a[1].createdAt||''));
+
+  document.getElementById('rcLbl').textContent=list.length+' payment'+(list.length!==1?'s':'')+' shown';
+
   const tbody=document.getElementById('clTbody');
-  if(!list.length){tbody.innerHTML='<tr><td colspan="8" class="empty">No claims found.</td></tr>';return;}
+  if(!list.length){tbody.innerHTML='<tr><td colspan="8" class="empty">No payments found.</td></tr>';return;}
 
-  // Build a set of duplicate invNos for highlighting
-  const dups=new Set(getDuplicates().map(d=>d.invNo.trim().toLowerCase()));
+  const rows=[];
+  list.forEach(([pid,p])=>{
+    const lines=p.lineItems||[];
+    const rowspan=Math.max(lines.length,1);
+    // Payment header row (spans line count)
+    const payLabel='<span style="font-weight:700;font-size:13px">'+p.worker+'</span>'
+      +' <span style="font-size:11px;color:#888;font-weight:400">'+fmtD(p.payDate)+'</span>'
+      +(p.payRef?' <span style="font-size:11px;color:#854F0B">'+p.payRef+'</span>':'');
 
-  tbody.innerHTML=list.map(([id,c])=>{
-    const isDup=c.invNo&&dups.has(c.invNo.trim().toLowerCase());
-    const job=c.jobRef?jobs[c.jobRef]:null;
-    const jobInfo=job?'<div style="font-size:11px;color:#555">'+[job.customerName,job.vessel].filter(Boolean).join(' / ')+'</div>':'';
-    return '<tr>'
-      +'<td><span style="font-weight:600'+(isDup?';color:#A32D2D':'')+'">'+(c.invNo||'—')+'</span>'+(isDup?'<span class="dup-badge">DUP</span>':'')+'</td>'
-      +'<td style="font-weight:500">'+(c.worker||'—')+'</td>'
-      +'<td>'+(c.jobRef?'<span class="job-tag">'+c.jobRef+'</span>':'<span style="color:#aaa">—</span>')+'</td>'
-      +'<td>'+jobInfo+'</td>'
-      +'<td style="white-space:nowrap;color:#888;font-size:12px">'+fmtD(c.date)+'</td>'
-      +'<td style="color:#555;font-size:12px">'+(c.desc||'—')+'</td>'
-      +'<td class="nr" style="font-weight:600;color:#A32D2D">'+fmt(c.amount)+'</td>'
-      +'<td style="text-align:center;white-space:nowrap">'
-        +'<button class="bsm" style="border-color:#185FA5;color:#185FA5;margin-right:4px" onclick="openEdit(\''+id+'\')">Edit</button>'
-        +'<button class="bsm bd" onclick="deleteClaim(\''+id+'\')">Delete</button>'
-      +'</td>'
-      +'</tr>';
-  }).join('');
+    if(!lines.length){
+      rows.push('<tr class="payment-group">'
+        +'<td colspan="6">'+payLabel+'</td>'
+        +'<td class="nr" style="font-weight:700;color:#854F0B">'+fmt(p.totalAmount)+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'
+          +'<button class="bsm btn-edit" onclick="openEdit(\''+pid+'\')">Edit</button> '
+          +'<button class="bsm bd" onclick="deletePayment(\''+pid+'\')">Delete</button>'
+        +'</td>'
+      +'</tr>');
+      return;
+    }
+
+    lines.forEach((li,i)=>{
+      const isDup=li.invNo&&dupSet.has(li.invNo.trim().toLowerCase());
+      const job=li.jobRef?jobs[li.jobRef]:null;
+      const jobInfo=job?'<div style="font-size:11px;color:#555">'+[job.customerName,job.vessel].filter(Boolean).join(' / ')+'</div>':'';
+
+      if(i===0){
+        // First line: include worker cell with rowspan + action buttons
+        rows.push('<tr class="payment-group">'
+          +'<td rowspan="'+rowspan+'" style="border-right:1px solid #f0ede6;vertical-align:top;padding-top:12px">'
+            +'<div style="font-weight:700">'+p.worker+'</div>'
+            +'<div style="font-size:11px;color:#888;margin-top:2px">'+fmtD(p.payDate)+'</div>'
+            +(p.payRef?'<div style="font-size:11px;color:#854F0B;margin-top:2px">'+p.payRef+'</div>':'')
+          +'</td>'
+          +'<td><span style="font-weight:500'+(isDup?';color:#A32D2D':'')+'">'+((li.invNo||'—'))+'</span>'+(isDup?'<span class="dup-badge">DUP</span>':'')+'</td>'
+          +'<td>'+(li.jobRef?'<span class="job-tag">'+li.jobRef+'</span>':'<span style="color:#aaa">—</span>')+'</td>'
+          +'<td>'+jobInfo+'</td>'
+          +'<td style="white-space:nowrap;color:#888;font-size:12px">'+fmtD(li.date)+'</td>'
+          +'<td style="color:#555;font-size:12px">'+(li.desc||'—')+'</td>'
+          +'<td class="nr" style="color:#A32D2D;font-weight:600">'+fmt(li.amount)+'</td>'
+          +'<td rowspan="'+rowspan+'" style="text-align:center;vertical-align:middle;border-left:1px solid #f0ede6;white-space:nowrap">'
+            +'<div style="font-weight:700;color:#854F0B;font-size:13px;margin-bottom:6px">SGD '+fmt(p.totalAmount)+'</div>'
+            +'<button class="bsm btn-edit" onclick="openEdit(\''+pid+'\')">Edit</button><br style="margin:3px 0">'
+            +'<button class="bsm bd" style="margin-top:4px" onclick="deletePayment(\''+pid+'\')">Delete</button>'
+          +'</td>'
+        +'</tr>');
+      } else {
+        rows.push('<tr class="line-item">'
+          +'<td><span style="font-weight:500'+(isDup?';color:#A32D2D':'')+'">'+((li.invNo||'—'))+'</span>'+(isDup?'<span class="dup-badge">DUP</span>':'')+'</td>'
+          +'<td>'+(li.jobRef?'<span class="job-tag">'+li.jobRef+'</span>':'<span style="color:#aaa">—</span>')+'</td>'
+          +'<td>'+jobInfo+'</td>'
+          +'<td style="white-space:nowrap;color:#888;font-size:12px">'+fmtD(li.date)+'</td>'
+          +'<td style="color:#555;font-size:12px">'+(li.desc||'—')+'</td>'
+          +'<td class="nr" style="color:#A32D2D;font-weight:600">'+fmt(li.amount)+'</td>'
+        +'</tr>');
+      }
+    });
+    // Subtle separator between payments
+    rows.push('<tr><td colspan="8" style="padding:0;height:6px;background:#f5f5f3;border:none"></td></tr>');
+  });
+  tbody.innerHTML=rows.join('');
 };
 
-// ── Job search dropdown ──
-window.jobSearch=function(){
-  const q=(document.getElementById('f_jobref_inp').value||'').toLowerCase();
-  const drop=document.getElementById('f_jobref_drop');
+// ── Modal: line item management ──
+window.addLine=function(li){
+  lineCount++;
+  const idx=lineCount;
+  const row=document.createElement('tr');
+  row.id='li_row_'+idx;
+  row.innerHTML=
+    '<td style="color:#aaa;font-size:11px;text-align:center">'+idx+'</td>'
+    +'<td><div style="position:relative">'
+      +'<input type="text" id="li_invno_'+idx+'" placeholder="INV-001" oninput="checkLineDup('+idx+')" value="'+(li&&li.invNo?li.invNo:'')+'">'
+      +'<div id="li_dup_'+idx+'" style="display:none;font-size:10px;color:#A32D2D;margin-top:2px">⚠ Duplicate</div>'
+    +'</div></td>'
+    +'<td><div style="position:relative">'
+      +'<input type="text" id="li_jobref_inp_'+idx+'" placeholder="Job ref…" autocomplete="off" value="'+(li&&li.jobRef?li.jobRef:'')+'" oninput="lineJobSearch('+idx+')" onfocus="lineJobSearch('+idx+')">'
+      +'<div class="jdrop" id="li_jdrop_'+idx+'"></div>'
+      +'<input type="hidden" id="li_jobref_'+idx+'" value="'+(li&&li.jobRef?li.jobRef:'')+'">'
+    +'</div></td>'
+    +'<td><input type="date" id="li_date_'+idx+'" value="'+(li&&li.date?li.date:'')+'" style="min-width:120px"></td>'
+    +'<td><input type="text" id="li_desc_'+idx+'" placeholder="e.g. transport, meals" value="'+(li&&li.desc?li.desc:'')+'" style="min-width:150px"></td>'
+    +'<td><input type="number" id="li_amt_'+idx+'" placeholder="0.00" min="0" step="0.01" value="'+(li&&li.amount?li.amount:'')+'" oninput="updateTotal()" style="text-align:right;min-width:90px"></td>'
+    +'<td style="text-align:center"><button class="bsm bd" style="padding:2px 7px;font-size:12px" onclick="removeLine('+idx+')">✕</button></td>';
+  document.getElementById('liBody').appendChild(row);
+};
+
+window.removeLine=function(idx){
+  const row=document.getElementById('li_row_'+idx);
+  if(row)row.remove();
+  updateTotal();
+};
+
+window.updateTotal=function(){
+  let total=0;
+  document.querySelectorAll('#liBody tr').forEach(row=>{
+    const id=row.id.replace('li_row_','');
+    const amt=parseFloat(document.getElementById('li_amt_'+id)?.value||0);
+    total+=amt;
+  });
+  document.getElementById('modalTotal').textContent='SGD '+fmt(total);
+};
+
+// Per-line duplicate check
+window.checkLineDup=function(idx){
+  const val=(document.getElementById('li_invno_'+idx)?.value||'').trim().toLowerCase();
+  const warn=document.getElementById('li_dup_'+idx);
+  const input=document.getElementById('li_invno_'+idx);
+  if(!val){warn.style.display='none';input.classList.remove('dup-input');return;}
+
+  // Check against saved payments (excluding current edit)
+  const allInvMap=getAllInvNos();
+  const existsInSaved=allInvMap[val]&&allInvMap[val].some(e=>e.payId!==editId);
+
+  // Check against other lines in this modal
+  let countInModal=0;
+  document.querySelectorAll('#liBody tr').forEach(row=>{
+    const id=row.id.replace('li_row_','');
+    if(id==idx)return;
+    const v=(document.getElementById('li_invno_'+id)?.value||'').trim().toLowerCase();
+    if(v===val)countInModal++;
+  });
+
+  const isDup=existsInSaved||countInModal>0;
+  warn.style.display=isDup?'block':'none';
+  input.classList.toggle('dup-input',isDup);
+};
+
+// Job search per line item
+window.lineJobSearch=function(idx){
+  const inp=document.getElementById('li_jobref_inp_'+idx);
+  const drop=document.getElementById('li_jdrop_'+idx);
+  if(!inp||!drop)return;
+  const q=inp.value.toLowerCase();
   const allJobs=Object.entries(jobs);
   if(!allJobs.length){
     drop.style.display='block';
-    drop.innerHTML='<div style="padding:10px 12px;font-size:12px;color:#aaa">Loading jobs…</div>';
+    drop.innerHTML='<div style="padding:8px 12px;font-size:12px;color:#aaa">Loading jobs…</div>';
     return;
   }
-  const matches=allJobs.filter(([jobRef,j])=>{
-    if(j.archived)return false;
-    return !q||[jobRef,j.customerName,j.vessel].filter(Boolean).some(x=>x.toLowerCase().includes(q));
-  }).slice(0,15);
-  if(!matches.length){
-    drop.style.display='block';
-    drop.innerHTML='<div style="padding:10px 12px;font-size:12px;color:#aaa">No jobs found</div>';
-    return;
-  }
+  const matches=allJobs.filter(([r,j])=>!j.archived&&(!q||[r,j.customerName,j.vessel].filter(Boolean).some(x=>x.toLowerCase().includes(q)))).slice(0,12);
+  if(!matches.length){drop.style.display='none';return;}
   drop.style.display='block';
-  drop.innerHTML=matches.map(([jobRef,j])=>
-    '<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0ede6" '
-    +'onmousedown="selectJob(\''+jobRef+'\',\''+((j.customerName||'').replace(/\'/g,"\\'"))+'\')">'
-    +'<span style="font-weight:600;color:#854F0B">'+jobRef+'</span>'
-    +(j.customerName?' <span style="color:#888;font-size:12px">'+j.customerName+'</span>':'')
-    +(j.vessel?' <span style="color:#aaa;font-size:11px">— '+j.vessel+'</span>':'')
-    +'</div>'
-  ).join('');
+  drop.innerHTML=matches.map(([r,j])=>{
+    const cust=encodeURIComponent(j.customerName||'');
+    return '<div style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #f0ede6"'
+      +' onmousedown="selectLineJob('+idx+',this)" data-ref="'+r+'" data-cust="'+cust+'">'
+      +'<span style="font-weight:600;color:#854F0B">'+r+'</span>'
+      +(j.customerName?' <span style="color:#888">'+j.customerName+'</span>':'')
+      +(j.vessel?' <span style="color:#aaa;font-size:11px">— '+j.vessel+'</span>':'')
+      +'</div>';
+  }).join('');
 };
-window.selectJob=function(ref,customer){
-  document.getElementById('f_jobref_inp').value=ref+(customer?' — '+customer:'');
-  document.getElementById('f_jobref').value=ref;
-  document.getElementById('f_jobref_drop').style.display='none';
-};
-
-// ── Live duplicate check in modal ──
-window.checkDupLive=function(){
-  const val=(document.getElementById('f_invno').value||'').trim().toLowerCase();
-  const warn=document.getElementById('dup_warn');
-  if(!val){warn.style.display='none';return;}
-  const isDup=Object.entries(claims).some(([id,c])=>
-    c.invNo&&c.invNo.trim().toLowerCase()===val&&id!==editId
-  );
-  warn.style.display=isDup?'block':'none';
+window.selectLineJob=function(idx,el){
+  const jobRef=el.dataset.ref||'';
+  const customer=el.dataset.cust?decodeURIComponent(el.dataset.cust):'';
+  const inp=document.getElementById('li_jobref_inp_'+idx);
+  const hid=document.getElementById('li_jobref_'+idx);
+  const drop=document.getElementById('li_jdrop_'+idx);
+  if(inp)inp.value=jobRef+(customer?' — '+customer:'');
+  if(hid)hid.value=jobRef;
+  if(drop)drop.style.display='none';
 };
 
 // ── Modal open/close ──
 window.openAdd=function(){
   editId=null;
-  document.getElementById('modalTitle').textContent='+ Add Worker Claim';
+  lineCount=0;
+  document.getElementById('modalTitle').textContent='&#129534; Add Payment';
   document.getElementById('f_worker').value='';
-  document.getElementById('f_invno').value='';
-  document.getElementById('f_jobref_inp').value='';
-  document.getElementById('f_jobref').value='';
-  document.getElementById('f_date').value=new Date().toISOString().slice(0,10);
-  document.getElementById('f_amount').value='';
-  document.getElementById('f_desc').value='';
-  document.getElementById('dup_warn').style.display='none';
+  document.getElementById('f_paydate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('f_payref').value='';
+  document.getElementById('liBody').innerHTML='';
+  document.getElementById('modalTotal').textContent='SGD 0.00';
+  addLine(); // start with one blank line
   document.getElementById('addModal').classList.add('show');
 };
 
-window.openEdit=function(id){
-  const c=claims[id];if(!c)return;
-  editId=id;
-  document.getElementById('modalTitle').textContent='Edit Claim';
-  document.getElementById('f_worker').value=c.worker||'';
-  document.getElementById('f_invno').value=c.invNo||'';
-  const job=c.jobRef?jobs[c.jobRef]:null;
-  document.getElementById('f_jobref_inp').value=c.jobRef?(c.jobRef+(job&&job.customerName?' — '+job.customerName:'')):'';
-  document.getElementById('f_jobref').value=c.jobRef||'';
-  document.getElementById('f_date').value=c.date||'';
-  document.getElementById('f_amount').value=c.amount||'';
-  document.getElementById('f_desc').value=c.desc||'';
-  document.getElementById('dup_warn').style.display='none';
+window.openEdit=function(pid){
+  const p=payments[pid];if(!p)return;
+  editId=pid;
+  lineCount=0;
+  document.getElementById('modalTitle').textContent='&#9998; Edit Payment';
+  document.getElementById('f_worker').value=p.worker||'';
+  document.getElementById('f_paydate').value=p.payDate||'';
+  document.getElementById('f_payref').value=p.payRef||'';
+  document.getElementById('liBody').innerHTML='';
+  (p.lineItems||[]).forEach(li=>addLine(li));
+  if(!(p.lineItems||[]).length)addLine();
+  updateTotal();
   document.getElementById('addModal').classList.add('show');
 };
 
 window.closeModal=function(){
   document.getElementById('addModal').classList.remove('show');
-  document.getElementById('f_jobref_drop').style.display='none';
+  // Hide all line dropdowns
+  document.querySelectorAll('.jdrop').forEach(d=>d.style.display='none');
   editId=null;
 };
 
-// ── Save claim ──
-window.saveClaim=async function(){
+// ── Save payment ──
+window.savePayment=async function(){
   const worker=document.getElementById('f_worker').value.trim();
-  const invNo=document.getElementById('f_invno').value.trim();
-  const jobRef=document.getElementById('f_jobref').value.trim();
-  const date=document.getElementById('f_date').value;
-  const amount=parseFloat(document.getElementById('f_amount').value||0);
-  const desc=document.getElementById('f_desc').value.trim();
+  const payDate=document.getElementById('f_paydate').value;
+  const payRef=document.getElementById('f_payref').value.trim();
 
   if(!worker){toast('Select a worker');return;}
-  if(!invNo){toast('Enter an invoice / receipt number');return;}
-  if(!date){toast('Select a date');return;}
-  if(!amount||amount<=0){toast('Enter a valid amount');return;}
+  if(!payDate){toast('Select a payment date');return;}
 
-  // Duplicate check — warn but allow override after confirm
-  const dupKey=invNo.trim().toLowerCase();
-  const dupExists=Object.entries(claims).some(([id,c])=>
-    c.invNo&&c.invNo.trim().toLowerCase()===dupKey&&id!==editId
-  );
-  if(dupExists&&!confirm('⚠ Invoice number "'+invNo+'" already exists in another claim.\n\nProceed anyway?'))return;
+  // Collect line items
+  const lineItems=[];
+  let hasError=false;
+  const dupMap=getAllInvNos();
 
-  const data={worker,invNo,jobRef:jobRef||'',date,amount,desc,updatedAt:new Date().toISOString()};
+  document.querySelectorAll('#liBody tr').forEach(row=>{
+    const idx=row.id.replace('li_row_','');
+    const invNo=(document.getElementById('li_invno_'+idx)?.value||'').trim();
+    const jobRef=(document.getElementById('li_jobref_'+idx)?.value||'').trim();
+    const date=document.getElementById('li_date_'+idx)?.value||'';
+    const desc=(document.getElementById('li_desc_'+idx)?.value||'').trim();
+    const amount=parseFloat(document.getElementById('li_amt_'+idx)?.value||0);
+
+    if(!invNo&&!amount)return; // skip completely empty rows
+    if(!invNo){toast('Enter invoice/receipt number for all lines');hasError=true;return;}
+    if(!date){toast('Enter date for: '+invNo);hasError=true;return;}
+    if(!amount||amount<=0){toast('Enter a valid amount for: '+invNo);hasError=true;return;}
+
+    // Duplicate across existing payments (excluding this edit)
+    const key=invNo.toLowerCase();
+    const existsDup=(dupMap[key]||[]).some(e=>e.payId!==editId);
+    if(existsDup){
+      if(!confirm('⚠ Invoice "'+invNo+'" already exists in another payment.\n\nProceed anyway?'))
+        {hasError=true;return;}
+    }
+    lineItems.push({invNo,jobRef,date,desc,amount});
+  });
+
+  if(hasError)return;
+  if(!lineItems.length){toast('Add at least one invoice line');return;}
+
+  const totalAmount=lineItems.reduce((s,li)=>s+li.amount,0);
+  const data={worker,payDate,payRef,lineItems,totalAmount,updatedAt:new Date().toISOString()};
 
   try{
     if(editId){
       await update(ref(db,'workerClaims/'+editId),data);
-      toast('Claim updated ✓');
+      toast('Payment updated ✓');
     }else{
       data.createdAt=new Date().toISOString();
       await push(ref(db,'workerClaims'),data);
-      toast('Claim added ✓');
+      toast('Payment saved ✓');
     }
     closeModal();
   }catch(e){toast('Error: '+e.message);}
 };
 
-// ── Delete claim ──
-window.deleteClaim=async function(id){
-  if(!confirm('Delete this claim? This cannot be undone.'))return;
+// ── Delete ──
+window.deletePayment=async function(pid){
+  if(!confirm('Delete this payment and all its line items?'))return;
   try{
-    await remove(ref(db,'workerClaims/'+id));
-    toast('Claim deleted');
+    await remove(ref(db,'workerClaims/'+pid));
+    toast('Payment deleted');
   }catch(e){toast('Error: '+e.message);}
 };
 
-// ── Populate worker dropdown ──
+// ── Worker select ──
 function buildWorkerSelect(){
-  const sel=document.getElementById('f_worker');
-  sel.innerHTML='<option value="">— select worker —</option>'
+  document.getElementById('f_worker').innerHTML=
+    '<option value="">— select worker —</option>'
     +workers.map(w=>'<option value="'+w+'">'+w+'</option>').join('');
 }
 
-// ── Firebase auth + listeners ──
+// ── Firebase ──
 const badge=document.getElementById('connBadge');
 const auth=getAuth();
 
@@ -411,47 +569,35 @@ signInAnonymously(auth).catch(e=>console.error('Auth error:',e));
 onAuthStateChanged(auth,user=>{
   if(!user)return;
 
-  // Connection status
   onValue(ref(db,'.info/connected'),snap=>{
     badge.textContent=snap.val()?'Online':'Offline';
     badge.className='conn '+(snap.val()?'online':'offline');
   });
 
-  // Load active workers list
   get(ref(db,'config/workers')).then(snap=>{
     workers=snap.exists()&&Array.isArray(snap.val())?snap.val():['HS','TM','RG','MU','AY','IL','SA','AN'];
     buildWorkerSelect();
-  }).catch(()=>{
-    workers=['HS','TM','RG','MU','AY','IL','SA','AN'];
-    buildWorkerSelect();
-  });
+  }).catch(()=>{workers=['HS','TM','RG','MU','AY','IL','SA','AN'];buildWorkerSelect();});
 
-  // Load jobs (for linking)
   onValue(ref(db,'jobs'),snap=>{
     jobs={};
-    if(snap.exists()){
-      Object.values(snap.val()||{}).forEach(j=>{if(j.ref)jobs[j.ref]=j;});
-    }
+    if(snap.exists())Object.values(snap.val()||{}).forEach(j=>{if(j.ref)jobs[j.ref]=j;});
     render();
-    // Refresh dropdown if open
-    const _drop=document.getElementById('f_jobref_drop');
-    if(_drop&&_drop.style.display==='block') window.jobSearch();
   });
 
-  // Load worker claims
   onValue(ref(db,'workerClaims'),snap=>{
-    claims={};
-    if(snap.exists())claims=snap.val()||{};
+    payments={};
+    if(snap.exists())payments=snap.val()||{};
     buildWorkerChips();
     render();
     document.getElementById('ls').classList.add('hide');
   });
 });
 
-// Close dropdown when clicking outside
+// Close line item job dropdowns on outside click
 document.addEventListener('click',e=>{
-  if(!e.target.closest('#f_jobref_inp')&&!e.target.closest('#f_jobref_drop'))
-    document.getElementById('f_jobref_drop').style.display='none';
+  if(!e.target.closest('[id^="li_jobref_inp_"]')&&!e.target.closest('.jdrop'))
+    document.querySelectorAll('.jdrop').forEach(d=>d.style.display='none');
 });
 
 setTimeout(()=>document.getElementById('ls').classList.add('hide'),8000);
