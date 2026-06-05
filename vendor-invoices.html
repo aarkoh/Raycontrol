@@ -81,8 +81,8 @@ button:hover{background:#f0f0ee}
     <button class="bp" onclick="openAdd()">+ Add Invoice</button>
   </div>
   <div class="chips">
-    <div class="chip on" onclick="setF('all',this)">All</div>
-    <div class="chip" onclick="setF('unpaid',this)">Unpaid</div>
+    <div class="chip" onclick="setF('all',this)">All</div>
+    <div class="chip on" onclick="setF('unpaid',this)">Unpaid</div>
     <div class="chip" onclick="setF('paid',this)">Paid</div>
   </div>
   <div class="vi-list" id="viList"><div class="empty">Loading&hellip;</div></div>
@@ -171,10 +171,11 @@ const db=getDatabase(initializeApp({
 }));
 const auth=getAuth();
 
-let vis={}, filt='all', editId=null;
+let vis={}, filt='unpaid', editId=null;
 
 const fmt=n=>(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
+const agingBadge=d=>{if(!d)return'';const days=Math.floor((Date.now()-new Date(d+'T00:00:00'))/(864e5));if(days<0)return'';if(days<=30)return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#E6F1FB;color:#185FA5;font-weight:600;white-space:nowrap">'+days+'d</span>';if(days<=60)return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#FFF7E6;color:#854F0B;font-weight:600;white-space:nowrap">'+days+'d</span>';if(days<=90)return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#FCEBEB;color:#A32D2D;font-weight:600;white-space:nowrap">'+days+'d</span>';return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#A32D2D;color:#fff;font-weight:600;white-space:nowrap">'+days+'d</span>';};
 window.toast=function(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);};
 
 window.setF=function(f,el){
@@ -211,7 +212,7 @@ window.renderList=function(){
         '<div class="vi-main">'+
           '<div class="vi-ref">'+v.invNo+'</div>'+
           '<div class="vi-sub">'+v.vendorName+(v.jobRef?' &nbsp;·&nbsp; Job: '+(v.jobRef.split(',').map(function(r){return r.trim();}).filter(Boolean).join(', ')):'')+(v.vessel?' &nbsp;·&nbsp; '+v.vessel:'')+'</div>'+
-          '<div class="vi-meta"><span>'+fmtD(v.invDate)+'</span>'+(lis.length?'<span>'+lis.length+' item'+(lis.length>1?'s':'')+'</span>':'')+'<span>By: '+(v.createdBy||'—')+'</span></div>'+
+          '<div class="vi-meta"><span>'+fmtD(v.invDate)+'</span>'+(paid?'':'<span>'+agingBadge(v.invDate)+'</span>')+(lis.length?'<span>'+lis.length+' item'+(lis.length>1?'s':'')+'</span>':'')+'<span>By: '+(v.createdBy||'—')+'</span></div>'+
           liPreview+
         '</div>'+
         '<div class="vi-right">'+
