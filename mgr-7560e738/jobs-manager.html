@@ -260,7 +260,7 @@ function totals(j){
     return s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
   },0);
   var sub=iSub;
-  var gst=j.gst===true?sub*0.09:0;
+  var gst=j.gst==="9"?sub*0.09:0;
   var bf=parseFloat(j.bankFee)||0;
   return{sub,gst,bf,total:sub+gst+bf,ca:0,pa:0,fa:0};
 }
