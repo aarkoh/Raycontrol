@@ -117,8 +117,8 @@ td.nr{text-align:right}
     <button class="bp" onclick="openAdd()">+ Add Invoice</button>
   </div>
   <div class="chips">
-    <div class="chip on" onclick="setF('all',this)">All</div>
-    <div class="chip" onclick="setF('unpaid',this)">Unpaid</div>
+    <div class="chip" onclick="setF('all',this)">All</div>
+    <div class="chip on" onclick="setF('unpaid',this)">Unpaid</div>
     <div class="chip" onclick="setF('paid',this)">Paid</div>
   </div>
 
@@ -132,6 +132,7 @@ td.nr{text-align:right}
           <th class="hsm">Job Ref</th>
           <th class="hsm">Vessel</th>
           <th class="hsm">Date</th>
+          <th class="hsm">Aging</th>
           <th class="nr">Amount</th>
           <th>Status</th>
           <th class="hsm">Entered by</th>
@@ -238,7 +239,7 @@ const db=getDatabase(initializeApp({
 }));
 const auth=getAuth();
 
-let vis={}, filt='all', editId=null;
+let vis={}, filt='unpaid', editId=null;
 // ── FX rates: SGD per 1 foreign unit ──────────────────────────────
 // Approximate fallback rates (used if API is unavailable)
 var _viFxFallback={SGD:1,USD:1.35,EUR:1.46,JPY:0.0092,GBP:1.72,SEK:0.13,CNY:0.19,AUD:0.87,HKD:0.17};
@@ -276,6 +277,7 @@ function toSGD(amount, currency, fx){
 
 const fmt=n=>(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
+const agingBadge=d=>{if(!d)return'';const days=Math.floor((Date.now()-new Date(d+'T00:00:00'))/(864e5));if(days<0)return'';if(days<=30)return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#E6F1FB;color:#185FA5;font-weight:600;white-space:nowrap">'+days+'d</span>';if(days<=60)return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#FFF7E6;color:#854F0B;font-weight:600;white-space:nowrap">'+days+'d</span>';if(days<=90)return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#FCEBEB;color:#A32D2D;font-weight:600;white-space:nowrap">'+days+'d</span>';return'<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#A32D2D;color:#fff;font-weight:600;white-space:nowrap">'+days+'d</span>';};
 window.toast=function(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);};
 
 window.setF=function(f,el){
@@ -342,6 +344,7 @@ window.renderTable=function(){
       +'<td class="hsm" style="color:#555">'+(v.jobRef||'—')+'</td>'
       +'<td class="hsm" style="color:#888">'+(v.vessel||'—')+'</td>'
       +'<td class="hsm" style="color:#888;white-space:nowrap">'+fmtD(v.invDate)+'</td>'
+      +'<td class="hsm" style="white-space:nowrap">'+(paid?'<span style="font-size:10px;color:#aaa">—</span>':agingBadge(v.invDate))+'</td>'
       +'<td class="nr" style="font-weight:500">'+(v.currency||'SGD')+' '+fmt(v.amount)+'</td>'
       +'<td><span class="badge '+(paid?'b-paid':'b-unpaid')+'">'+(paid?'Paid':'Unpaid')+'</span></td>'
       +'<td class="hsm" style="font-size:12px;color:#888">'+(v.createdBy||'—')+'</td>'
@@ -816,62 +819,10 @@ window.togglePayRef=function(){
 window.printPayAdvice=function(id){
   var vis=window._vi_vis||{};
   var v=vis[id]||{};
-  var pref=(v.paymentRef||'').trim();
-
-  // Gather all invoices sharing the same payment reference
-  var group=[];
-  if(pref){
-    Object.keys(vis).forEach(function(k){
-      if((vis[k].paymentRef||'').trim()===pref)group.push(vis[k]);
-    });
-    group.sort(function(a,b){return (a.invDate||'')<(b.invDate||'')?-1:1;});
-  } else {
-    group=[v];
-  }
-
   var todayFmt=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
-  var paidAt=v.paidAt||v.updatedAt||'';
-  var paidDateStr=paidAt?new Date(paidAt.slice(0,10)+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'-';
-
-  // Build rows + accumulate totals per currency
-  var curTotals={};
-  var sgdEquiv=0;
-  var tbRows=group.map(function(inv){
-    var a=parseFloat(inv.amount)||0;
-    var c=inv.currency||'SGD';
-    var aFmt=a.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
-    var dStr=inv.invDate?new Date(inv.invDate+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'-';
-    curTotals[c]=(curTotals[c]||0)+a;
-    if(inv.paidSGD)sgdEquiv+=parseFloat(inv.paidSGD)||0;
-    else if(c==='SGD')sgdEquiv+=a;
-    return '<tr>'
-      +'<td style="font-weight:700">'+(inv.invNo||'-')+'</td>'
-      +'<td>'+dStr+'</td>'
-      +'<td>'+(inv.jobRef||'-')+'</td>'
-      +'<td>'+(inv.vessel||'-')+'</td>'
-      +'<td>'+(inv.desc||'-')+'</td>'
-      +'<td style="text-align:right">'+c+' '+aFmt+'</td>'
-      +'</tr>';
-  }).join('');
-
-  // Tfoot: one TOTAL line per currency, then SGD equiv if any foreign currency
-  var curs=Object.keys(curTotals);
-  var tfootRows=curs.map(function(c,i){
-    var tFmt=curTotals[c].toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
-    return '<tr><td colspan="5" style="text-align:right">'+(i===0?'TOTAL PAID':'&nbsp;')+'</td>'
-      +'<td style="text-align:right">'+c+' '+tFmt+'</td></tr>';
-  }).join('');
-  if(sgdEquiv>0&&!(curs.length===1&&curs[0]==='SGD')){
-    var sgdStr=sgdEquiv.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
-    tfootRows+='<tr><td colspan="5" style="text-align:right;font-size:9pt;color:#555">SGD EQUIVALENT</td>'
-      +'<td style="text-align:right;font-size:9pt;color:#555">SGD '+sgdStr+'</td></tr>';
-  }
-
-  // Vendor: unique names across group
-  var vendors=[...new Set(group.map(function(g){return g.vendorName||'';}).filter(Boolean))];
-  var vendorStr=vendors.join(', ')||'-';
-  var invoiceCount=group.length;
-
+  var amt=(parseFloat(v.amount)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+  var invDateStr=v.invDate?new Date(v.invDate+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'-';
+  var paidDateStr=(v.paidAt||v.updatedAt)?new Date((v.paidAt||v.updatedAt).slice(0,10)+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'-';
   var css='*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;padding:12mm 14mm 10mm 14mm}@page{size:A4;margin:0}@media print{body{padding:10mm 14mm}#pb{display:none}}.hdr{width:100%;border-collapse:collapse;border-bottom:2px solid #000;margin-bottom:12px}.hdr td{vertical-align:middle;padding-bottom:8px}.c1{width:60%}.c2{width:40%;text-align:right;font-size:8pt;font-weight:700;line-height:1.7;vertical-align:bottom!important}.addr{font-size:7.5pt;margin-top:3px;line-height:1.5}.ttl{font-size:16pt;font-weight:900;letter-spacing:1px;text-align:center;margin:10px 0 14px;border-bottom:2px solid #000;padding-bottom:8px}.ig{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.ib{border:1px solid #000;padding:8px 12px}.ib .lbl{font-size:8pt;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:4px}.ib .val{font-size:11pt;font-weight:700}.ib .sub{font-size:9pt;color:#333;margin-top:2px}table.dt{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12px}table.dt th{font-weight:700;padding:6px 8px;border-top:1px solid #000;border-bottom:1px solid #000;text-align:left;background:#f5f5f5}table.dt th.r{text-align:right}table.dt td{padding:6px 8px;border-bottom:1px solid #ddd}table.dt tfoot td{font-weight:700;border-top:2px solid #000;border-bottom:none;padding:7px 8px;font-size:11pt}.sr{display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid #000}#pb{position:fixed;bottom:20px;right:20px;padding:12px 24px;background:#1a6641;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}#cb{position:fixed;top:16px;left:16px;padding:10px 18px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:-apple-system,sans-serif;z-index:9999}@media print{#cb{display:none}}';
   var bdy='<button id="cb" onclick="window.close()">&#8592; Back</button><button id="pb" onclick="window.print()">&#128424; Print / Save PDF</button>'
     +'<table class="hdr"><tr>'
@@ -881,25 +832,29 @@ window.printPayAdvice=function(id){
     +'</tr></table>'
     +'<div class="ttl">PAYMENT ADVICE</div>'
     +'<div class="ig">'
-      +'<div class="ib"><div class="lbl">Vendor</div><div class="val">'+vendorStr+'</div>'
-        +(invoiceCount>1?'<div class="sub">'+invoiceCount+' invoices</div>':'')
-      +'</div>'
-      +'<div class="ib"><div class="lbl">Payment Reference</div><div class="val">'+(pref||'-')+'</div><div class="sub">Date: '+paidDateStr+'</div></div>'
+      +'<div class="ib"><div class="lbl">Vendor</div><div class="val">'+(v.vendorName||'-')+'</div></div>'
+      +'<div class="ib"><div class="lbl">Payment Reference</div><div class="val">'+(v.paymentRef||'-')+'</div><div class="sub">Date: '+paidDateStr+'</div></div>'
     +'</div>'
     +'<table class="dt"><thead><tr><th>Invoice No.</th><th>Invoice Date</th><th>Job Ref</th><th>Vessel</th><th>Description</th><th class="r">Amount</th></tr></thead>'
-    +'<tbody>'+tbRows+'</tbody>'
-    +'<tfoot>'+tfootRows+'</tfoot>'
-    +'</table>'
+    +'<tbody><tr>'
+      +'<td style="font-weight:700">'+(v.invNo||'-')+'</td>'
+      +'<td>'+invDateStr+'</td>'
+      +'<td>'+(v.jobRef||'-')+'</td>'
+      +'<td>'+(v.vessel||'-')+'</td>'
+      +'<td>'+(v.desc||'-')+'</td>'
+      +'<td style="text-align:right">'+(v.currency||'SGD')+' '+amt+'</td>'
+    +'</tr></tbody>'
+    +(function(){var tfoot='<tfoot><tr><td colspan="5" style="text-align:right">TOTAL PAID</td><td style="text-align:right">'+(v.currency||'SGD')+' '+amt+'</td></tr>';if(v.paidSGD&&(v.currency||'SGD')!=='SGD'){var sgdStr=(parseFloat(v.paidSGD)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});tfoot+='<tr><td colspan="5" style="text-align:right;font-size:9pt;color:#555">SGD EQUIVALENT</td><td style="text-align:right;font-size:9pt;color:#555">SGD '+sgdStr+'</td></tr>';}tfoot+='</tfoot>';return tfoot;})()+'</table>'
     +'<div class="sr">'
       +'<div style="text-align:center;font-size:9pt"><img src="'+LSTAMP+'" style="height:80px;margin-bottom:4px;opacity:0.85"><br>For Raycontrol Pte Ltd<br><div style="margin-top:20px;border-top:1px solid #000;padding-top:4px;min-width:180px">Authorised Signature</div></div>'
       +'<div style="text-align:right;font-size:9pt;color:#555">'
         +'<div>Document Date: '+todayFmt+'</div>'
-        +(pref?'<div style="margin-top:6px">Payment Ref: '+pref+'</div>':'')
+        +(v.paymentRef?'<div style="margin-top:6px">Payment Ref: '+v.paymentRef+'</div>':'')
         +'<div style="margin-top:6px">Status: <strong style="color:#1a6641">PAID</strong></div>'
       +'</div>'
     +'</div>'
     +'<div style="font-size:8pt;font-style:italic;color:#555;margin-top:10px;text-align:center">Computer-generated payment advice. Contact us if there are any discrepancies.</div>';
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payment Advice - '+(pref||v.invNo||'')+'</title><style>'+css+'</style></head><body>'+bdy+'</body></html>';
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payment Advice - '+(v.invNo||'')+'</title><style>'+css+'</style></head><body>'+bdy+'</body></html>';
   var blob=new Blob([html],{type:'text/html'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
