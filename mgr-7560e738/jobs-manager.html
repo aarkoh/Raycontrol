@@ -256,8 +256,9 @@ function totals(j){
   var its=j.lineItems||[];
   var iSub=its.reduce(function(s,it){
     var ch=it.children||[];
-    if(ch.length){return s+ch.reduce(function(cs,c){return cs+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0);}
-    return s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+    if(ch.length){return s+ch.reduce(function(cs,c){var cd=parseFloat(c.custDisc)||0;return cs+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0)*(1-cd/100);},0);}
+    var d=parseFloat(it.custDisc)||0;
+    return s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0)*(1-d/100);
   },0);
   var sub=iSub;
   var gst=j.gst==="9"?sub*0.09:0;
@@ -418,11 +419,9 @@ function buildDetail(id){
     var rows=[];
     items.forEach(function(it,i){
       var ch=it.children||[];
-      var disc=parseFloat(it.custDisc)||0;
-      var effPrice=(parseFloat(it.unitPrice)||0)*(1-disc/100);
       var parentAmt=ch.length
-        ?ch.reduce(function(s,c){var cd=parseFloat(c.custDisc)||0;return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0)*(1-cd/100);},0)
-        :(parseFloat(it.qty)||0)*effPrice;
+        ?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0)
+        :(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;color:#888;font-size:12px">'+(i+1)+'</td>'
         +'<td style="font-weight:600;">'+(it.desc||'—')+'</td>'
@@ -431,8 +430,8 @@ function buildDetail(id){
             +'<td class="nr" style="color:#aaa;font-size:11px;font-style:italic">see sub-items</td>'
           :'<td class="nr">'+(it.qty||'')+'</td>'
             +'<td>'+(it.unit||'')+'</td>'
-            +'<td class="nr">'+(disc>0?'<span style="text-decoration:line-through;color:#bbb;font-size:10px">'+fmt(it.unitPrice)+'</span> <span style="color:#854F0B">'+fmt(effPrice)+'</span>':fmt(it.unitPrice))+'</td>'
-            +'<td class="nr" style="font-weight:500">'+fmt(parentAmt)+(disc>0?' <span style="font-size:10px;color:#854F0B;font-weight:600">−'+disc+'%</span>':'')+'</td>')
+            +'<td class="nr">'+fmt(it.unitPrice)+'</td>'
+            +'<td class="nr" style="font-weight:500">'+fmt(parentAmt)+'</td>')
         +'</tr>');
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f4f8fe">'
@@ -1017,14 +1016,11 @@ window.openInvModal = function(id) {
   var invRows=[];
   (j.lineItems||[]).forEach(function(it,i){
     var ch=it.children||[];
-    var disc=parseFloat(it.custDisc)||0;
-    var effPrice=(parseFloat(it.unitPrice)||0)*(1-disc/100);
-    var parentAmt=ch.length?ch.reduce(function(s,c){var cd=parseFloat(c.custDisc)||0;return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0)*(1-cd/100);},0):(parseFloat(it.qty)||0)*effPrice;
+    var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
     invRows.push('<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'+(i>0?'border-top:1px solid #f0ede6':'')+'">'
       +'<input type="checkbox" id="inv_ic_'+i+'" checked data-parent-idx="'+i+'" onchange="window.invToggleParent(this.dataset.parentIdx,this.checked)" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">'
       +'<label for="inv_ic_'+i+'" style="flex:1;font-size:13px;font-weight:'+(ch.length?'600':'400')+';cursor:pointer">'+(it.desc||'(no description)')
         +(it.qty&&it.unit&&!ch.length?'<span style="color:#aaa;font-size:11px;margin-left:8px">'+it.qty+' '+it.unit+'</span>':'')
-        +(disc>0&&!ch.length?'<span style="font-size:10px;color:#854F0B;margin-left:6px">−'+disc+'% disc</span>':'')
       +'</label>'
       +(ch.length
         ?'<span style="font-size:11px;color:#aaa;min-width:80px;text-align:right;font-style:italic">subtotal: '+(j.currency||'SGD')+' '+fmt(parentAmt)+'</span>'
