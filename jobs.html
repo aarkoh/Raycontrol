@@ -343,7 +343,7 @@ var LMA="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAA
 </script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, onValue, push, update, remove } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { getDatabase, ref, onValue, push, update, remove, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 const db=getDatabase(initializeApp({apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"}));
@@ -728,7 +728,9 @@ window.setStatus=async function(id,s){
     exposeGlobals();
     // ── Auto-deduct stock when DO is issued ──
     if(s==='do_wcc'){
-      var j=jobs[id]||{};
+      // Re-fetch job fresh from Firebase to ensure stockItemId is current (not stale local cache)
+      var freshSnap=await get(ref(db,'jobs/'+id));
+      var j=freshSnap.exists()?freshSnap.val():(jobs[id]||{});
       var lineItems=j.lineItems||[];
       var stockItems=window._stockItems||{};
       var now=new Date().toISOString();
@@ -783,9 +785,9 @@ window.deleteJob=async function(id){
 };
 
 // Line items
-window.addLI=function(desc,qty,unit,price,vendor,cost,costCur){
+window.addLI=function(desc,qty,unit,price,vendor,cost,costCur,stockItemId){
   desc=desc||"";qty=qty||"";unit=(unit===undefined||unit===null)?"JOB":unit;price=price||"";vendor=vendor||"";cost=cost||"";costCur=costCur||"SGD";
-  liCount++;var n=liCount;
+  liCount++;var n=liCount;stockItemId=stockItemId||'';
   var tr=document.createElement("tr");tr.id="li_"+n;
   var vopts=selVendors.map(function(v){return '<option value="'+v.id+'"'+(vendor===v.id?' selected':'')+'>'+v.name+'</option>';}).join('');
   tr.innerHTML='<td style="text-align:center;color:#888;font-size:11px;padding:2px 0">'
@@ -798,7 +800,7 @@ window.addLI=function(desc,qty,unit,price,vendor,cost,costCur){
     +'<td><input type="number" value="'+price+'" placeholder="0.00" min="0" step="0.01" id="lp_'+n+'" data-n="'+n+'" oninput="window.calcLI(this.dataset.n)" style="width:82px;text-align:right"></td>'
     +'<td><span class="lamt" id="la_'+n+'">0.00</span></td>'
     +'<td title="Customer discount %"><div style="display:flex;align-items:center"><input type="number" value="" placeholder="0" min="0" max="100" step="0.1" id="lcd_'+n+'" data-n="'+n+'" oninput="window.updateMarkup(this.dataset.n)" style="width:40px;text-align:right;padding:5px 3px;border:1px solid #B5D4F4;border-radius:6px 0 0 6px;font-size:12px;font-family:inherit;background:#E6F1FB"><span style="background:#E6F1FB;border:1px solid #B5D4F4;border-left:none;border-radius:0 6px 6px 0;padding:5px 3px;font-size:10px;color:#185FA5">%</span></div></td>'
-    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+n+'" data-n="'+n+'" oninput="window.updateMarkup(this.dataset.n)" style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"></td>'
+    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+n+'" data-n="'+n+'" oninput="window.updateMarkup(this.dataset.n)"'+(stockItemId?' data-stock-id="'+stockItemId+'" readonly title="Cost from stock catalog — read only" style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#f5f0e8;cursor:not-allowed"':' style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"')+'></td>'
     +'<td><select id="lcc_'+n+'" data-n="'+n+'" onchange="window.updateMarkup(this.dataset.n)" style="width:48px;font-size:11px;padding:3px 2px;border:1px solid #f0c08a;border-radius:6px;font-family:inherit;background:#FAEEDA">'+'<option value="SGD"'+(costCur==="SGD"?' selected':'')+'>SGD</option>'+'<option value="USD"'+(costCur==="USD"?' selected':'')+'>USD</option>'+'<option value="EUR"'+(costCur==="EUR"?' selected':'')+'>EUR</option>'+'<option value="JPY"'+(costCur==="JPY"?' selected':'')+'>JPY</option>'+'<option value="SEK"'+(costCur==="SEK"?' selected':'')+'>SEK</option>'+'</select></td>'
     +'<td style="text-align:right"><span id="lmk_'+n+'" style="display:block;padding:5px 6px;background:#f0faf2;border:1px solid #b8e4c5;border-radius:6px;font-size:11px;font-weight:600;color:#1a6641;text-align:right;min-width:60px">—</span><div id="lmk_h35_'+n+'" style="font-size:10px;color:#854F0B;margin-top:3px;text-align:right;white-space:nowrap"></div></td>'
     +'<td><select id="lv_'+n+'" style="width:100%;font-size:11px;padding:3px 4px;border:1px solid #ddd;border-radius:6px;font-family:inherit;background:#f9f9f7"><option value="">—</option>'+vopts+'</select></td>'
@@ -1246,28 +1248,18 @@ window.addFromStock=function(itemId){
   var sell=parseFloat(it.sell)||0;
   var cost=parseFloat(it.cost)||0;
   // Add the line item (cost pre-filled from stock, sell price as the unit price)
-  window.addLI(desc,'1',it.unit||'pcs',sell>0?sell:'','',cost>0?cost:'','SGD');
-  // Lock the cost field and add shortfall warning on the newly added row
+  window.addLI(desc,'1',it.unit||'pcs',sell>0?sell:'','',cost>0?cost:'','SGD',itemId);
+  // Lock currency and add shortfall warning on the newly added row
   setTimeout(function(){
     var n=liCount;
-    var costEl=document.getElementById('lc_'+n);
-    if(costEl){
-      costEl.setAttribute('readonly','readonly');
-      costEl.title='Cost from stock catalog — read only';
-      costEl.style.background='#f5f0e8';
-      costEl.style.cursor='not-allowed';
-      costEl.setAttribute('data-stock-id',itemId);
-    }
     var costCurEl=document.getElementById('lcc_'+n);
     if(costCurEl){costCurEl.setAttribute('disabled','disabled');costCurEl.style.background='#f5f0e8';}
-    // Add shortfall warning element below qty input
     var qtyEl=document.getElementById('lq_'+n);
     if(qtyEl&&!document.getElementById('sq_warn_'+n)){
       var warn=document.createElement('div');
       warn.id='sq_warn_'+n;
       warn.style.cssText='font-size:10px;color:#854F0B;margin-top:2px;white-space:nowrap;display:none';
       qtyEl.parentNode.appendChild(warn);
-      // Wire qty input to check shortfall
       qtyEl.setAttribute('data-stock-id-warn',itemId);
       qtyEl.addEventListener('input',function(){window.checkStockShortfall(n,itemId);});
     }
@@ -1344,11 +1336,9 @@ window.openEditJob=function(id){
   document.getElementById("j_pay").value=j.payTerms||"30 Days Nett";
   if(j.customerId&&j.customerName){document.getElementById("j_cs_id").value=j.customerId;document.getElementById("j_cs_nm").textContent=j.customerName;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";if(window.populateAttnDrop)window.populateAttnDrop(j.customerId);}
   (j.lineItems||[]).forEach(function(it){
-    window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"",it.costCur||"SGD");
+    window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"",it.costCur||"SGD",it.stockItemId||'');
   if(it.custDisc){(function(idx,d){setTimeout(function(){var el=document.getElementById("lcd_"+idx);if(el){el.value=d;window.updateMarkup(idx);}},120);})(liCount,it.custDisc);}
     if(it.stockItemId){(function(idx,sid){setTimeout(function(){
-      var costEl=document.getElementById('lc_'+idx);
-      if(costEl){costEl.setAttribute('readonly','readonly');costEl.title='Cost from stock catalog — read only';costEl.style.background='#f5f0e8';costEl.style.cursor='not-allowed';costEl.setAttribute('data-stock-id',sid);}
       var curEl=document.getElementById('lcc_'+idx);
       if(curEl){curEl.setAttribute('disabled','disabled');curEl.style.background='#f5f0e8';}
       window.checkStockShortfall(idx,sid);
