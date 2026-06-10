@@ -49,7 +49,7 @@ td.nr{text-align:right}
 .sbar{display:inline-block;width:4px;height:34px;border-radius:3px;vertical-align:middle;margin-right:8px;flex-shrink:0}
 .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
 .bq{background:#FAEEDA;color:#854F0B}.bcp{background:#E6F1FB;color:#185FA5}
-.bvp{background:#F3E6F3;color:#8B1A8B}.bdw{background:#CFFAFE;color:#0E7490}
+.bvp{background:#F3E6F3;color:#8B1A8B}.bpi{background:#FEF3C7;color:#B45309}.bdw{background:#CFFAFE;color:#0E7490}
 .bi{background:#FCEBEB;color:#A32D2D}.bs{background:#EAF3DE;color:#1a6641}.bc{background:#efefed;color:#666}
 .ov{color:#A32D2D;font-weight:600}
 .pf{color:#1a6641;font-weight:600}.pp{color:#854F0B;font-weight:600}.pn{color:#bbb}
@@ -151,7 +151,7 @@ button:hover{background:#f0f0ee}
       <div class="chip" onclick="setF('quote',this)">Quote</div>
       <div class="chip" onclick="setF('customer_po',this)">Customer PO</div>
       <div class="chip" onclick="setF('vendor_po',this)">Vendor PO</div>
-      <div class="chip" onclick="setF('do_wcc',this)">DO / WCC</div>
+      <div class="chip" onclick="setF('proforma_invoice',this)">Proforma Inv</div><div class="chip" onclick="setF('do_wcc',this)">DO / WCC</div>
       <div class="chip" onclick="setF('invoice',this)">Invoice</div>
       <div class="chip" onclick="setF('soa',this)">SOA</div>
       <div class="chip" onclick="setF('closed',this)">Closed</div>
@@ -231,10 +231,10 @@ const auth=getAuth();
 let jobs={}, contacts={}, filt='all', curId=null;
 
 /* ── Constants ── */
-const SO=["quote","customer_po","vendor_po","do_wcc","invoice","soa","closed"];
-const SL={quote:'Quote',customer_po:'Customer PO',vendor_po:'Vendor PO',do_wcc:'DO / WCC',invoice:'Invoice',soa:'SOA',closed:'Closed'};
-const BC={quote:'bq',customer_po:'bcp',vendor_po:'bvp',do_wcc:'bdw',invoice:'bi',soa:'bs',closed:'bc'};
-const SC={quote:'#854F0B',customer_po:'#185FA5',vendor_po:'#8B1A8B',do_wcc:'#0E7490',invoice:'#A32D2D',soa:'#1a6641',closed:'#aaa'};
+const SO=["quote","customer_po","proforma_invoice","vendor_po","do_wcc","invoice","soa","closed"];
+const SL={quote:'Quote',customer_po:'Customer PO',proforma_invoice:'Proforma Invoice',vendor_po:'Vendor PO',do_wcc:'DO / WCC',invoice:'Invoice',soa:'SOA',closed:'Closed'};
+const BC={quote:'bq',customer_po:'bcp',proforma_invoice:'bpi',vendor_po:'bvp',do_wcc:'bdw',invoice:'bi',soa:'bs',closed:'bc'};
+const SC={quote:'#854F0B',customer_po:'#185FA5',proforma_invoice:'#B45309',vendor_po:'#8B1A8B',do_wcc:'#0E7490',invoice:'#A32D2D',soa:'#1a6641',closed:'#aaa'};
 
 /* ── Helpers — same as jobs.html ── */
 function fmt(n){return(parseFloat(n)||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -339,7 +339,7 @@ window.render=function(){
   const all=Object.values(jobs).filter(j=>!j.archived);
   document.getElementById('sJobs').textContent=all.length;
   document.getElementById('sOpen').textContent=all.filter(j=>j.status!=='closed').length;
-  const invd=all.filter(j=>['invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+totals(j).total,0);
+  const invd=all.filter(j=>['proforma_invoice','invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+totals(j).total,0);
   const rcvdT=all.filter(j=>['invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+(parseFloat(j.paymentReceived)||0),0);
   document.getElementById('sInv').textContent=fmt(invd);
   document.getElementById('sRcvd').textContent=fmt(rcvdT);
@@ -354,7 +354,7 @@ window.render=function(){
     const rcvd=parseFloat(j.paymentReceived)||0;
     const bal=t.total-rcvd;
     const jst=j.status||'quote';
-    const invoiced=['invoice','soa','closed'].includes(jst);
+    const invoiced=['proforma_invoice','invoice','soa','closed'].includes(jst);
     // For invoiced jobs, show invoice date not job creation date
     const displayDate=invoiced?(j.invoiceDate||j.updatedAt||j.date||j.createdAt):(j.date||j.createdAt);
     const a=ageD(displayDate);
@@ -458,7 +458,14 @@ function buildDetail(id){
   /* Payment status summary */
   let payStatus='';
   if(t.total>0){
+    const pfPct=parseFloat(j.proformaPct)||0;
+    const pfAmt=pfPct>0&&pfPct<1?t.total*pfPct:0; // proforma portion
+    const remaining=pfPct>0&&pfPct<1?t.total-pfAmt:0; // balance due at invoice stage
     if(rcvd<=0) payStatus='<span style="color:#A32D2D;font-weight:600">Unpaid</span>';
+    else if(pfPct>0&&pfPct<1&&rcvd>=pfAmt-0.005&&bal>0.005){
+      // Advance payment covers proforma — balance is the tax invoice remainder
+      payStatus='<span style="color:#B45309;font-weight:600">Advance Paid ('+Math.round(pfPct*100)+'%) — '+cur+' '+fmt(remaining)+' due at invoice</span>';
+    }
     else if(bal>0.005) payStatus='<span style="color:#854F0B;font-weight:600">Partial — '+cur+' '+fmt(bal)+' outstanding</span>';
     else payStatus='<span style="color:#1a6641;font-weight:600">Fully Paid &#10003;</span>';
   }
@@ -1091,6 +1098,18 @@ window.doPrintInv = function(){
   var invDateVal=document.getElementById('inv_date').value||new Date().toISOString().slice(0,10);
   document.getElementById('invModal').classList.remove('show');
   if(!selected.length){toast('Select at least one line item');return;}
+  // If proforma: persist pct + date to Firebase and auto-advance status
+  if(invType==='PROFORMA INVOICE'){
+    var pfUpd={proformaPct:invPct,proformaDate:invDateVal,updatedAt:new Date().toISOString()};
+    var curSt=(jobs[id]||{}).status||'quote';
+    var pfIdx=SO.indexOf('proforma_invoice');
+    var curIdx=SO.indexOf(curSt);
+    if(curIdx<pfIdx) pfUpd.status='proforma_invoice';
+    update(ref(db,'jobs/'+id),pfUpd).then(function(){
+      if(pfUpd.status){jobs[id]=Object.assign({},jobs[id],pfUpd);render();}
+      else{jobs[id]=Object.assign({},jobs[id],{proformaPct:invPct,proformaDate:invDateVal});}
+    }).catch(function(){});
+  }
   printInvData(id, selected, invType, invPct, billTo, invPayTerms, invDateVal);
 };
 
@@ -1807,7 +1826,7 @@ window.generateSOAPreview = function() {
   var fmt = window._mgr_fmt, fmtD = window._mgr_fmtD, totals = window._mgr_totals;
   if(!fmt){toast('Page still loading, please wait.');return;}
   var age0=0,age30=0,age60=0,age90=0,totalInv=0,totalRcvd=0;
-  var SL={quote:'Quote',customer_po:'Cust PO',vendor_po:'Vendor PO',do_wcc:'DO/WCC',invoice:'Invoice',soa:'SOA',closed:'Closed'};
+  var SL={quote:'Quote',customer_po:'Cust PO',proforma_invoice:'Proforma Inv',vendor_po:'Vendor PO',do_wcc:'DO/WCC',invoice:'Invoice',soa:'SOA',closed:'Closed'};
   var tbl='<table style="width:100%;border-collapse:collapse">'
     +'<thead style="background:#f9f9f7"><tr>'
     +'<th style="padding:7px 10px;text-align:left;font-size:11px;color:#888;border-bottom:2px solid #e0ddd6">Ref</th>'
@@ -1868,7 +1887,7 @@ window.printSOA = function() {
   function fmtD(d){if(!d)return'--';try{return new Date(d.slice(0,10)+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
   var fromFmt=from?fmtD(from):'--', toFmt=to?fmtD(to):'--';
   var age0=0,age30=0,age60=0,age90=0,totalInv=0,totalRcvd=0;
-  var SL={quote:'Quote',customer_po:'Cust PO',vendor_po:'Vendor PO',do_wcc:'DO/WCC',invoice:'Invoice',soa:'SOA',closed:'Closed'};
+  var SL={quote:'Quote',customer_po:'Cust PO',proforma_invoice:'Proforma Inv',vendor_po:'Vendor PO',do_wcc:'DO/WCC',invoice:'Invoice',soa:'SOA',closed:'Closed'};
   var iRows=rows.map(function(e,i){
     var j=e[1], t=totals(j), cur=j.currency||'SGD';
     var rcvd=parseFloat(j.paymentReceived)||0, bal=t.total-rcvd;
