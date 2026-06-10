@@ -340,7 +340,7 @@ window.render=function(){
   document.getElementById('sJobs').textContent=all.length;
   document.getElementById('sOpen').textContent=all.filter(j=>j.status!=='closed').length;
   const invd=all.filter(j=>['proforma_invoice','invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+totals(j).total,0);
-  const rcvdT=all.filter(j=>['invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+(parseFloat(j.paymentReceived)||0),0);
+  const rcvdT=all.filter(j=>!j.archived).reduce((s,j)=>s+(parseFloat(j.paymentReceived)||0),0);
   document.getElementById('sInv').textContent=fmt(invd);
   document.getElementById('sRcvd').textContent=fmt(rcvdT);
   document.getElementById('sOwed').textContent=fmt(Math.max(0,invd-rcvdT));
@@ -360,15 +360,15 @@ window.render=function(){
     const a=ageD(displayDate);
     const aStr=a===0?'Today':a===1?'Yesterday':a+' d ago';
     const aC=a>30&&jst!=='closed'?' ov':'';
-    /* Received */
+    /* Received — show whenever payment recorded, regardless of pipeline status */
     let rcvdCell='<span class="pn">—</span>';
-    if(invoiced){
-      if(rcvd>=t.total-0.005&&rcvd>0) rcvdCell='<span class="pf">'+cur+' '+fmt(rcvd)+' &#10003;</span>';
-      else if(rcvd>0) rcvdCell='<span class="pp">'+cur+' '+fmt(rcvd)+'</span>';
+    if(rcvd>0){
+      if(rcvd>=t.total-0.005) rcvdCell='<span class="pf">'+cur+' '+fmt(rcvd)+' &#10003;</span>';
+      else rcvdCell='<span class="pp">'+cur+' '+fmt(rcvd)+'</span>';
     }
     /* Balance */
     let balCell='<span style="color:#bbb">—</span>';
-    if(invoiced&&t.total>0){
+    if(rcvd>0&&t.total>0){
       if(Math.abs(bal)<0.005) balCell='<span class="pf">Settled</span>';
       else if(bal>0) balCell='<span style="color:#A32D2D;font-weight:600">'+cur+' '+fmt(bal)+'</span>';
     }
