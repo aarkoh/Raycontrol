@@ -349,8 +349,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gsta
 const db=getDatabase(initializeApp({apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"}));
 const auth=getAuth();
 
-const SL={quote:"Quote",customer_po:"Customer PO",vendor_po:"Vendor PO",do_wcc:"DO / WCC",invoice:"Invoice Sent",soa:"SOA Sent",closed:"Closed",cancelled:"✕ Cancelled"};
-const SO=["quote","customer_po","vendor_po","do_wcc","invoice","soa","closed","cancelled"];
+const SL={quote:"Quote",customer_po:"Customer PO",proforma_invoice:"Proforma Invoice",vendor_po:"Vendor PO",do_wcc:"DO / WCC",invoice:"Invoice Sent",soa:"SOA Sent",closed:"Closed",cancelled:"✕ Cancelled"};
+const SO=["quote","customer_po","proforma_invoice","vendor_po","do_wcc","invoice","soa","closed","cancelled"];
 const SC={quote:"sq",customer_po:"scp",vendor_po:"svp",do_wcc:"sdw",invoice:"si",soa:"ss",closed:"sc",cancelled:"scx"};
 const BC={quote:"bq",customer_po:"bcp",vendor_po:"bvp",do_wcc:"bdw",invoice:"bi",soa:"bs",closed:"bc",cancelled:"bcx"};
 let jobs={},contacts={},currentJobId=null,editJobId=null,stockMovements=[],sFilter="all",sQ="",selVendors=[],liCount=0,subCounts={};
