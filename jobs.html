@@ -372,8 +372,9 @@ function totals(j){
   var its=j.lineItems||[];
   var iSub=its.reduce(function(s,it){
     var ch=it.children||[];
-    if(ch.length){return s+ch.reduce(function(cs,c){return cs+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0);}
-    return s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+    if(ch.length){return s+ch.reduce(function(cs,c){var cd=parseFloat(c.custDisc)||0;return cs+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0)*(1-cd/100);},0);}
+    var d=parseFloat(it.custDisc)||0;
+    return s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0)*(1-d/100);
   },0);
   var sub=iSub;
   var gst=j.gst==="9"?sub*0.09:0;
@@ -483,11 +484,9 @@ window.openDetail=function(id){
     items.forEach(function(it,i){
       var ch=it.children||[];
       // Compute parent amount: sum of children if any, else own qty*price
-      var disc=parseFloat(it.custDisc)||0;
-      var effPrice=(parseFloat(it.unitPrice)||0)*(1-disc/100);
       var parentAmt=ch.length
-        ?ch.reduce(function(s,c){var cd=parseFloat(c.custDisc)||0;return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0)*(1-cd/100);},0)
-        :(parseFloat(it.qty)||0)*effPrice;
+        ?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0)
+        :(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push("<tr>"
         +'<td style="text-align:center;color:#888;font-size:12px">'+(i+1)+"</td>"
         +"<td style='"+(ch.length?"font-weight:600;":"")+"'>"+(it.desc||"&mdash;")+"</td>"
@@ -497,7 +496,7 @@ window.openDetail=function(id){
           :'<td class="nr">'+(it.qty||"")+"</td>"
             +"<td>"+(it.unit||"")+"</td>"
             +'<td class="nr">'+fmt(it.unitPrice)+"</td>"
-            +'<td class="nr" style="font-weight:500">'+fmt(parentAmt)+(disc>0?' <span style="font-size:10px;color:#854F0B">−'+disc+'%</span>':'')+"</td>")
+            +'<td class="nr" style="font-weight:500">'+fmt(parentAmt)+"</td>")
         +'<td class="nr" style="font-size:11px;color:#854F0B">'+(it.costPrice?(it.costCur||"SGD")+" "+fmt(it.costPrice):"")+"</td>"
         +'<td style="font-size:11px;color:#888">'+(it.vendorName||"")+"</td>"
         +"</tr>");
