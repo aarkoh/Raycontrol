@@ -706,11 +706,13 @@ window.editBtn=function(btn){window.openEditJob(btn.dataset.jid);};
 window.delBtn=function(btn){window.deleteJob(btn.dataset.jid);};
 window.setPipeBtn=function(btn){
   if(btn.dataset.st==='cancelled'&&!confirm('Mark this job as Cancelled? It will be excluded from all revenue reports.\nClick a pipeline stage to restore it later.'))return;
-  window.setStatus(btn.dataset.jid,btn.dataset.st);
+  btn.disabled=true;btn.style.opacity='0.5';
+  window.setStatus(btn.dataset.jid,btn.dataset.st).finally(function(){btn.disabled=false;btn.style.opacity='';});
 };
 
 window.setStatus=async function(id,s){
   try{
+    var prevStatus=(jobs[id]||{}).status||'';
     var statusUpdate={status:s,updatedAt:new Date().toISOString()};
     if(s==="invoice"&&!jobs[id].invoiceDate){statusUpdate.invoiceDate=new Date().toISOString().slice(0,10);}
     // Record first-time date for each stage
@@ -731,6 +733,8 @@ window.setStatus=async function(id,s){
       // Re-fetch job fresh from Firebase to ensure stockItemId is current (not stale local cache)
       var freshSnap=await get(ref(db,'jobs/'+id));
       var j=freshSnap.exists()?freshSnap.val():(jobs[id]||{});
+      // Idempotency guard — skip deduction if job was already at do_wcc before this click
+      if(prevStatus==='do_wcc'){console.log('Stock deduction skipped — already at DO/WCC');return;}
       var lineItems=j.lineItems||[];
       var stockItems=window._stockItems||{};
       var now=new Date().toISOString();
