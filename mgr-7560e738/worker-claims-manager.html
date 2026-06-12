@@ -209,7 +209,7 @@ const fmt=n=>Number(n||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximu
 const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
 
 // payments: { pushId: { worker, payDate, payRef, lineItems:[{invNo,jobRef,date,desc,amount}], totalAmount, createdAt } }
-let payments={}, jobs={}, workers=[], workerFilt='all', editId=null, lineCount=0;
+let payments={}, jobs={}, workers=[], vendorInvoices={}, workerFilt='all', editId=null, lineCount=0;
 const expanded=new Set();
 window.toggleExpand=function(pid){expanded.has(pid)?expanded.delete(pid):expanded.add(pid);render();};
 
@@ -248,15 +248,44 @@ function getDupSet(){
   const map=getAllInvNos();
   return new Set(Object.entries(map).filter(([,arr])=>arr.length>1).map(([k])=>k));
 }
+function getVendorInvMap(){
+  // Map of vendor invoice no (trimmed, lowercase) -> [{vendorName, invDate, jobRef, invNo}]
+  // Used to flag worker claim receipts that clash with vendor invoices (cross-system double entry)
+  const map={};
+  Object.values(vendorInvoices).forEach(v=>{
+    if(!v||!v.invNo)return;
+    const key=String(v.invNo).trim().toLowerCase();
+    if(!map[key])map[key]=[];
+    map[key].push({vendorName:v.vendorName,invDate:v.invDate,jobRef:v.jobRef,invNo:v.invNo});
+  });
+  return map;
+}
 function showDupBanner(){
   const map=getAllInvNos();
   const dups=Object.entries(map).filter(([,arr])=>arr.length>1);
+  const vmap=getVendorInvMap();
+  const cross=Object.entries(map).filter(([key])=>vmap[key]);
   const banner=document.getElementById('dupBanner');
-  if(!dups.length){banner.classList.remove('show');return;}
+  if(!dups.length&&!cross.length){banner.classList.remove('show');return;}
   banner.classList.add('show');
-  banner.innerHTML='<strong>⚠ Duplicate Invoice Numbers Detected</strong><br>'
-    +dups.map(([,arr])=>'<div style="margin-top:6px">Invoice <strong>'+arr[0].invNo+'</strong> appears <span class="dup-badge">'+arr.length+'×</span> — '
-      +arr.map(e=>(e.worker||'?')+' ('+fmtD(e.payDate)+(e.jobRef?', Job '+e.jobRef:'')+')').join(' · ')+'</div>').join('');
+  let html='';
+  if(dups.length){
+    html+='<strong>\u26A0 Duplicate Invoice Numbers Detected</strong><br>'
+      +dups.map(([,arr])=>'<div style="margin-top:6px">Invoice <strong>'+arr[0].invNo+'</strong> appears <span class="dup-badge">'+arr.length+'\u00D7</span> \u2014 '
+        +arr.map(e=>(e.worker||'?')+' ('+fmtD(e.payDate)+(e.jobRef?', Job '+e.jobRef:'')+')').join(' \u00B7 ')+'</div>').join('');
+  }
+  if(cross.length){
+    if(html)html+='<div style="margin-top:10px"></div>';
+    html+='<strong>\u26A0 Also Recorded as Vendor Invoices (possible double entry)</strong><br>'
+      +cross.map(([key,arr])=>{
+        const v=vmap[key];
+        return '<div style="margin-top:6px">Invoice <strong>'+arr[0].invNo+'</strong> \u2014 claimed by '
+          +arr.map(e=>(e.worker||'?')+' ('+fmtD(e.payDate)+')').join(' \u00B7 ')
+          +' <span class="dup-badge">vendor inv</span> '
+          +v.map(x=>(x.vendorName||'?')+' ('+fmtD(x.invDate)+(x.jobRef?', Job '+x.jobRef:'')+')').join(' \u00B7 ')+'</div>';
+      }).join('');
+  }
+  banner.innerHTML=html;
 }
 
 // ── Render table — grouped by payment ──
@@ -499,6 +528,7 @@ window.savePayment=async function(){
   const lineItems=[];
   let hasError=false;
   const dupMap=getAllInvNos();
+  const vendorInvMap=getVendorInvMap();
 
   document.querySelectorAll('#liBody tr').forEach(row=>{
     const idx=row.id.replace('li_row_','');
@@ -518,6 +548,13 @@ window.savePayment=async function(){
     const existsDup=(dupMap[key]||[]).some(e=>e.payId!==editId);
     if(existsDup){
       if(!confirm('⚠ Invoice "'+invNo+'" already exists in another payment.\n\nProceed anyway?'))
+        {hasError=true;return;}
+    }
+    // Cross-check against vendor invoices (case-insensitive) to prevent double entry
+    const vHit=(vendorInvMap[key]||[]);
+    if(vHit.length){
+      const det=vHit.map(x=>(x.vendorName||'?')+' dated '+fmtD(x.invDate)+(x.jobRef?' (Job '+x.jobRef+')':'')).join('\n');
+      if(!confirm('\u26A0 Invoice "'+invNo+'" is already recorded as a VENDOR INVOICE:\n\n'+det+'\n\nEntering it as a worker claim too may double-count this cost.\nProceed anyway?'))
         {hasError=true;return;}
     }
     lineItems.push({invNo,jobRef,date,desc,amount});
@@ -581,6 +618,11 @@ onAuthStateChanged(auth,user=>{
     jobs={};
     if(snap.exists())Object.values(snap.val()||{}).forEach(j=>{if(j.ref)jobs[j.ref]=j;});
     render();
+  });
+
+  onValue(ref(db,'vendorInvoices'),snap=>{
+    vendorInvoices=snap.exists()?(snap.val()||{}):{};
+    render(); // refresh duplicate banner with cross-system info
   });
 
   onValue(ref(db,'workerClaims'),snap=>{

@@ -583,6 +583,23 @@ window.viJobSearch=function(){
 
 window.closeAdd=function(){document.getElementById('addModal').classList.remove('show');editId=null;};
 
+
+// ── Cross-system duplicate check: vendor invoice no. vs worker claim receipts ──
+window._vi_workerClaims=window._vi_workerClaims||{};
+function findWorkerClaimMatches(invno){
+  // Case-insensitive: trims and lowercases both sides so HNL-001 matches hnl-001
+  var key=String(invno).trim().toLowerCase();
+  var hits=[];
+  Object.values(window._vi_workerClaims).forEach(function(p){
+    (p.lineItems||[]).forEach(function(li){
+      if(li.invNo&&String(li.invNo).trim().toLowerCase()===key){
+        hits.push({worker:p.worker,payDate:p.payDate,jobRef:li.jobRef,amount:li.amount});
+      }
+    });
+  });
+  return hits;
+}
+
 window.saveInv=async function(){
   const vendor=document.getElementById('f_vendor_inp').value.trim();
   const invno=document.getElementById('f_invno').value.trim();
@@ -601,6 +618,12 @@ window.saveInv=async function(){
       e[1].vendorName.trim().toLowerCase()===vendor.toLowerCase();
   });
   if(duplicate){toast('Duplicate: '+invno+' from '+vendor+' already exists');return;}
+  // Cross-check: same number already entered as a worker claim receipt (case-insensitive)
+  var wcHits=findWorkerClaimMatches(invno);
+  if(wcHits.length){
+    var det=wcHits.map(function(h){return (h.worker||'?')+' claim dated '+fmtD(h.payDate)+(h.jobRef?' (Job '+h.jobRef+')':'');}).join('\n');
+    if(!confirm('\u26A0 Invoice "'+invno+'" is already recorded as a WORKER CLAIM receipt:\n\n'+det+'\n\nEntering it as a vendor invoice too may double-count this cost.\nProceed anyway?'))return;
+  }
   const data={
     vendorName:vendor,invNo:invno,invDate:date,
     jobRef:document.getElementById('f_jobref').value.trim(),
@@ -697,6 +720,8 @@ onAuthStateChanged(auth,user=>{
   });
   onValue(ref(db,'contacts'),snap=>{window._vi_contacts=snap.val()||{};});
   onValue(ref(db,'jobs'),snap=>{window._vi_jobs=snap.val()||{};});
+  onValue(ref(db,'workerClaims'),snap=>{window._vi_workerClaims=snap.exists()?(snap.val()||{}):{};});
+
   onValue(ref(db,'vendorInvoices'),snap=>{
     vis=snap.val()||{};
     window._vi_vis=vis;
