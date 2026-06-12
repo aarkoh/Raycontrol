@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service Renewals</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
+.app{max-width:1080px;margin:0 auto;padding:1.25rem 1rem}
+.topbar{display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;border-bottom:1px solid #e0ddd6;padding-bottom:1rem;flex-wrap:wrap}
+.topbar h1{font-size:20px;font-weight:700;flex:1}
+.staff-name{font-size:12px;color:#185FA5;background:#E6F1FB;border:1px solid #B5D4F4;padding:3px 10px;border-radius:12px;font-weight:600}
+.back{font-size:12px;color:#185FA5;text-decoration:none;padding:5px 10px;border:1px solid #B5D4F4;border-radius:8px;background:#E6F1FB;white-space:nowrap}
+.btn-hub{font-size:12px;text-decoration:none;padding:5px 12px;border-radius:8px;font-weight:500;color:#854F0B;background:#FAEEDA;border:1px solid #F0C08A;white-space:nowrap}
+.conn{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:500}
+.conn.online{background:#EAF3DE;color:#3B6D11}.conn.offline{background:#FCEBEB;color:#A32D2D}.conn.syncing{background:#FAEEDA;color:#854F0B}
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:1.25rem}
+.sc{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:.9rem 1rem;border-top:3px solid #e0ddd6}
+.sc.a{border-top-color:#854F0B}.sc.r{border-top-color:#A32D2D}.sc.b{border-top-color:#185FA5}.sc.g{border-top-color:#1a6641}
+.sv{font-size:20px;font-weight:700;margin-bottom:2px}.sv.a{color:#854F0B}.sv.r{color:#A32D2D}.sv.g{color:#1a6641}.sv.b{color:#185FA5}
+.sl-lbl{font-size:11px;color:#888}
+.toolbar{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+.toolbar input{flex:1;min-width:180px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit}
+.toolbar input:focus{outline:none;border-color:#854F0B}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#666;white-space:nowrap}
+.chip.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+/* Action banner — the proactive heart */
+.act-banner{border-radius:10px;padding:12px 14px;margin-bottom:1rem;font-size:13px;display:none;background:#FAEEDA;border:1px solid #F0C08A}
+.act-banner.show{display:block}
+.act-banner h3{font-size:13px;color:#854F0B;margin-bottom:6px}
+.act-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px solid #f0dcc0}
+.act-row:first-of-type{border-top:none}
+.act-badge{display:inline-block;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.act-badge.send{background:#854F0B}.act-badge.over{background:#A32D2D}.act-badge.fu{background:#185FA5}
+.act-row .go{margin-left:auto;font-size:11px;padding:4px 10px;border:1px solid #854F0B;color:#854F0B;background:#fff;border-radius:8px;cursor:pointer}
+.act-row .go:hover{background:#854F0B;color:#fff}
+/* Table */
+.tw{overflow-x:auto;border-radius:12px;border:1px solid #e0ddd6}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:#854F0B}
+th{color:#fff;font-size:11px;font-weight:600;padding:10px 12px;text-align:left;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid #f0ede6;vertical-align:middle;background:#fff}
+tr:last-child td{border-bottom:none}
+.row-main{cursor:pointer}
+.row-main:hover td{background:#faf8f5}
+.detail-row td{background:#faf8f5;padding:0}
+.detail-inner{padding:14px 16px}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px;margin-bottom:10px}
+.detail-k{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.05em}
+.detail-v{font-size:13px;font-weight:500}
+.empty{text-align:center;color:#aaa;font-size:13px;padding:32px}
+.vessel-name{font-weight:600}
+.sub{font-size:11px;color:#888}
+/* Buttons */
+button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:#f0f0ee}
+.bsm{font-size:11px;padding:4px 9px}
+.bg{background:#854F0B;color:#fff;border-color:#854F0B;font-weight:600}.bg:hover{background:#6b3e08}
+.bd{border-color:#A32D2D;color:#A32D2D}.bd:hover{background:#FCEBEB}
+.btn-edit{border-color:#185FA5;color:#185FA5}.btn-edit:hover{background:#E6F1FB}
+.btn-comms{border-color:#1a6641;color:#1a6641}.btn-comms:hover{background:#EAF3DE}
+.btn-renew{border-color:#854F0B;color:#854F0B}.btn-renew:hover{background:#FAEEDA}
+.act{display:flex;gap:5px;flex-wrap:wrap}
+/* Status badges */
+.st{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;white-space:nowrap}
+.st-monitor{background:#eef0ec;color:#5a6b55}
+.st-sendnow{background:#854F0B;color:#fff}
+.st-overdue{background:#A32D2D;color:#fff}
+.st-awaiting{background:#E6F1FB;color:#185FA5}
+.st-won{background:#EAF3DE;color:#1a6641}
+.st-lost{background:#FCEBEB;color:#A32D2D}
+.st-declined{background:#eee;color:#888}
+.due-over{color:#A32D2D;font-weight:700}.due-soon{color:#854F0B;font-weight:600}.due-norm{color:#444}
+/* Modal */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto}
+.mbg.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:760px;border:1px solid #e0ddd6;margin:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:1rem;color:#854F0B}
+.fi{margin-bottom:.75rem}
+.fi label{font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500}
+.fi input,.fi select,.fi textarea{width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7}
+.fi textarea{resize:vertical;min-height:60px}
+.fi input:focus,.fi select:focus,.fi textarea:focus{outline:none;border-color:#854F0B;background:#fff}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.modal-footer{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #f0ede6}
+.section{background:#f9f9f7;border:1px solid #e0ddd6;border-radius:10px;padding:1rem;margin-top:1rem}
+.section-title{font-size:11px;font-weight:600;color:#854F0B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem}
+.hint{font-size:11px;color:#aaa;margin-top:4px}
+.preset-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.5rem}
+.preset-btn{font-size:11px;padding:5px 11px;border:1px dashed #854F0B;color:#854F0B;background:transparent;border-radius:14px;cursor:pointer}
+.preset-btn:hover{background:#FAEEDA}
+.mini-link{font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline}
+/* Comms */
+.comms-list{margin-top:.5rem;max-height:240px;overflow-y:auto}
+.comms-item{border-left:3px solid #185FA5;background:#fff;border:1px solid #eee;border-radius:8px;padding:8px 11px;margin-bottom:7px;font-size:12px}
+.comms-item.in{border-left-color:#1a6641}
+.comms-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:#888;font-size:11px;margin-bottom:3px}
+.comms-ch{font-weight:700;color:#185FA5}.comms-ch.in{color:#1a6641}
+.comms-empty{font-size:12px;color:#bbb;padding:8px 0}
+.tpl-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
+.tpl-btn{font-size:11px;padding:5px 11px;border:1px solid #185FA5;color:#185FA5;background:#fff;border-radius:14px;cursor:pointer}
+.tpl-btn:hover{background:#E6F1FB}
+.followup-box{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.followup-box .fi{flex:1;min-width:160px;margin-bottom:0}
+/* Loading / toast */
+.ls{position:fixed;inset:0;background:#f5f5f3;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:12px}
+.ls.hide{display:none}
+.spin{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#854F0B;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="ls" id="ls"><div class="spin"></div><div style="font-size:14px;color:#888">Loading…</div></div>
+
+<div class="app">
+  <div class="topbar">
+    <h1>&#128276; Service Renewals &amp; Quoting</h1>
+    <span class="staff-name" id="staffName"></span>
+    <span class="conn syncing" id="connBadge">Connecting…</span>
+    <a href="https://aarkoh.github.io/Raycontrol/" class="back">&#8962; Hub</a>
+  </div>
+
+  <div class="sum-grid">
+    <div class="sc a"><div class="sv a" id="sToSend">—</div><div class="sl-lbl">Quotes To Send</div></div>
+    <div class="sc b"><div class="sv b" id="sAwaiting">—</div><div class="sl-lbl">Awaiting Reply</div></div>
+    <div class="sc g"><div class="sv g" id="sDue90">—</div><div class="sl-lbl">Due ≤90 Days</div></div>
+    <div class="sc r"><div class="sv r" id="sOverdue">—</div><div class="sl-lbl">Overdue</div></div>
+  </div>
+
+  <div class="act-banner" id="actBanner"></div>
+
+  <div class="toolbar">
+    <input type="text" id="srch" placeholder="Search vessel, client, service, system…" oninput="render()">
+    <button class="bg" onclick="openAdd()">+ Add Service Line</button>
+  </div>
+  <div class="chips" id="filtChips"></div>
+
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th>Vessel</th>
+          <th>Client</th>
+          <th>Service</th>
+          <th>Last Done</th>
+          <th>Next Due</th>
+          <th>Quote Window</th>
+          <th>Pipeline</th>
+          <th style="text-align:center">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="srBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="hint" id="rcLbl" style="margin-top:6px"></div>
+</div>
+
+<!-- Service Line Modal -->
+<div class="mbg" id="srModal">
+  <div class="modal">
+    <h2 id="srTitle">&#128276; Add Service Line</h2>
+
+    <div class="section-title">Quick presets</div>
+    <div class="preset-row" id="presetRow"></div>
+
+    <div class="fr3">
+      <div class="fi"><label>Vessel *</label><input type="text" id="f_vessel" placeholder="e.g. MV Pacific Star"></div>
+      <div class="fi"><label>IMO No.</label><input type="text" id="f_imo" placeholder="optional"></div>
+      <div class="fi"><label>Linked Job Ref</label><input type="text" id="f_jobref" list="jobList" placeholder="optional"><datalist id="jobList"></datalist></div>
+    </div>
+    <div class="fr3">
+      <div class="fi"><label>Client *</label><input type="text" id="f_client" list="clientList" placeholder="Owner / Manager"><datalist id="clientList"></datalist></div>
+      <div class="fi"><label>Contact</label><input type="text" id="f_contact" placeholder="Superintendent"></div>
+      <div class="fi"><label>Client Email</label><input type="email" id="f_email" placeholder="for quote emails"></div>
+    </div>
+
+    <div class="section-title" style="margin-top:1rem">Service &amp; Recurrence</div>
+    <div class="fr2">
+      <div class="fi"><label>Service Type *</label><input type="text" id="f_service" list="svcList" placeholder="e.g. Gas Detection Annual Recert"><datalist id="svcList"></datalist></div>
+      <div class="fi"><label>System / Equipment</label><input type="text" id="f_system" placeholder="e.g. Hanla IMS Fixed Gas Detection"></div>
+    </div>
+    <div class="fr3">
+      <div class="fi"><label>Last Serviced *</label><input type="date" id="f_last" onchange="recompute()"></div>
+      <div class="fi"><label>Interval (months)</label><input type="number" id="f_interval" min="1" step="1" placeholder="12" onchange="recompute()" oninput="recompute()"></div>
+      <div class="fi"><label>Next Due <span class="mini-link" onclick="recompute(true)">↻ from interval</span></label><input type="date" id="f_next"></div>
+    </div>
+    <div class="fr2">
+      <div class="fi"><label>Quote Lead Time (days before due)</label><input type="number" id="f_lead" min="0" step="1" placeholder="90"><div class="hint">How far ahead the line flags as “Send quote now”. Dry-dock ~120d, annual gas detection ~60d.</div></div>
+      <div class="fi"><label>Pipeline Status</label><select id="f_qstatus"></select></div>
+    </div>
+
+    <div class="section-title" style="margin-top:1rem">Quotation (optional)</div>
+    <div class="fr3">
+      <div class="fi"><label>Quote Ref</label><input type="text" id="f_qref" placeholder="e.g. Q-2026-118"></div>
+      <div class="fi"><label>Quote Sent</label><input type="date" id="f_qsent"></div>
+      <div class="fi"><label>Quote Value</label><input type="number" id="f_qvalue" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="fi"><label>Notes</label><textarea id="f_notes" placeholder="Internal notes…"></textarea></div>
+
+    <div class="modal-footer">
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button onclick="closeModal()">Cancel</button>
+        <button class="bg" onclick="saveLine()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comms Modal -->
+<div class="mbg" id="commsModal">
+  <div class="modal" style="max-width:680px">
+    <h2 id="commsTitle">&#9993; Communication Log</h2>
+
+    <div class="followup-box section">
+      <div class="fi"><label>Next Follow-Up Date</label><input type="date" id="c_followup"></div>
+      <button class="bg bsm" onclick="saveFollowUp()">Set Reminder</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Proactive Email Templates</div>
+      <div class="hint" id="c_noemail" style="display:none">No client email on file — add one in the service line to enable templates.</div>
+      <div class="tpl-row" id="tplRow"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Log an Entry</div>
+      <div class="fr3">
+        <div class="fi"><label>Date</label><input type="date" id="c_date"></div>
+        <div class="fi"><label>Channel</label><select id="c_channel"><option>Email</option><option>Call</option><option>Meeting</option><option>WhatsApp</option><option>Site Visit</option><option>Other</option></select></div>
+        <div class="fi"><label>Direction</label><select id="c_dir"><option value="out">To client</option><option value="in">From client</option></select></div>
+      </div>
+      <div class="fi"><label>Contact Person</label><input type="text" id="c_contact" placeholder="Who you spoke with"></div>
+      <div class="fi"><label>Summary *</label><textarea id="c_summary" placeholder="What was discussed / agreed…"></textarea></div>
+      <button class="bg bsm" onclick="addCommsEntry()">+ Add to Log</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">History</div>
+      <div class="comms-list" id="commsList"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button onclick="closeComms()" style="margin-left:auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getDatabase,ref,onValue,push,update}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import{getAuth,signInAnonymously,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+const firebaseConfig={apiKey:"AIzaSyBOTxO07JoBnygdNhrZsCCnY33mUlm9oo4",authDomain:"attendance-20d6a.firebaseapp.com",databaseURL:"https://attendance-20d6a-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"attendance-20d6a",storageBucket:"attendance-20d6a.firebasestorage.app",messagingSenderId:"597668949951",appId:"1:597668949951:web:f7fcc8c3b4450f8f80bb0a"};
+const db=getDatabase(initializeApp(firebaseConfig));
+
+// ── Staff / manager access gate (matches the rest of the hub) ──
+const rcStaff=sessionStorage.getItem('rc_staff');
+const _mgrT=localStorage.getItem('rc_manager');
+const rcMgr=(_mgrT&&(Date.now()-parseInt(_mgrT))<28800000)?'1':null;
+if(!rcStaff&&!rcMgr){window.location.href='https://aarkoh.github.io/Raycontrol/';}
+const ACTOR=rcStaff||(rcMgr?'Manager':'Staff');
+document.getElementById('staffName').textContent=rcStaff?('Hi, '+rcStaff):'Manager';
+
+// ── Helpers ──
+const fmt=n=>Number(n||0).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const todayStr=()=>new Date().toISOString().slice(0,10);
+function daysTo(d){if(!d)return null;const a=new Date(todayStr()+'T00:00:00'),b=new Date(d+'T00:00:00');return Math.round((b-a)/86400000);}
+function addMonths(dStr,n){if(!dStr||!n)return'';const p=dStr.split('-').map(Number);const dt=new Date(p[0],p[1]-1+Number(n),p[2]);return dt.toISOString().slice(0,10);}
+function addDays(dStr,n){if(!dStr)return'';const dt=new Date(dStr+'T00:00:00');dt.setDate(dt.getDate()+Number(n));return dt.toISOString().slice(0,10);}
+
+const QSTATUS=[['monitoring','Monitoring'],['quoted','Quoted'],['awaiting','Awaiting reply'],['won','Won'],['lost','Lost'],['declined','Declined']];
+const qLabel=s=>(QSTATUS.find(x=>x[0]===s)||['','—'])[1];
+const OPEN=['monitoring','quoted','awaiting']; // still in play
+
+// Presets: [label, serviceType, system, intervalMonths, leadDays]
+const PRESETS=[
+  ['Gas Detection (annual)','Gas Detection Annual Recert','Hanla IMS Fixed Gas Detection',12,60],
+  ['Special Survey / Dry-Dock (5yr)','Special Survey / Dry-Docking','Hull & machinery',60,120],
+  ['Intermediate Survey (2.5yr)','Intermediate Survey','—',30,120],
+  ['Level Gauging service (annual)','Level Gauging Calibration','Hanla IMS Tank Level Gauging',12,60],
+  ['Valve Remote Control (2yr)','VRC System Service','Hanla IMS Valve Remote Control',24,90]
+];
+
+let lines={}, contacts={}, jobs={}, filt='action', editId=null, commsId=null;
+const expanded=new Set();
+function toast(msg,dur=2800){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+window.toggleExpand=function(id){expanded.has(id)?expanded.delete(id):expanded.add(id);render();};
+
+// ── Core: what action does this line need? ──
+function actionState(r){
+  const qs=r.quoteStatus||'monitoring';
+  if(qs==='won')return{key:'won',label:'Won',cls:'st-won',pri:9};
+  if(qs==='lost')return{key:'lost',label:'Lost',cls:'st-lost',pri:9};
+  if(qs==='declined')return{key:'declined',label:'Declined',cls:'st-declined',pri:9};
+  if(qs==='quoted'||qs==='awaiting')return{key:'awaiting',label:'Awaiting reply',cls:'st-awaiting',pri:3};
+  // monitoring — decide by due date + lead
+  const dueIn=daysTo(r.nextDue);const lead=Number(r.leadDays||90);
+  if(dueIn===null)return{key:'monitor',label:'Monitoring',cls:'st-monitor',pri:5};
+  if(dueIn<0)return{key:'overdue',label:'Overdue — quote now',cls:'st-overdue',pri:1};
+  if(dueIn<=lead)return{key:'sendnow',label:'Send quote now',cls:'st-sendnow',pri:2};
+  return{key:'monitor',label:'Monitoring',cls:'st-monitor',pri:5};
+}
+function windowCell(r){
+  const st=actionState(r);
+  if(st.key==='sendnow'||st.key==='overdue')return '<span class="st '+st.cls+'">'+esc(st.label)+'</span>';
+  if(st.key==='awaiting')return '<span class="sub">quoted '+fmtD(r.quoteSent)+'</span>';
+  if(!OPEN.includes(r.quoteStatus||'monitoring'))return '<span class="sub">—</span>';
+  // monitoring: when does the window open?
+  const opens=addDays(r.nextDue,-(Number(r.leadDays||90)));
+  const d=daysTo(opens);
+  if(d===null)return '<span class="sub">set due date</span>';
+  return '<span class="sub">opens '+fmtD(opens)+(d>0?' ('+d+'d)':'')+'</span>';
+}
+
+// ── Filter chips ──
+window.setFilt=function(f,el){filt=f;document.querySelectorAll('#filtChips .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');render();};
+function buildChips(){
+  const defs=[['action','Needs Action'],['all','All'],['monitoring','Monitoring'],['awaiting','Awaiting'],['won','Won'],['lost','Lost / Declined']];
+  document.getElementById('filtChips').innerHTML=defs.map(d=>'<div class="chip'+(filt===d[0]?' on':'')+'" onclick="setFilt(\''+d[0]+'\',this)">'+esc(d[1])+'</div>').join('');
+}
+
+// ── Action banner ──
+function buildBanner(){
+  const items=[];
+  Object.entries(lines).forEach(([id,r])=>{
+    const st=actionState(r);
+    if(st.key==='overdue')items.push({id,r,badge:'over',txt:'OVERDUE',note:'due '+fmtD(r.nextDue),pri:1});
+    else if(st.key==='sendnow')items.push({id,r,badge:'send',txt:'SEND QUOTE',note:'due '+fmtD(r.nextDue)+' ('+daysTo(r.nextDue)+'d)',pri:2});
+    const f=daysTo(r.nextFollowUp);
+    if(r.nextFollowUp&&f!==null&&f<=0&&OPEN.includes(r.quoteStatus||'monitoring'))items.push({id,r,badge:'fu',txt:'FOLLOW-UP',note:'set '+fmtD(r.nextFollowUp),pri:2});
+  });
+  items.sort((a,b)=>a.pri-b.pri);
+  const b=document.getElementById('actBanner');
+  if(!items.length){b.classList.remove('show');return;}
+  b.innerHTML='<h3>&#128226; '+items.length+' proactive action'+(items.length>1?'s':'')+' to take</h3>'
+    +items.map(x=>'<div class="act-row"><span class="act-badge '+x.badge+'">'+x.txt+'</span>'
+      +'<strong>'+esc(x.r.vessel)+'</strong> &middot; '+esc(x.r.service||'')+' <span class="sub">'+esc(x.r.client||'')+' — '+x.note+'</span>'
+      +'<span class="go" onclick="openComms(\''+x.id+'\')">Open &amp; quote &rarr;</span></div>').join('');
+  b.classList.add('show');
+}
+
+// ── Render ──
+window.render=function(){
+  buildChips();buildBanner();
+  const q=(document.getElementById('srch').value||'').trim().toLowerCase();
+  let list=Object.entries(lines);
+  // summary
+  let toSend=0,awaiting=0,due90=0,overdue=0;
+  list.forEach(([,r])=>{const st=actionState(r);
+    if(st.key==='sendnow'||st.key==='overdue')toSend++;
+    if(st.key==='overdue')overdue++;
+    if(st.key==='awaiting')awaiting++;
+    const d=daysTo(r.nextDue);if(OPEN.includes(r.quoteStatus||'monitoring')&&d!==null&&d>=0&&d<=90)due90++;
+  });
+  document.getElementById('sToSend').textContent=toSend;
+  document.getElementById('sAwaiting').textContent=awaiting;
+  document.getElementById('sDue90').textContent=due90;
+  document.getElementById('sOverdue').textContent=overdue;
+
+  list=list.filter(([,r])=>{
+    const st=actionState(r);
+    if(filt==='action'){if(!['overdue','sendnow'].includes(st.key)&&!(r.nextFollowUp&&daysTo(r.nextFollowUp)<=0&&OPEN.includes(r.quoteStatus||'monitoring')))return false;}
+    else if(filt==='monitoring'){if((r.quoteStatus||'monitoring')!=='monitoring')return false;}
+    else if(filt==='awaiting'){if(st.key!=='awaiting')return false;}
+    else if(filt==='won'){if(r.quoteStatus!=='won')return false;}
+    else if(filt==='lost'){if(r.quoteStatus!=='lost'&&r.quoteStatus!=='declined')return false;}
+    if(q){const hay=[r.vessel,r.imo,r.client,r.service,r.system,r.contact,r.jobRef].filter(Boolean).join(' ').toLowerCase();if(!hay.includes(q))return false;}
+    return true;
+  });
+  // sort by action priority then soonest due
+  list.sort((a,b)=>{const pa=actionState(a[1]).pri,pb=actionState(b[1]).pri;if(pa!==pb)return pa-pb;
+    const da=daysTo(a[1].nextDue),db2=daysTo(b[1].nextDue);if(da!==null&&db2!==null)return da-db2;if(da!==null)return -1;if(db2!==null)return 1;return 0;});
+
+  const tb=document.getElementById('srBody');
+  if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty">Nothing in this view.</td></tr>';document.getElementById('rcLbl').textContent='';return;}
+  tb.innerHTML=list.map(([id,r])=>{
+    const st=actionState(r);const dueIn=daysTo(r.nextDue);
+    const dueCls=dueIn===null?'due-norm':dueIn<0?'due-over':dueIn<=90?'due-soon':'due-norm';
+    let html='<tr class="row-main" onclick="toggleExpand(\''+id+'\')">'
+      +'<td><div class="vessel-name">'+esc(r.vessel||'—')+'</div>'+(r.imo?'<div class="sub">IMO '+esc(r.imo)+'</div>':'')+'</td>'
+      +'<td>'+esc(r.client||'—')+(r.contact?'<div class="sub">'+esc(r.contact)+'</div>':'')+'</td>'
+      +'<td>'+esc(r.service||'—')+(r.intervalMonths?'<div class="sub">every '+esc(r.intervalMonths)+' mo</div>':'')+'</td>'
+      +'<td>'+fmtD(r.lastServiced)+'</td>'
+      +'<td class="'+dueCls+'">'+fmtD(r.nextDue)+(dueIn!==null?'<div class="sub '+dueCls+'">'+(dueIn<0?Math.abs(dueIn)+'d ago':'in '+dueIn+'d')+'</div>':'')+'</td>'
+      +'<td>'+windowCell(r)+'</td>'
+      +'<td><span class="st '+st.cls+'">'+esc(st.label)+'</span></td>'
+      +'<td onclick="event.stopPropagation()"><div class="act">'
+        +'<button class="bsm btn-comms" onclick="openComms(\''+id+'\')">&#9993; Quote/Log'+((r.comms&&r.comms.length)?' ('+r.comms.length+')':'')+'</button>'
+        +'<button class="bsm btn-renew" onclick="markServiced(\''+id+'\')">&#10227; Serviced</button>'
+        +'<button class="bsm btn-edit" onclick="openEdit(\''+id+'\')">Edit</button>'
+      +'</div></td></tr>';
+    if(expanded.has(id)){
+      html+='<tr class="detail-row"><td colspan="8"><div class="detail-inner"><div class="detail-grid">'
+        +cell('System',r.system)+cell('Interval',r.intervalMonths?r.intervalMonths+' months':'—')
+        +cell('Lead time',(r.leadDays||90)+' days')+cell('Quote Ref',r.qRef)
+        +cell('Quote Sent',fmtD(r.quoteSent))+cell('Quote Value',r.qValue?(r.currency||'SGD')+' '+fmt(r.qValue):'—')
+        +cell('Job Ref',r.jobRef)+cell('Next Follow-Up',fmtD(r.nextFollowUp))
+        +'</div>'
+        +(r.notes?'<div class="detail-k">Notes</div><div class="detail-v" style="margin-bottom:8px">'+esc(r.notes)+'</div>':'')
+        +(r.history&&r.history.length?'<div class="detail-k">Service History</div><div class="detail-v">'+r.history.slice().reverse().map(h=>fmtD(h.date)+(h.note?' — '+esc(h.note):'')).join('<br>')+'</div>':'')
+        +'</div></td></tr>';
+    }
+    return html;
+  }).join('');
+  document.getElementById('rcLbl').textContent=list.length+' line'+(list.length===1?'':'s')+' shown';
+};
+function cell(k,v){return '<div><div class="detail-k">'+esc(k)+'</div><div class="detail-v">'+esc(v||'—')+'</div></div>';}
+
+// ── Modal ──
+function fillSelects(){
+  document.getElementById('f_qstatus').innerHTML=QSTATUS.map(s=>'<option value="'+s[0]+'">'+esc(s[1])+'</option>').join('');
+  document.getElementById('presetRow').innerHTML=PRESETS.map((p,i)=>'<span class="preset-btn" onclick="applyPreset('+i+')">'+esc(p[0])+'</span>').join('');
+  document.getElementById('svcList').innerHTML=[...new Set(PRESETS.map(p=>p[1]))].map(s=>'<option value="'+esc(s)+'">').join('');
+}
+window.applyPreset=function(i){const p=PRESETS[i];
+  document.getElementById('f_service').value=p[1];
+  if(!document.getElementById('f_system').value)document.getElementById('f_system').value=p[2]==='—'?'':p[2];
+  document.getElementById('f_interval').value=p[3];
+  document.getElementById('f_lead').value=p[4];
+  recompute(true);
+};
+window.recompute=function(force){
+  const last=document.getElementById('f_last').value;const iv=document.getElementById('f_interval').value;
+  const nx=document.getElementById('f_next');
+  if(last&&iv&&(force||!nx.value))nx.value=addMonths(last,iv);
+};
+function setVal(id,v){document.getElementById(id).value=v==null?'':v;}
+window.openAdd=function(){
+  editId=null;document.getElementById('srTitle').innerHTML='&#128276; Add Service Line';
+  ['f_vessel','f_imo','f_jobref','f_client','f_contact','f_email','f_service','f_system','f_last','f_interval','f_next','f_lead','f_qref','f_qsent','f_qvalue','f_notes'].forEach(i=>setVal(i,''));
+  document.getElementById('f_qstatus').value='monitoring';
+  document.getElementById('srModal').classList.add('show');
+};
+window.openEdit=function(id){
+  const r=lines[id];if(!r)return;editId=id;
+  document.getElementById('srTitle').innerHTML='&#9998; Edit Service Line';
+  setVal('f_vessel',r.vessel);setVal('f_imo',r.imo);setVal('f_jobref',r.jobRef);setVal('f_client',r.client);
+  setVal('f_contact',r.contact);setVal('f_email',r.clientEmail);setVal('f_service',r.service);setVal('f_system',r.system);
+  setVal('f_last',r.lastServiced);setVal('f_interval',r.intervalMonths);setVal('f_next',r.nextDue);setVal('f_lead',r.leadDays);
+  document.getElementById('f_qstatus').value=r.quoteStatus||'monitoring';
+  setVal('f_qref',r.qRef);setVal('f_qsent',r.quoteSent);setVal('f_qvalue',r.qValue);setVal('f_notes',r.notes);
+  document.getElementById('srModal').classList.add('show');
+};
+window.closeModal=function(){document.getElementById('srModal').classList.remove('show');editId=null;};
+
+window.saveLine=async function(){
+  const vessel=document.getElementById('f_vessel').value.trim();
+  const service=document.getElementById('f_service').value.trim();
+  if(!vessel){toast('Enter a vessel');return;}
+  if(!service){toast('Enter a service type');return;}
+  const v=id=>document.getElementById(id).value.trim();
+  const data={
+    vessel,imo:v('f_imo'),jobRef:v('f_jobref'),client:v('f_client'),contact:v('f_contact'),clientEmail:v('f_email'),
+    service,system:v('f_system'),lastServiced:document.getElementById('f_last').value,
+    intervalMonths:parseInt(v('f_interval'))||0,nextDue:document.getElementById('f_next').value,
+    leadDays:parseInt(v('f_lead'))||90,quoteStatus:document.getElementById('f_qstatus').value,
+    qRef:v('f_qref'),quoteSent:document.getElementById('f_qsent').value,qValue:parseFloat(v('f_qvalue'))||0,
+    currency:'SGD',notes:v('f_notes'),updatedAt:new Date().toISOString()
+  };
+  try{
+    if(editId){await update(ref(db,'serviceRenewals/'+editId),data);toast('Saved \u2713');}
+    else{data.createdAt=new Date().toISOString();data.createdBy=ACTOR;data.comms=[];data.history=[];await push(ref(db,'serviceRenewals'),data);toast('Service line added \u2713');}
+    closeModal();
+  }catch(e){toast('Error: '+e.message);}
+};
+
+// ── Recurrence engine: mark serviced rolls the date forward ──
+window.markServiced=async function(id){
+  const r=lines[id];if(!r)return;
+  const iv=Number(r.intervalMonths||0);
+  if(!iv){toast('Set an interval (months) first via Edit');return;}
+  const date=todayStr();
+  const next=addMonths(date,iv);
+  if(!confirm('Record "'+(r.service||'service')+'" for '+r.vessel+' as completed on '+fmtD(date)+'?\n\nNext due will roll forward to '+fmtD(next)+' ('+iv+' months), and the pipeline resets to Monitoring so it will prompt you to quote again ahead of that date.'))return;
+  const hist=(r.history||[]).slice();hist.push({date,note:r.service||''});
+  try{
+    await update(ref(db,'serviceRenewals/'+id),{
+      lastServiced:date,nextDue:next,history:hist,
+      quoteStatus:'monitoring',quoteSent:'',qRef:'',qValue:0,nextFollowUp:'',
+      updatedAt:new Date().toISOString()
+    });
+    toast('Renewed \u2014 next due '+fmtD(next));
+  }catch(e){toast('Error: '+e.message);}
+};
+
+// ── Comms ──
+window.openComms=function(id){
+  const r=lines[id];if(!r)return;commsId=id;
+  document.getElementById('commsTitle').innerHTML='&#9993; '+esc(r.vessel)+' &mdash; '+esc(r.service||'')+' Quote/Log';
+  setVal('c_followup',r.nextFollowUp);setVal('c_date',todayStr());
+  document.getElementById('c_channel').value='Email';document.getElementById('c_dir').value='out';
+  setVal('c_contact',r.contact||'');setVal('c_summary','');
+  const noEmail=!r.clientEmail;
+  document.getElementById('c_noemail').style.display=noEmail?'block':'none';
+  document.getElementById('tplRow').innerHTML=noEmail?'':TEMPLATES.map((t,i)=>'<span class="tpl-btn" onclick="composeEmail('+i+')">'+esc(t.label)+'</span>').join('');
+  renderComms();
+  document.getElementById('commsModal').classList.add('show');
+  document.getElementById('srModal').classList.remove('show');
+};
+window.closeComms=function(){document.getElementById('commsModal').classList.remove('show');commsId=null;};
+function renderComms(){
+  const r=lines[commsId];const list=(r&&r.comms)||[];const el=document.getElementById('commsList');
+  if(!list.length){el.innerHTML='<div class="comms-empty">No communications logged yet.</div>';return;}
+  el.innerHTML=list.slice().reverse().map(c=>{const inc=c.dir==='in';
+    return '<div class="comms-item'+(inc?' in':'')+'"><div class="comms-meta"><span class="comms-ch'+(inc?' in':'')+'">'+esc(c.channel)+'</span>'
+      +'<span>'+(inc?'\u2190 from':'\u2192 to')+' client</span><span>'+fmtD(c.date)+'</span>'+(c.contact?'<span>'+esc(c.contact)+'</span>':'')+'</div>'
+      +'<div>'+esc(c.summary)+'</div></div>';}).join('');
+}
+window.addCommsEntry=async function(){
+  if(!commsId)return;const summary=document.getElementById('c_summary').value.trim();
+  if(!summary){toast('Enter a summary');return;}
+  const entry={date:document.getElementById('c_date').value||todayStr(),channel:document.getElementById('c_channel').value,
+    dir:document.getElementById('c_dir').value,contact:document.getElementById('c_contact').value.trim(),summary,by:ACTOR,ts:new Date().toISOString()};
+  const cur=(lines[commsId].comms||[]).slice();cur.push(entry);
+  // If logging an outbound quote, advance the pipeline automatically
+  const patch={comms:cur,updatedAt:new Date().toISOString()};
+  if(entry.dir==='out'&&/quot/i.test(summary)&&(lines[commsId].quoteStatus||'monitoring')==='monitoring'){
+    patch.quoteStatus='quoted';patch.quoteSent=entry.date;
+  }
+  try{await update(ref(db,'serviceRenewals/'+commsId),patch);document.getElementById('c_summary').value='';
+    toast(patch.quoteStatus?'Logged \u2014 pipeline moved to Quoted \u2713':'Logged \u2713');}catch(e){toast('Error: '+e.message);}
+};
+window.saveFollowUp=async function(){
+  if(!commsId)return;
+  try{await update(ref(db,'serviceRenewals/'+commsId),{nextFollowUp:document.getElementById('c_followup').value});toast('Reminder set \u2713');}catch(e){toast('Error: '+e.message);}
+};
+
+// ── Proactive email templates ──
+const TEMPLATES=[
+  {label:'Proactive quotation',subj:r=>'Upcoming '+r.service+' \u2014 '+r.vessel+' | Quotation for your consideration',
+   body:r=>'Dear '+(r.contact||'Sir/Madam')+',\n\nOur records indicate that '+r.vessel+'\u2019s '+(r.system||r.service)+' is due for '+r.service+' around '+fmtD(r.nextDue)+'. To help you plan and budget ahead, please find our quotation enclosed for your kind consideration.\n\nWe would be glad to reserve a service slot and align with your schedule. Should you require any adjustment to the scope, do let us know.\n\nBest regards,\nRaycontrol Engineering Pte Ltd\nAuthorised Hanla IMS distributor & service partner'},
+  {label:'Heads-up (no quote yet)',subj:r=>'Service Reminder \u2014 '+r.vessel+' '+r.service+' due '+fmtD(r.nextDue),
+   body:r=>'Dear '+(r.contact||'Sir/Madam')+',\n\nA friendly reminder that '+r.vessel+'\u2019s '+r.service+' is approaching its due date ('+fmtD(r.nextDue)+'). If helpful, we can prepare a quotation and reserve attendance to avoid any last-minute scheduling pressure.\n\nPlease let us know how you would like to proceed.\n\nBest regards,\nRaycontrol Engineering Pte Ltd'},
+  {label:'Quotation follow-up',subj:r=>'Follow-up: '+r.service+' Quotation \u2014 '+r.vessel,
+   body:r=>'Dear '+(r.contact||'Sir/Madam')+',\n\nFollowing our quotation'+(r.qRef?' ('+r.qRef+')':'')+' for '+r.vessel+'\u2019s '+r.service+', we wanted to check whether you have had the opportunity to review it. We are happy to revise the scope or arrange a call.\n\nBest regards,\nRaycontrol Engineering Pte Ltd'},
+  {label:'Booking confirmation',subj:r=>'Service Booking \u2014 '+r.vessel+' '+r.service,
+   body:r=>'Dear '+(r.contact||'Sir/Madam')+',\n\nThank you for your confirmation. We will proceed to schedule '+r.service+' for '+r.vessel+' and revert with attendance details and any pre-service requirements.\n\nBest regards,\nRaycontrol Engineering Pte Ltd'}
+];
+window.composeEmail=function(i){
+  const r=lines[commsId];if(!r)return;const t=TEMPLATES[i];
+  window.location.href='mailto:'+encodeURIComponent(r.clientEmail||'')+'?subject='+encodeURIComponent(t.subj(r))+'&body='+encodeURIComponent(t.body(r));
+  document.getElementById('c_channel').value='Email';document.getElementById('c_dir').value='out';
+  document.getElementById('c_date').value=todayStr();document.getElementById('c_summary').value=t.label+' sent';
+  toast('Email drafted \u2014 click \u201c+ Add to Log\u201d to record it');
+};
+
+// ── Firebase ──
+const badge=document.getElementById('connBadge');
+const auth=getAuth();
+signInAnonymously(auth).catch(e=>console.error('Auth error:',e));
+onAuthStateChanged(auth,user=>{
+  if(!user)return;
+  onValue(ref(db,'.info/connected'),snap=>{badge.textContent=snap.val()?'Online':'Offline';badge.className='conn '+(snap.val()?'online':'offline');});
+  onValue(ref(db,'contacts'),snap=>{contacts=snap.exists()?(snap.val()||{}):{};
+    const names=[...new Set(Object.values(contacts).map(c=>c&&(c.company||c.name)).filter(Boolean))].sort();
+    document.getElementById('clientList').innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join('');});
+  onValue(ref(db,'jobs'),snap=>{jobs=snap.exists()?(snap.val()||{}):{};
+    const refs=[...new Set(Object.values(jobs).map(j=>j&&j.ref).filter(Boolean))].sort();
+    document.getElementById('jobList').innerHTML=refs.map(r=>'<option value="'+esc(r)+'">').join('');});
+  onValue(ref(db,'serviceRenewals'),snap=>{lines=snap.exists()?(snap.val()||{}):{};
+    if(commsId&&lines[commsId])renderComms();render();document.getElementById('ls').classList.add('hide');});
+});
+fillSelects();
+setTimeout(()=>document.getElementById('ls').classList.add('hide'),8000);
+</script>
+</body>
+</html>
