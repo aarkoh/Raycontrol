@@ -66,6 +66,25 @@ input[readonly]{background:#f9fafb;color:#6b7280}
 .toast.show{opacity:1}
 .action-btns{display:flex;gap:6px}
 .voucher-no{font-weight:700;color:#1e3a5f;cursor:pointer;text-decoration:underline}
+.bal-body{padding:16px 18px}
+.bal-line{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:14px;border-bottom:1px dashed #eef0f2}
+.bal-line:last-child{border-bottom:none}
+.bal-line .lbl{color:#4b5563}
+.bal-line .val{font-variant-numeric:tabular-nums;font-weight:600;color:#1f2937}
+.bal-line.total{border-top:2px solid #1e3a5f;margin-top:4px;padding-top:10px;border-bottom:none}
+.bal-line.total .lbl{font-weight:700;color:#1e3a5f}
+.bal-line.total .val{font-size:18px}
+.bal-pos{color:#15803d}.bal-neg{color:#dc2626}
+.bal-settings{border-top:1px solid #f1f3f5;padding:10px 18px 14px}
+.bal-settings summary{cursor:pointer;font-size:12px;color:#6b7280;font-weight:600;user-select:none}
+.bal-set-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;margin-top:12px;align-items:end}
+.bal-set-grid label{font-size:11px}
+.bal-hint{font-size:11px;color:#9ca3af;margin-top:8px;line-height:1.5}
+.bal-allrow{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #f1f3f5}
+.bal-allrow span{flex:1;text-align:right;font-variant-numeric:tabular-nums}
+.bal-allrow span:first-child{text-align:left}
+.bal-allrow.head{font-weight:600;color:#6b7280;text-transform:uppercase;font-size:11px}
+@media(max-width:600px){.bal-set-grid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -80,6 +99,23 @@ input[readonly]{background:#f9fafb;color:#6b7280}
 </header>
 
 <div class="main">
+  <div class="card" id="balCard">
+    <div class="card-header">
+      <h2>&#128181; Monthly Petty Cash Balance</h2>
+      <select id="monthSel" onchange="window.onMonthChange()" style="width:auto;min-width:140px;padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:500"></select>
+    </div>
+    <div class="bal-body" id="balBody"></div>
+    <details class="bal-settings">
+      <summary>&#9881;&#65039; Fund settings</summary>
+      <div class="bal-set-grid">
+        <div><label>Monthly top-up (S$)</label><input type="number" step="0.01" min="0" id="cfgTopUp" placeholder="550.00"></div>
+        <div><label>Opening carry-over (S$)</label><input type="number" step="0.01" id="cfgSeed" placeholder="0.00"></div>
+        <div><label>Carry-over applies from</label><input type="month" id="cfgSeedMonth"></div>
+        <div><button class="btn btn-green" onclick="window.saveSettings()">Save</button></div>
+      </div>
+      <div class="bal-hint">Opening balance each month = previous month&#39;s closing balance + the monthly top-up. The opening carry-over is the cash left over before you started tracking here &mdash; set it once, on the month you begin.</div>
+    </details>
+  </div>
   <div class="card">
     <div class="card-header">
       <h2>All Vouchers</h2>
@@ -213,6 +249,8 @@ window.addLineItem=function(){};
 window.renderList=function(){};
 window.liChange=function(){};
 window.removeLI=function(){};
+window.onMonthChange=function(){};
+window.saveSettings=function(){};
 </script>
 
 <script type="module">
@@ -236,7 +274,7 @@ const auth=getAuth();
 signInAnonymously(auth).catch(console.error);
 
 /* ── State ── */
-let vouchers={}, staffList=[], editId=null, lineItems=[];
+let vouchers={}, staffList=[], editId=null, lineItems=[], pettyCfg={}, selMonth='';
 
 /* ── Helpers ── */
 function todayStr(){return new Date().toISOString().slice(0,10);}
@@ -278,10 +316,92 @@ function nextVoucherNo(){
   return String(max+1);
 }
 
+/* ── Monthly balance engine ── */
+function monthKey(ts){const d=new Date(ts||Date.now());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function monthLabel(k){const p=(k||'').split('-');if(p.length<2)return k||'';return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-SG',{month:'short',year:'numeric'});}
+function computeBalances(){
+  const topUp = pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550;
+  const seedCarry = parseFloat(pettyCfg.seedCarry)||0;
+  const curK = monthKey(Date.now());
+  const spent={};
+  Object.values(vouchers).forEach(v=>{
+    const k=monthKey(v.createdAt);
+    const amt=(v.lineItems||[]).reduce((s,r)=>s+(parseFloat(r.total)||0),0);
+    spent[k]=(spent[k]||0)+amt;
+  });
+  const months=new Set(Object.keys(spent)); months.add(curK);
+  if(pettyCfg.seedMonth) months.add(pettyCfg.seedMonth);
+  const sortedAll=[...months].sort();
+  if(!sortedAll.length) return {ordered:[],byKey:{}};
+  const start = pettyCfg.seedMonth || sortedAll[0];
+  const end = sortedAll[sortedAll.length-1];
+  const byKey={}, ordered=[];
+  let yr=Number(start.split('-')[0]), mo=Number(start.split('-')[1]);
+  const ey=Number(end.split('-')[0]), em=Number(end.split('-')[1]);
+  let carry=0, first=true, guard=0;
+  while((yr<ey||(yr===ey&&mo<=em)) && guard<600){
+    const k=yr+'-'+String(mo).padStart(2,'0');
+    const carryIn = first?seedCarry:carry;
+    const opening = topUp+carryIn;
+    const sp = spent[k]||0;
+    const closing = opening-sp;
+    const row={key:k,carryIn,topUp,opening,spent:sp,closing};
+    byKey[k]=row; ordered.push(row);
+    carry=closing; first=false;
+    mo++; if(mo>12){mo=1;yr++;} guard++;
+  }
+  return {ordered,byKey};
+}
+function populateMonthSelect(b){
+  const sel=document.getElementById('monthSel'); if(!sel)return;
+  const keys=b.ordered.map(r=>r.key);
+  const curK=monthKey(Date.now());
+  if(!selMonth) selMonth = keys.includes(curK)?curK:(keys[keys.length-1]||curK);
+  if(selMonth!=='all' && !b.byKey[selMonth] && keys.length) selMonth=keys[keys.length-1];
+  let h=''; keys.slice().reverse().forEach(k=>{h+='<option value="'+k+'">'+monthLabel(k)+'</option>';});
+  h+='<option value="all">All months</option>';
+  sel.innerHTML=h; sel.value=selMonth;
+}
+function renderBalance(b){
+  const body=document.getElementById('balBody'); if(!body)return;
+  if(selMonth==='all'){
+    if(!b.ordered.length){body.innerHTML='<div class="bal-hint" style="padding:14px 0">No data yet.</div>';return;}
+    let h='<div class="bal-allrow head"><span>Month</span><span>Opening</span><span>Spent</span><span>Closing</span></div>';
+    b.ordered.slice().reverse().forEach(r=>{h+='<div class="bal-allrow"><span>'+monthLabel(r.key)+'</span><span>'+fmt(r.opening)+'</span><span>'+fmt(r.spent)+'</span><span class="'+(r.closing<0?'bal-neg':'bal-pos')+'">'+fmt(r.closing)+'</span></div>';});
+    body.innerHTML=h; return;
+  }
+  const r=b.byKey[selMonth];
+  if(!r){body.innerHTML='<div class="bal-hint" style="padding:14px 0">No activity for this month.</div>';return;}
+  body.innerHTML=
+     '<div class="bal-line"><span class="lbl">Carry-over from previous month</span><span class="val">S$ '+fmt(r.carryIn)+'</span></div>'
+    +'<div class="bal-line"><span class="lbl">+ Monthly top-up</span><span class="val">S$ '+fmt(r.topUp)+'</span></div>'
+    +'<div class="bal-line"><span class="lbl">= Opening balance</span><span class="val">S$ '+fmt(r.opening)+'</span></div>'
+    +'<div class="bal-line"><span class="lbl">\u2212 Spent this month</span><span class="val bal-neg">S$ '+fmt(r.spent)+'</span></div>'
+    +'<div class="bal-line total"><span class="lbl">Closing balance carried forward</span><span class="val '+(r.closing<0?'bal-neg':'bal-pos')+'">S$ '+fmt(r.closing)+'</span></div>';
+}
+window.onMonthChange=function(){selMonth=document.getElementById('monthSel').value;window.renderList();};
+window.saveSettings=function(){
+  const t=parseFloat(document.getElementById('cfgTopUp').value);
+  const sd=parseFloat(document.getElementById('cfgSeed').value);
+  const sm=document.getElementById('cfgSeedMonth').value||'';
+  update(ref(db,'config/pettyCash'),{monthlyTopUp:isNaN(t)?550:t,seedCarry:isNaN(sd)?0:sd,seedMonth:sm}).then(()=>toast('Fund settings saved.'));
+};
+onValue(ref(db,'config/pettyCash'),snap=>{
+  pettyCfg=snap.exists()?(snap.val()||{}):{};
+  const t=document.getElementById('cfgTopUp'); if(t&&document.activeElement!==t)t.value=pettyCfg.monthlyTopUp!=null?pettyCfg.monthlyTopUp:550;
+  const sd=document.getElementById('cfgSeed'); if(sd&&document.activeElement!==sd)sd.value=pettyCfg.seedCarry!=null?pettyCfg.seedCarry:'';
+  const mm=document.getElementById('cfgSeedMonth'); if(mm&&document.activeElement!==mm)mm.value=pettyCfg.seedMonth||'';
+  window.renderList();
+});
+
 /* ── Render list ── */
 window.renderList=function(){
+  const balances=computeBalances();
+  populateMonthSelect(balances);
+  renderBalance(balances);
   const q=(document.getElementById('srch').value||'').toLowerCase();
-  const arr=Object.values(vouchers).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  let arr=Object.values(vouchers).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(selMonth&&selMonth!=='all') arr=arr.filter(v=>monthKey(v.createdAt)===selMonth);
   const filtered=arr.filter(v=>{
     if(!q)return true;
     return (v.voucherNo||'').toLowerCase().includes(q)
@@ -292,7 +412,7 @@ window.renderList=function(){
   const tbody=document.getElementById('tbody');
   tbody.innerHTML='';
   document.getElementById('nodata').style.display=filtered.length?'none':'block';
-  document.getElementById('vcount').textContent=arr.length+' voucher'+(arr.length!==1?'s':'');
+  document.getElementById('vcount').textContent=arr.length+' voucher'+(arr.length!==1?'s':'')+((selMonth&&selMonth!=='all')?(' \u00b7 '+monthLabel(selMonth)):'');
   filtered.forEach(v=>{
     const li=v.lineItems||[];
     const chequeAmt=li.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
