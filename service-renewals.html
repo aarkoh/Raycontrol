@@ -176,7 +176,7 @@ button:hover{background:#f0f0ee}
     <div class="fr3">
       <div class="fi"><label>Client *</label><input type="text" id="f_client" list="clientList" placeholder="Owner / Manager"><datalist id="clientList"></datalist></div>
       <div class="fi"><label>Contact</label><input type="text" id="f_contact" placeholder="Superintendent"></div>
-      <div class="fi"><label>Client Email</label><input type="email" id="f_email" placeholder="for quote emails"></div>
+      <div class="fi"><label>Client Email(s)</label><textarea id="f_email" rows="2" placeholder="One per line or comma-separated" style="resize:vertical;font-size:13px;font-family:inherit"></textarea></div>
     </div>
 
     <div class="section-title" style="margin-top:1rem">Service &amp; Recurrence</div>
@@ -301,11 +301,12 @@ function actionState(r){
   if(qs==='won')return{key:'won',label:'Won',cls:'st-won',pri:9};
   if(qs==='lost')return{key:'lost',label:'Lost',cls:'st-lost',pri:9};
   if(qs==='declined')return{key:'declined',label:'Declined',cls:'st-declined',pri:9};
+  // Check overdue FIRST — even if awaiting/quoted, a past-due vessel needs action
+  const dueIn=daysTo(r.nextDue);const lead=Number(r.leadDays||90);
+  if(dueIn!==null&&dueIn<0)return{key:'overdue',label:'Overdue — follow up now',cls:'st-overdue',pri:1};
   if(qs==='quoted'||qs==='awaiting')return{key:'awaiting',label:'Awaiting reply',cls:'st-awaiting',pri:3};
   // monitoring — decide by due date + lead
-  const dueIn=daysTo(r.nextDue);const lead=Number(r.leadDays||90);
   if(dueIn===null)return{key:'monitor',label:'Monitoring',cls:'st-monitor',pri:5};
-  if(dueIn<0)return{key:'overdue',label:'Overdue — quote now',cls:'st-overdue',pri:1};
   if(dueIn<=lead)return{key:'sendnow',label:'Send quote now',cls:'st-sendnow',pri:2};
   return{key:'monitor',label:'Monitoring',cls:'st-monitor',pri:5};
 }
@@ -505,7 +506,7 @@ window.openComms=function(id){
   setVal('c_followup',r.nextFollowUp);setVal('c_date',todayStr());
   document.getElementById('c_channel').value='Email';document.getElementById('c_dir').value='out';
   setVal('c_contact',r.contact||'');setVal('c_summary','');
-  const noEmail=!r.clientEmail;
+  const noEmail=parseEmails(r.clientEmail).length===0;
   document.getElementById('c_noemail').style.display=noEmail?'block':'none';
   document.getElementById('tplRow').innerHTML=noEmail?'':TEMPLATES.map((t,i)=>'<span class="tpl-btn" onclick="composeEmail('+i+')">'+esc(t.label)+'</span>').join('');
   renderComms();
@@ -551,9 +552,11 @@ const TEMPLATES=[
   {label:'Booking confirmation',subj:r=>'Service Booking \u2014 '+r.vessel+' '+r.service,
    body:r=>'Dear '+(r.contact||'Sir/Madam')+',\n\nThank you for your confirmation. We will proceed to schedule '+r.service+' for '+r.vessel+' and revert with attendance details and any pre-service requirements.\n\nBest regards,\nRaycontrol Engineering Pte Ltd'}
 ];
+function parseEmails(raw){return(raw||'').split(/[\n,;]+/).map(e=>e.trim()).filter(Boolean);}
 window.composeEmail=function(i){
   const r=lines[commsId];if(!r)return;const t=TEMPLATES[i];
-  window.location.href='mailto:'+encodeURIComponent(r.clientEmail||'')+'?subject='+encodeURIComponent(t.subj(r))+'&body='+encodeURIComponent(t.body(r));
+  const to=parseEmails(r.clientEmail).join(',');
+  window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(t.subj(r))+'&body='+encodeURIComponent(t.body(r));
   document.getElementById('c_channel').value='Email';document.getElementById('c_dir').value='out';
   document.getElementById('c_date').value=todayStr();document.getElementById('c_summary').value=t.label+' sent';
   toast('Email drafted \u2014 click \u201c+ Add to Log\u201d to record it');
