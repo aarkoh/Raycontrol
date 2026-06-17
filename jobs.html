@@ -2764,10 +2764,11 @@ window.generateCIPL = function() {
     var cb=document.getElementById('cipl_ic_'+i);
     if(!cb||!cb.checked)return;
     var ch=it.children||[];
-    var selCh=ch.filter(function(c,ci){
-      var scb=document.getElementById('cipl_ic_'+i+'_'+ci);
+    var selCh=ch.map(function(c,ci){return {c:c,ci:ci};}).filter(function(o){
+      var scb=document.getElementById('cipl_ic_'+i+'_'+o.ci);
       return !scb||scb.checked;
-    }).map(function(c,ci){
+    }).map(function(o){
+      var c=o.c,ci=o.ci;
       // Use CIPL-specific price if provided
       var pinput=document.getElementById('cipl_p_'+i+'_'+ci);
       var ciplPrice=pinput?parseFloat(pinput.value):null;
