@@ -3082,7 +3082,7 @@ window.printOCData=function(id,selectedItems){
   });
   var iRows=(function(){
     var rows=[];
-    discItems.forEach(function(it,i){
+    selectedItems.forEach(function(it,i){
       var ch=it.children||[];
       var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
@@ -3194,15 +3194,15 @@ window.printQuoData = function(id, selectedItems, revNum){
     if(ch.length)scaled=Object.assign({},scaled,{children:ch});
     return scaled;
   });
-  // Recalculate totals with discounted prices
+  // Recalculate totals with discounted prices (used only for the final TOTAL/GST/discount amount)
   var tDisc=totals(Object.assign({},j,{lineItems:discItems}));
   var discAmt=Math.max(0,t.sub-tDisc.sub);
-  var t=tDisc;
 
-  // Build line item rows
+  // Build line item rows — use ORIGINAL (undiscounted) prices so they match the SUB TOTAL row;
+  // the discount is shown once as its own line, not baked into unit prices AND subtracted again.
   var iRows=(function(){
     var rows=[];
-    discItems.forEach(function(it,i){
+    selectedItems.forEach(function(it,i){
       var ch=it.children||[];
       var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
@@ -3227,6 +3227,7 @@ window.printQuoData = function(id, selectedItems, revNum){
     });
     return rows.join('');
   })();
+  var t=tDisc;
 
   var gstRow=t.gst>0
     ?'<div style="display:flex;justify-content:space-between;padding:1px 6px;font-size:9.5pt"><span>GST (9%)</span><span>'+fmt(t.gst)+'</span></div>'
@@ -3426,22 +3427,20 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
   function chg(v,a){return v==='TBA'?'TBA':v==='nil'?'Nil':a>0?fmt(a):'0.00';}
   var iRows=(function(){
     var rows=[];
-    scaledItems.forEach(function(it,i){
+    scaledFull.forEach(function(it,i){
       var ch=it.children||[];
-      // Scale children unitPrice too
-      var sch=ch.map(function(c){return Object.assign({},c,{unitPrice:(parseFloat(c.unitPrice)||0)*invPct});});
-      var parentAmt=sch.length?sch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+      var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
         +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
-        +(sch.length
+        +(ch.length
           ?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
            +'<td style="padding:5px 6px">'+(it.unit||'')+'</td>'
            +'<td style="text-align:right;padding:5px 6px">'+fmt(it.unitPrice)+'</td>')
-        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(sch.length?'':fmt(parentAmt))+'</td>'
+        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(ch.length?'':fmt(parentAmt))+'</td>'
       +'</tr>');
-      sch.forEach(function(c,ci){
+      ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f4f8fe">'
           +'<td style="text-align:center;padding:4px 6px;color:#185FA5;font-size:9pt">'+(i+1)+'.'+(ci+1)+'</td>'
           +'<td style="padding:4px 6px 4px 16px;font-size:9.5pt;color:#222">'+((c.desc||'').replace(/\n/g,'<br>'))+'</td>'
