@@ -326,12 +326,14 @@ window.render=function(){
     const tot=totals(j).total;
     const isInvoiced=['invoice','soa','closed'].includes(j.status);
     const isArchived=!!j.archived;
-    if(filt==='_archived') return isArchived;
-    if(isArchived) return false;
-    if(filt==='_paid')   return isInvoiced&&rcvd>0&&rcvd>=tot-0.005;
-    if(filt==='_partial')return isInvoiced&&rcvd>0&&rcvd<tot-0.005;
-    if(filt==='_unpaid') return isInvoiced&&rcvd<=0&&tot>0;
-    if(filt!=='all'&&j.status!==filt)return false;
+    if(filt==='_archived'){ if(!isArchived) return false; }
+    else{
+      if(isArchived) return false;
+      if(filt==='_paid'){ if(!(isInvoiced&&rcvd>0&&rcvd>=tot-0.005)) return false; }
+      else if(filt==='_partial'){ if(!(isInvoiced&&rcvd>0&&rcvd<tot-0.005)) return false; }
+      else if(filt==='_unpaid'){ if(!(isInvoiced&&rcvd<=0&&tot>0)) return false; }
+      else if(filt!=='all'&&j.status!==filt) return false;
+    }
     if(q&&![j.ref,j.customerName,j.vessel,j.equip,j.memo,j.custPO].filter(Boolean).some(x=>x.toLowerCase().includes(q)))return false;
     return true;
   }).sort((a,b)=>(b[1].createdAt||'').localeCompare(a[1].createdAt||''));
