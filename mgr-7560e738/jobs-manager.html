@@ -341,7 +341,7 @@ window.render=function(){
   /* Summary — exclude archived jobs */
   const all=Object.values(jobs).filter(j=>!j.archived);
   document.getElementById('sJobs').textContent=all.length;
-  document.getElementById('sOpen').textContent=all.filter(j=>j.status!=='closed').length;
+  document.getElementById('sOpen').textContent=all.filter(j=>j.status!=='closed'&&j.status!=='cancelled').length;
   const invd=all.filter(j=>['proforma_invoice','invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+totals(j).total,0);
   const rcvdT=all.filter(j=>['invoice','soa','closed'].includes(j.status)).reduce((s,j)=>s+(parseFloat(j.paymentReceived)||0),0);
   document.getElementById('sInv').textContent=fmt(invd);
