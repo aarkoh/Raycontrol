@@ -216,6 +216,11 @@ button:hover{background:#f0f0ee}
   <div class="modal" style="max-width:680px">
     <h2 id="commsTitle">&#9993; Communication Log</h2>
 
+    <div class="section" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12px;color:#888">Pipeline status: <strong id="c_pipelineLabel" style="color:#1a1a1a"></strong></div>
+      <button class="bsm" onclick="markWon()" style="background:#1a6641;color:#fff;border-color:#1a6641;font-weight:600">&#10003; Mark as Booked / Won</button>
+    </div>
+
     <div class="followup-box section">
       <div class="fi"><label>Next Follow-Up Date</label><input type="date" id="c_followup"></div>
       <button class="bg bsm" onclick="saveFollowUp()">Set Reminder</button>
@@ -301,13 +306,19 @@ function actionState(r){
   if(qs==='won')return{key:'won',label:'Won',cls:'st-won',pri:9};
   if(qs==='lost')return{key:'lost',label:'Lost',cls:'st-lost',pri:9};
   if(qs==='declined')return{key:'declined',label:'Declined',cls:'st-declined',pri:9};
-  // Check overdue FIRST — even if awaiting/quoted, a past-due vessel needs action
   const dueIn=daysTo(r.nextDue);const lead=Number(r.leadDays||90);
-  if(dueIn!==null&&dueIn<0)return{key:'overdue',label:'Overdue — follow up now',cls:'st-overdue',pri:1};
+  const fu=daysTo(r.nextFollowUp);
+  // If a follow-up reminder is scheduled for a future date, you've already taken action —
+  // don't re-flag this line as urgent until that reminder date actually arrives.
+  const reminderActive=!!(r.nextFollowUp&&fu!==null&&fu>0);
+  if(dueIn!==null&&dueIn<0&&!reminderActive){
+    if(qs==='quoted'||qs==='awaiting')return{key:'overdue',label:'Awaiting reply — overdue',cls:'st-overdue',pri:1};
+    return{key:'overdue',label:'Overdue — follow up now',cls:'st-overdue',pri:1};
+  }
   if(qs==='quoted'||qs==='awaiting')return{key:'awaiting',label:'Awaiting reply',cls:'st-awaiting',pri:3};
-  // monitoring — decide by due date + lead
+  // monitoring — decide by due date + lead (unless a future reminder already covers it)
   if(dueIn===null)return{key:'monitor',label:'Monitoring',cls:'st-monitor',pri:5};
-  if(dueIn<=lead)return{key:'sendnow',label:'Send quote now',cls:'st-sendnow',pri:2};
+  if(dueIn<=lead&&!reminderActive)return{key:'sendnow',label:'Send quote now',cls:'st-sendnow',pri:2};
   return{key:'monitor',label:'Monitoring',cls:'st-monitor',pri:5};
 }
 function windowCell(r){
@@ -503,6 +514,7 @@ window.markServiced=async function(id){
 window.openComms=function(id){
   const r=lines[id];if(!r)return;commsId=id;
   document.getElementById('commsTitle').innerHTML='&#9993; '+esc(r.vessel)+' &mdash; '+esc(r.service||'')+' Quote/Log';
+  document.getElementById('c_pipelineLabel').textContent=qLabel(r.quoteStatus||'monitoring');
   setVal('c_followup',r.nextFollowUp);setVal('c_date',todayStr());
   document.getElementById('c_channel').value='Email';document.getElementById('c_dir').value='out';
   setVal('c_contact',r.contact||'');setVal('c_summary','');
@@ -540,6 +552,15 @@ window.saveFollowUp=async function(){
   if(!commsId)return;
   try{await update(ref(db,'serviceRenewals/'+commsId),{nextFollowUp:document.getElementById('c_followup').value});toast('Reminder set \u2713');}catch(e){toast('Error: '+e.message);}
 };
+window.markWon=async function(){
+  if(!commsId)return;const r=lines[commsId];if(!r)return;
+  if((r.quoteStatus||'monitoring')==='won'){toast('Already marked Won');return;}
+  if(!confirm('Mark "'+(r.service||'service')+'" for '+r.vessel+' as Booked / Won?\n\nThis clears it from the proactive action list right away. Once the work is actually carried out, use "Serviced" on the main table to roll the next due date forward.'))return;
+  try{
+    await update(ref(db,'serviceRenewals/'+commsId),{quoteStatus:'won',updatedAt:new Date().toISOString()});
+    toast('Marked as Booked / Won \u2713');
+  }catch(e){toast('Error: '+e.message);}
+};
 
 // ── Proactive email templates ──
 const TEMPLATES=[
@@ -576,7 +597,8 @@ onAuthStateChanged(auth,user=>{
     const refs=[...new Set(Object.values(jobs).map(j=>j&&j.ref).filter(Boolean))].sort();
     document.getElementById('jobList').innerHTML=refs.map(r=>'<option value="'+esc(r)+'">').join('');});
   onValue(ref(db,'serviceRenewals'),snap=>{lines=snap.exists()?(snap.val()||{}):{};
-    if(commsId&&lines[commsId])renderComms();render();document.getElementById('ls').classList.add('hide');});
+    if(commsId&&lines[commsId]){renderComms();document.getElementById('c_pipelineLabel').textContent=qLabel(lines[commsId].quoteStatus||'monitoring');}
+    render();document.getElementById('ls').classList.add('hide');});
 });
 fillSelects();
 setTimeout(()=>document.getElementById('ls').classList.add('hide'),8000);
