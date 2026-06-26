@@ -417,8 +417,15 @@ function buildDetail(id){
 
   /* Line items */
   const iRows=(function(){
-    if(!items.length)return '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:1rem;font-size:12px">No line items</td></tr>';
+    if(!items.length)return '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:1rem;font-size:12px">No line items</td></tr>';
     var rows=[];
+    function costCell(costPrice,costCur){
+      var cp=parseFloat(costPrice);
+      if(!cp)return '<td class="nr" style="color:#ccc;font-size:11px">—</td>';
+      var cc=costCur||'SGD';
+      var pfx=cc!==cur?cc+' ':'';
+      return '<td class="nr" style="color:#854F0B">'+pfx+fmt(cp)+'</td>';
+    }
     items.forEach(function(it,i){
       var ch=it.children||[];
       var parentAmt=ch.length
@@ -428,11 +435,12 @@ function buildDetail(id){
         +'<td style="text-align:center;color:#888;font-size:12px">'+(i+1)+'</td>'
         +'<td style="font-weight:600;">'+(it.desc||'—')+'</td>'
         +(ch.length
-          ?'<td></td><td></td><td></td>'
+          ?'<td></td><td></td><td></td><td></td>'
             +'<td class="nr" style="color:#aaa;font-size:11px;font-style:italic">see sub-items</td>'
           :'<td class="nr">'+(it.qty||'')+'</td>'
             +'<td>'+(it.unit||'')+'</td>'
             +'<td class="nr">'+fmt(it.unitPrice)+'</td>'
+            +costCell(it.costPrice,it.costCur)
             +'<td class="nr" style="font-weight:500">'+fmt(parentAmt)+'</td>')
         +'</tr>');
       ch.forEach(function(c,ci){
@@ -442,6 +450,7 @@ function buildDetail(id){
           +'<td class="nr">'+(c.qty||'')+'</td>'
           +'<td>'+(c.unit||'')+'</td>'
           +'<td class="nr">'+fmt(c.unitPrice)+'</td>'
+          +costCell(c.costPrice,c.costCur)
           +'<td class="nr" style="font-weight:500">'+fmt((parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0))+'</td>'
           +'</tr>');
       });
@@ -520,7 +529,7 @@ function buildDetail(id){
     /* Invoice */
     +'<div class="sbox">'+'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">'+'<h3 style="margin:0">Invoice — '+invTypeLabel+'</h3>'+'<div style="display:flex;gap:8px">'+'<button class="btn-red" onclick="openInvModal(\''+id+'\')" style="font-size:12px;padding:5px 14px;background:#A32D2D;color:#fff;border-color:#A32D2D;font-weight:600">&#128424; Print Invoice</button>'+'<button onclick="openCNModal(\''+id+'\')" style="font-size:12px;padding:5px 14px;background:#854F0B;color:#fff;border:1px solid #854F0B;border-radius:8px;font-weight:600;cursor:pointer">&#128424; Credit Note</button>'+'</div>'+'</div>'
       +'<div style="overflow-x:auto"><table class="itable">'
-        +'<thead><tr><th style="width:32px">#</th><th>Description</th><th class="nr" style="width:60px">Qty</th><th style="width:60px">Unit</th><th class="nr" style="width:90px">Unit Price</th><th class="nr" style="width:90px">Amount</th></tr></thead>'
+        +'<thead><tr><th style="width:32px">#</th><th>Description</th><th class="nr" style="width:60px">Qty</th><th style="width:60px">Unit</th><th class="nr" style="width:90px">Unit Price</th><th class="nr" style="width:90px;color:#854F0B">Cost Price</th><th class="nr" style="width:90px">Amount</th></tr></thead>'
         +'<tbody>'+iRows+'</tbody>'
       +'</table></div>'
       +'<div style="display:flex;justify-content:flex-end;margin-top:1rem">'
