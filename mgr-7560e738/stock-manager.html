@@ -98,6 +98,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <button class="tab active" onclick="switchTab('items',this)">Items</button>
       <button class="tab" onclick="switchTab('history',this)">History</button>
       <button class="tab" onclick="switchTab('reports',this)">Reports</button>
+      <button class="tab" onclick="switchTab('lottrace',this)">Lot Trace</button>
     </div>
   </div>
 
@@ -141,6 +142,16 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <button class="btn-exp" onclick="exportCSV()">Export CSV</button>
     </div>
     <div id="reportContent"></div>
+  </div>
+
+  <!-- LOT TRACE TAB -->
+  <div class="panel" id="tab-lottrace">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:8px">
+      <select id="ltItemFilter" onchange="renderLotTrace()" style="flex:1;min-width:200px"><option value="">Select an item…</option></select>
+      <button class="btn-exp" onclick="exportLotTraceXL()">Export Excel</button>
+    </div>
+    <div style="font-size:12px;color:#888;margin-bottom:1rem">Reconstructs which vendor invoice(s) each job's stock was likely drawn from, using FIFO (oldest receipt consumed first). This is a best-effort reconstruction from the movement log — accuracy depends on the correct invoice number being entered on every Stock IN.</div>
+    <div id="lotTraceContent"><div class="lempty">Select an item above to see its purchase-to-job trace</div></div>
   </div>
 </div>
 
@@ -204,6 +215,7 @@ window.switchTab=function(tab,el){
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='history')renderHistory();
   if(tab==='reports')renderReports();
+  if(tab==='lottrace')renderLotTrace();
 };
 
 // ── Item stats ─────────────────────────────────────────────────
@@ -406,6 +418,117 @@ window.exportCSV=function(){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`Stock_${new Date().toISOString().slice(0,10)}.csv`;a.click();toast('CSV exported ✓');
 };
 
+// ── Lot Trace (FIFO reconstruction: which invoice supplied which job) ──
+function computeLotTrace(itemId){
+  const itemMovs=movements.filter(m=>m.itemId===itemId).slice().sort((a,b)=>new Date(a.time)-new Date(b.time));
+  const lots=[]; // {ref,date,originalQty,remaining,worker,kind}
+  const issues=[]; // {job,qty,date,worker,notes,sources:[{ref,qty,date}],shortfall,isAdjustment}
+  itemMovs.forEach(m=>{
+    const dateLabel=m.localTime||new Date(m.time).toLocaleString([],{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    if(m.type==='in'){
+      lots.push({ref:m.job||'(no invoice ref entered)',date:dateLabel,originalQty:m.qty,remaining:m.qty,worker:m.worker,kind:'purchase'});
+    } else if(m.type==='out'){
+      let need=m.qty;const sources=[];
+      for(const lot of lots){
+        if(need<=0)break;
+        if(lot.remaining<=0)continue;
+        const take=Math.min(lot.remaining,need);
+        lot.remaining-=take;need-=take;
+        sources.push({ref:lot.ref,qty:take,date:lot.date});
+      }
+      if(need>0)sources.push({ref:'Untraceable — predates logged receipts',qty:need,date:'—'});
+      issues.push({job:m.job||'—',qty:m.qty,date:dateLabel,worker:m.worker,notes:m.notes||'',sources,shortfall:need>0});
+    } else if(m.type==='edit'){
+      const delta=(m.qtyAfter||0)-(m.qtyBefore||0);
+      if(delta>0){
+        lots.push({ref:'Manual adjustment'+(m.notes?' — '+m.notes:''),date:dateLabel,originalQty:delta,remaining:delta,worker:m.worker,kind:'adjustment'});
+      } else if(delta<0){
+        let need=-delta;const sources=[];
+        for(const lot of lots){
+          if(need<=0)break;
+          if(lot.remaining<=0)continue;
+          const take=Math.min(lot.remaining,need);
+          lot.remaining-=take;need-=take;
+          sources.push({ref:lot.ref,qty:take,date:lot.date});
+        }
+        if(need>0)sources.push({ref:'Untraceable — predates logged receipts',qty:need,date:'—'});
+        issues.push({job:'Manual stocktake correction',qty:-delta,date:dateLabel,worker:m.worker,notes:m.notes||'',sources,shortfall:need>0,isAdjustment:true});
+      }
+    }
+  });
+  const openLots=lots.filter(l=>l.remaining>0);
+  const totalReceived=lots.reduce((a,l)=>a+l.originalQty,0);
+  const totalIssued=issues.reduce((a,i)=>a+i.qty,0);
+  return {openLots,issues,totalReceived,totalIssued};
+}
+
+window.renderLotTrace=function(){
+  const itemId=document.getElementById('ltItemFilter').value;
+  const wrap=document.getElementById('lotTraceContent');
+  if(!itemId){wrap.innerHTML='<div class="lempty">Select an item above to see its purchase-to-job trace</div>';return;}
+  const item=items[itemId];
+  if(!item){wrap.innerHTML='<div class="lempty">Item not found</div>';return;}
+  const {openLots,issues,totalReceived,totalIssued}=computeLotTrace(itemId);
+  let html='';
+  html+=`<div class="scard-grid" style="margin-bottom:1rem">
+    <div class="scard"><div class="sc-label">Currently in stock</div><div class="sc-val">${item.qty||0} ${item.unit||'pcs'}</div></div>
+    <div class="scard"><div class="sc-label">Total received</div><div class="sc-val green">${totalReceived} ${item.unit||'pcs'}</div></div>
+    <div class="scard"><div class="sc-label">Total issued</div><div class="sc-val red">${totalIssued} ${item.unit||'pcs'}</div></div>
+    <div class="scard"><div class="sc-label">Open lots on shelf</div><div class="sc-val">${openLots.length}</div></div>
+  </div>`;
+  html+='<div class="form-section"><h2>Open lots — what\'s still on the shelf</h2>';
+  if(!openLots.length){
+    html+='<div class="lempty">No open lots — all received stock has been fully issued (or nothing received yet)</div>';
+  } else {
+    html+='<div class="item-table-wrap"><table class="item-table"><thead><tr><th>Invoice / Ref</th><th>Received</th><th>Worker</th><th>Original qty</th><th>Remaining</th></tr></thead><tbody>'
+      +openLots.map(l=>`<tr><td style="font-weight:500">${l.ref}${l.kind==='adjustment'?' <span class="stock-badge stock-low">Adj</span>':''}</td><td style="color:#888">${l.date}</td><td style="color:#888">${l.worker||'—'}</td><td>${l.originalQty}</td><td><b>${l.remaining}</b></td></tr>`).join('')
+      +'</tbody></table></div>';
+  }
+  html+='</div>';
+  html+='<div class="form-section"><h2>Issue trace — where each job\'s stock came from (FIFO)</h2>';
+  if(!issues.length){
+    html+='<div class="lempty">No stock issued yet</div>';
+  } else {
+    html+=issues.slice().reverse().map(iss=>{
+      const flagBadge=iss.shortfall?'<span class="stock-badge stock-empty">Partially untraceable</span>':'';
+      const adjBadge=iss.isAdjustment?'<span class="stock-badge stock-low">Manual correction</span>':'';
+      const sourcesHtml=iss.sources.map(s=>`<div class="lmeta" style="padding-left:0">&#8226; <b>${s.qty}</b> from <b>${s.ref}</b>${s.date!=='—'?' ('+s.date+')':''}</div>`).join('');
+      return `<div class="lentry" style="grid-template-columns:1fr">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+          <div><span class="lname">${iss.isAdjustment?iss.job:'Job '+iss.job}</span> ${flagBadge}${adjBadge}</div>
+          <div class="lqty" style="color:#A32D2D">-${iss.qty} ${item.unit||'pcs'}</div>
+        </div>
+        <div class="lmeta">${iss.date} · ${iss.worker||'—'}${iss.notes?' · '+iss.notes:''}</div>
+        <div style="margin-top:6px">${sourcesHtml}</div>
+      </div>`;
+    }).join('');
+  }
+  html+='</div>';
+  wrap.innerHTML=html;
+};
+
+window.exportLotTraceXL=function(){
+  const XLSX=window.XLSX;if(!XLSX){toast('Export library loading, try again');return;}
+  const itemId=document.getElementById('ltItemFilter').value;
+  if(!itemId){toast('Select an item first');return;}
+  const item=items[itemId];
+  const {issues}=computeLotTrace(itemId);
+  const wb=XLSX.utils.book_new();
+  const rows=[['Lot Trace — '+item.name+' ('+(item.sku||'')+')'],[''],
+    ['Issue Date','Job','Qty Issued','Worker','Sourced From (Invoice/Ref)','Qty From Source','Source Received','Flag']];
+  issues.slice().forEach(iss=>{
+    iss.sources.forEach((s,idx)=>{
+      rows.push([idx===0?iss.date:'',idx===0?iss.job:'',idx===0?iss.qty:'',idx===0?(iss.worker||''):'',s.ref,s.qty,s.date,s.ref.startsWith('Untraceable')?'UNTRACEABLE':(iss.isAdjustment?'MANUAL CORRECTION':'')]);
+    });
+  });
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:18},{wch:16},{wch:10},{wch:8},{wch:32},{wch:12},{wch:18},{wch:16}];
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
+  XLSX.utils.book_append_sheet(wb,ws,'Lot Trace');
+  XLSX.writeFile(wb,`LotTrace_${(item.name||'item').replace(/[^a-z0-9]/gi,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('Lot trace exported ✓');
+};
+
 // ── Auth & Init ────────────────────────────────────────────────
 // Check session immediately before Firebase
 var _mgrT=localStorage.getItem('rc_manager');
@@ -457,12 +580,16 @@ async function fetchAllData(){
     const iSel=document.getElementById('histItemFilter');
     const curVal=iSel.value;
     iSel.innerHTML='<option value="">All items</option>'+Object.entries(items).map(([id,i])=>'<option value="'+id+'"'+(id===curVal?' selected':'')+'>'+i.name+'</option>').join('');
+    const ltSel=document.getElementById('ltItemFilter');
+    const ltCurVal=ltSel.value;
+    ltSel.innerHTML='<option value="">Select an item…</option>'+Object.entries(items).map(([id,i])=>'<option value="'+id+'"'+(id===ltCurVal?' selected':'')+'>'+i.name+(i.sku?' ('+i.sku+')':'')+'</option>').join('');
     // Update movements
     movements=[];
     if(movData) Object.entries(movData).forEach(([k,v])=>movements.push({id:k,...v}));
     movements.sort((a,b)=>new Date(b.time)-new Date(a.time));
     if(document.getElementById('tab-history').classList.contains('active')) renderHistory();
     if(document.getElementById('tab-reports').classList.contains('active')) renderReports();
+    if(document.getElementById('tab-lottrace').classList.contains('active')) renderLotTrace();
   }catch(e){console.error('fetchAllData error',e);}
 }
 
