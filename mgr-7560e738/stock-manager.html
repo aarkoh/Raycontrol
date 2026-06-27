@@ -152,6 +152,14 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
     </div>
     <div style="font-size:12px;color:#888;margin-bottom:1rem">Reconstructs which vendor invoice(s) each job's stock was likely drawn from, using FIFO (oldest receipt consumed first). This is a best-effort reconstruction from the movement log — accuracy depends on the correct invoice number being entered on every Stock IN.</div>
     <div id="lotTraceContent"><div class="lempty">Select an item above to see its purchase-to-job trace</div></div>
+    <div style="margin-top:1.5rem;border-top:1px solid #e0ddd6;padding-top:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+        <h2 style="margin:0">Items missing a purchase record</h2>
+        <button class="btn-exp" onclick="findMissingRecords()">Scan items</button>
+      </div>
+      <div style="font-size:12px;color:#888;margin-bottom:0.75rem">Checks every item with a cost price set against the movement log — flags any with cost &gt; 0 but zero movement history at all. Useful for finding invoice/job references that didn't actually save (e.g. before a fix) so you know exactly what to re-enter, instead of relying on memory.</div>
+      <div id="missingRecordsContent"></div>
+    </div>
   </div>
 </div>
 
@@ -187,8 +195,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       </div>
       <div class="field"><label>Job Ref</label><input type="text" id="f_jobref_qty" placeholder="e.g. 2606037"></div>
     </div>
-    <div style="font-size:11px;color:#aaa;margin-top:-4px">Tick "already counted/removed" when you're just attaching a reference to stock that's already reflected in Current qty — leave unticked when this is genuinely new stock coming in or going out.</div>
-    <div style="font-size:11px;color:#aaa;margin-top:-8px;margin-bottom:10px">Fill in Qty Received + Invoice when stock comes in, Qty Issued + Job Ref when it goes out to a job — Current qty above auto-fills as a suggestion, but you can always type over it. Backfilling a reference for stock you already have on hand? Type the quantity into Qty Received/Issued as normal, then just set Current qty back to its existing value — it won't double-count. Leave all four blank to correct Current qty directly with no reference (plain stocktake correction).</div>
+    <div style="font-size:11px;color:#aaa;margin-top:-4px;margin-bottom:10px">Tick "already counted/removed" to attach a reference to stock you already have on hand — it auto-fills the quantity from Current qty (edit it if only part of the current qty matches this reference) and won't add to or subtract from the total. Leave both unticked for genuinely new stock coming in or going out — Current qty above will auto-suggest the new total. Leave all four blank to correct Current qty directly with no reference.</div>
     <div class="field"><label>Location / Warehouse</label><input type="text" id="f_loc" placeholder="e.g. Warehouse A, Shelf 3"></div>
     <div class="field-row3">
       <div class="field"><label>Cost price (S$)</label><input type="number" id="f_cost" min="0" step="0.01" placeholder="0.00"></div>
@@ -220,12 +227,21 @@ const WORKERS=['HS','TM','RG','MU','AY','IL','SA','AN'];
 
 let items={}, movements=[], pin='1234', editId=null, movFilter='all', baseQty=0;
 window.recalcQty=function(){
-  const recv=parseFloat(document.getElementById('f_qtyrecv').value)||0;
-  const issue=parseFloat(document.getElementById('f_qtyissue').value)||0;
+  const rb=document.getElementById('f_recv_backfill').checked;
+  const ib=document.getElementById('f_issue_backfill').checked;
+  const rf=document.getElementById('f_qtyrecv');
+  const iff=document.getElementById('f_qtyissue');
+  // Ticking a backfill checkbox with no quantity yet entered auto-fills it from Current qty
+  if(rb&&(!rf.value||parseFloat(rf.value)===0)) rf.value=baseQty;
+  if(ib&&(!iff.value||parseFloat(iff.value)===0)) iff.value=baseQty;
+  const recv=parseFloat(rf.value)||0;
+  const issue=parseFloat(iff.value)||0;
   const qf=document.getElementById('f_qty');
-  // Suggests the resulting total as you type, but never locks the field —
-  // override it manually if you're backfilling a reference for stock you already have (qty unchanged).
-  if(recv||issue) qf.value=baseQty+recv-issue;
+  // Backfilled qty is already reflected in Current qty — only genuinely new IN/OUT moves the suggested total
+  let suggested=baseQty;
+  if(recv&&!rb) suggested+=recv;
+  if(issue&&!ib) suggested-=issue;
+  if((recv&&!rb)||(issue&&!ib)) qf.value=suggested;
 };
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
@@ -312,6 +328,8 @@ window.openItemModal=function(id=null){
   document.getElementById('f_unit').value=i.unit||'';
   document.getElementById('f_qtyrecv').value='';
   document.getElementById('f_qtyissue').value='';
+  document.getElementById('f_recv_backfill').checked=false;
+  document.getElementById('f_issue_backfill').checked=false;
   document.getElementById('f_invref').value='';
   document.getElementById('f_jobref_qty').value='';
   document.getElementById('f_min').value=i.minQty??'';
@@ -366,26 +384,30 @@ window.saveItem=async function(){
       if((oldItem.notes||'')!==(data.notes||'')) changes.push('Notes updated');
       let running=oldItem.qty||0;
       let loggedQtyMovement=false;
+      const recvBackfill=document.getElementById('f_recv_backfill').checked;
+      const issueBackfill=document.getElementById('f_issue_backfill').checked;
       if(qtyRecv>0){
         await push(ref(db,'stock/movements'),{
           itemId:editId, itemName:data.name, sku:data.sku||'',
           worker:'Manager', type:'in', qty:qtyRecv, unit:data.unit||'pcs',
-          qtyBefore:running, qtyAfter:running+qtyRecv,
-          job:invRef||'', notes:'Stock IN via Manager'+(changes.length?' (also: '+changes.join(', ')+')':''),
+          qtyBefore:recvBackfill?Math.max(0,running-qtyRecv):running,
+          qtyAfter:recvBackfill?running:running+qtyRecv,
+          job:invRef||'', notes:(recvBackfill?'Stock IN (backfill — already on hand) via Manager':'Stock IN via Manager')+(changes.length?' (also: '+changes.join(', ')+')':''),
           time:now, localTime, tz:localTZ
         });
-        running+=qtyRecv;
+        if(!recvBackfill) running+=qtyRecv;
         loggedQtyMovement=true;
       }
       if(qtyIssue>0){
         await push(ref(db,'stock/movements'),{
           itemId:editId, itemName:data.name, sku:data.sku||'',
           worker:'Manager', type:'out', qty:qtyIssue, unit:data.unit||'pcs',
-          qtyBefore:running, qtyAfter:running-qtyIssue,
-          job:jobRef||'', notes:'Stock OUT via Manager'+(changes.length&&!loggedQtyMovement?' (also: '+changes.join(', ')+')':''),
+          qtyBefore:issueBackfill?running+qtyIssue:running,
+          qtyAfter:issueBackfill?running:running-qtyIssue,
+          job:jobRef||'', notes:(issueBackfill?'Stock OUT (backfill — already removed) via Manager':'Stock OUT via Manager')+(changes.length&&!loggedQtyMovement?' (also: '+changes.join(', ')+')':''),
           time:now, localTime, tz:localTZ
         });
-        running-=qtyIssue;
+        if(!issueBackfill) running-=qtyIssue;
         loggedQtyMovement=true;
       }
       if(!loggedQtyMovement){
@@ -636,6 +658,23 @@ window.exportLotTraceXL=function(){
   XLSX.utils.book_append_sheet(wb,ws,'Lot Trace');
   XLSX.writeFile(wb,`LotTrace_${(item.name||'item').replace(/[^a-z0-9]/gi,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
   toast('Lot trace exported ✓');
+};
+
+window.findMissingRecords=function(){
+  const box=document.getElementById('missingRecordsContent');
+  box.innerHTML='Scanning…';
+  const hasMovement=new Set(movements.map(m=>m.itemId));
+  const flagged=Object.entries(items)
+    .filter(([id,it])=>(it.cost||0)>0 && !hasMovement.has(id))
+    .sort((a,b)=>(a[1].name||'').localeCompare(b[1].name||''));
+  if(!flagged.length){
+    box.innerHTML='<div class="lempty">None found — every item with a cost price has at least one movement on record.</div>';
+    return;
+  }
+  box.innerHTML='<div style="font-size:12px;color:#854F0B;font-weight:600;margin-bottom:8px">'+flagged.length+' item(s) have a cost price but no movement history at all — likely missing a purchase/invoice record:</div>'
+    +'<div class="item-table-wrap"><table class="item-table"><thead><tr><th>Item</th><th>SKU</th><th class="nr">Qty</th><th class="nr">Cost</th><th class="nr">Sell</th><th></th></tr></thead><tbody>'
+    +flagged.map(([id,it])=>'<tr><td style="font-weight:500">'+it.name+'</td><td style="color:#888">'+(it.sku||'—')+'</td><td class="nr">'+(it.qty||0)+'</td><td class="nr">S$'+(it.cost||0)+'</td><td class="nr">S$'+(it.sell||0)+'</td><td><button class="btn-exp" onclick="openItemModal(\''+id+'\')">Edit</button></td></tr>').join('')
+    +'</tbody></table></div>';
 };
 
 // ── Auth & Init ────────────────────────────────────────────────
