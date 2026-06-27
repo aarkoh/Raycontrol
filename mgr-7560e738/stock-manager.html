@@ -310,9 +310,39 @@ window.saveItem=async function(){
     notes:document.getElementById('f_notes').value.trim(),
     updatedAt:new Date().toISOString()
   };
+  const now=new Date().toISOString();
+  const localTZ=Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Singapore';
+  const localTime=new Date().toLocaleString('en-GB',{timeZone:localTZ,day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
   try{
-    if(editId) await update(ref(db,'stock/items/'+editId),data);
-    else await push(ref(db,'stock/items'),{...data,createdAt:new Date().toISOString()});
+    if(editId){
+      const oldItem=items[editId]||{};
+      await update(ref(db,'stock/items/'+editId),data);
+      // Log edit as movement entry — keeps Log/History/Lot Trace consistent with edits made via the staff app
+      const changes=[];
+      if((oldItem.qty||0)!==(data.qty||0)) changes.push('Qty: '+(oldItem.qty||0)+' → '+data.qty);
+      if((oldItem.cost||0)!==(data.cost||0)) changes.push('Cost: S$'+(oldItem.cost||0)+' → S$'+(data.cost||0));
+      if((oldItem.sell||0)!==(data.sell||0)) changes.push('Sell: S$'+(oldItem.sell||0)+' → S$'+(data.sell||0));
+      if((oldItem.location||'')!==(data.location||'')) changes.push('Location: '+(oldItem.location||'—')+' → '+(data.location||'—'));
+      await push(ref(db,'stock/movements'),{
+        itemId:editId, itemName:data.name, sku:data.sku||'',
+        worker:'Manager', type:'edit', qty:0, unit:data.unit||'pcs',
+        qtyBefore:oldItem.qty||0, qtyAfter:data.qty||0,
+        job:'', notes:'Edit (Manager) — '+(changes.length?changes.join(', '):'details updated'),
+        time:now, localTime, tz:localTZ
+      });
+    } else {
+      const newRef=await push(ref(db,'stock/items'),{...data,createdAt:new Date().toISOString()});
+      // If created with a starting qty, log it as an IN movement so Lot Trace has a receipt to point to
+      if(data.qty>0){
+        await push(ref(db,'stock/movements'),{
+          itemId:newRef.key, itemName:data.name, sku:data.sku||'',
+          worker:'Manager', type:'in', qty:data.qty, unit:data.unit||'pcs',
+          qtyBefore:0, qtyAfter:data.qty,
+          job:'',notes:'Initial stock on item creation (Manager)',
+          time:now, localTime, tz:localTZ
+        });
+      }
+    }
     toast(editId?'Item updated ✓':'Item added ✓');
     closeItemModal();
   }catch(e){toast('Error: '+e.message);}
