@@ -174,14 +174,21 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <div class="field"><label>Min stock alert</label><input type="number" id="f_min" min="0" step="any" placeholder="0"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Qty Received</label><input type="number" id="f_qtyrecv" min="0" step="any" placeholder="0" oninput="recalcQty()"></div>
+      <div class="field">
+        <label>Qty Received</label><input type="number" id="f_qtyrecv" min="0" step="any" placeholder="0" oninput="recalcQty()">
+        <label style="font-size:11px;color:#888;font-weight:400;display:flex;align-items:center;gap:5px;margin-top:5px;cursor:pointer"><input type="checkbox" id="f_recv_backfill" onchange="recalcQty()" style="width:auto;margin:0">Already counted in Current qty — just record the invoice</label>
+      </div>
       <div class="field"><label>Vendor Invoice / Ref</label><input type="text" id="f_invref" placeholder="e.g. INV-2026-001"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Qty Issued</label><input type="number" id="f_qtyissue" min="0" step="any" placeholder="0" oninput="recalcQty()"></div>
+      <div class="field">
+        <label>Qty Issued</label><input type="number" id="f_qtyissue" min="0" step="any" placeholder="0" oninput="recalcQty()">
+        <label style="font-size:11px;color:#888;font-weight:400;display:flex;align-items:center;gap:5px;margin-top:5px;cursor:pointer"><input type="checkbox" id="f_issue_backfill" onchange="recalcQty()" style="width:auto;margin:0">Already removed from Current qty — just record the job</label>
+      </div>
       <div class="field"><label>Job Ref</label><input type="text" id="f_jobref_qty" placeholder="e.g. 2606037"></div>
     </div>
-    <div style="font-size:11px;color:#aaa;margin-top:-8px;margin-bottom:10px">Fill in Qty Received + Invoice when stock comes in, Qty Issued + Job Ref when it goes out to a job — Current qty above updates automatically, and both can be filled in together (e.g. bought for a job, net shelf qty unchanged). Leave all four blank to correct Current qty directly with no reference (plain stocktake correction).</div>
+    <div style="font-size:11px;color:#aaa;margin-top:-4px">Tick "already counted/removed" when you're just attaching a reference to stock that's already reflected in Current qty — leave unticked when this is genuinely new stock coming in or going out.</div>
+    <div style="font-size:11px;color:#aaa;margin-top:-8px;margin-bottom:10px">Fill in Qty Received + Invoice when stock comes in, Qty Issued + Job Ref when it goes out to a job — Current qty above auto-fills as a suggestion, but you can always type over it. Backfilling a reference for stock you already have on hand? Type the quantity into Qty Received/Issued as normal, then just set Current qty back to its existing value — it won't double-count. Leave all four blank to correct Current qty directly with no reference (plain stocktake correction).</div>
     <div class="field"><label>Location / Warehouse</label><input type="text" id="f_loc" placeholder="e.g. Warehouse A, Shelf 3"></div>
     <div class="field-row3">
       <div class="field"><label>Cost price (S$)</label><input type="number" id="f_cost" min="0" step="0.01" placeholder="0.00"></div>
@@ -216,14 +223,9 @@ window.recalcQty=function(){
   const recv=parseFloat(document.getElementById('f_qtyrecv').value)||0;
   const issue=parseFloat(document.getElementById('f_qtyissue').value)||0;
   const qf=document.getElementById('f_qty');
-  if(recv||issue){
-    qf.value=baseQty+recv-issue;
-    qf.readOnly=true;
-    qf.style.background='#f5f5f3';
-  } else {
-    qf.readOnly=false;
-    qf.style.background='';
-  }
+  // Suggests the resulting total as you type, but never locks the field —
+  // override it manually if you're backfilling a reference for stock you already have (qty unchanged).
+  if(recv||issue) qf.value=baseQty+recv-issue;
 };
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
@@ -329,6 +331,12 @@ window.saveItem=async function(){
   const jobRef=document.getElementById('f_jobref_qty').value.trim();
   const qtyRecv=parseFloat(document.getElementById('f_qtyrecv').value)||0;
   const qtyIssue=parseFloat(document.getElementById('f_qtyissue').value)||0;
+  if(invRef&&qtyRecv<=0){
+    if(!confirm('Vendor Invoice "'+invRef+'" is filled in but Qty Received is 0 — nothing will be logged against this invoice.\n\nClick Cancel to go back and fill in Qty Received, or OK to save anyway without logging it.'))return;
+  }
+  if(jobRef&&qtyIssue<=0){
+    if(!confirm('Job Ref "'+jobRef+'" is filled in but Qty Issued is 0 — nothing will be logged against this job.\n\nClick Cancel to go back and fill in Qty Issued, or OK to save anyway without logging it.'))return;
+  }
   const data={
     name, sku:document.getElementById('f_sku').value.trim(),
     category:document.getElementById('f_cat').value.trim(),
