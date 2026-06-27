@@ -246,6 +246,12 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <div class="field"><label>Cost price (S$)</label><input type="number" id="ei_cost" min="0" step="0.01" placeholder="0.00"></div>
       <div class="field"><label>Selling price (S$)</label><input type="number" id="ei_sell" min="0" step="0.01" placeholder="0.00"></div>
     </div>
+    <div class="field" style="margin-top:2px">
+      <div onclick="toggleLotTrace()" style="cursor:pointer;font-size:12px;color:#854F0B;font-weight:600;display:flex;align-items:center;gap:5px;user-select:none">
+        <span id="ltCaret">&#9656;</span> Purchase &rarr; Job Trace
+      </div>
+      <div id="lotTraceBox" style="display:none;margin-top:8px;max-height:240px;overflow-y:auto"></div>
+    </div>
     <div class="modal-footer">
       <button onclick="closeEditModal()">Cancel</button>
       <button onclick="saveEditItem()" style="background:#185FA5;color:#fff;border-color:#185FA5;font-weight:600">Save changes</button>
@@ -593,9 +599,94 @@ window.openEditItem=function(id){
   document.getElementById('ei_loc').value=i.location||'';
   document.getElementById('ei_cost').value=i.cost??'';
   document.getElementById('ei_sell').value=i.sell??'';
+  ltOpen=false;
+  document.getElementById('lotTraceBox').style.display='none';
+  document.getElementById('lotTraceBox').innerHTML='';
+  document.getElementById('ltCaret').innerHTML='&#9656;';
   document.getElementById('editModal').classList.add('show');
 };
 window.closeEditModal=function(){document.getElementById('editModal').classList.remove('show');editItemId=null;};
+
+// ── Purchase → Job Trace (FIFO reconstruction, mirrors the Lot Trace report in Stock Manager) ──
+let ltOpen=false;
+function computeLotTrace(itemId){
+  const itemMovs=movements.filter(m=>m.itemId===itemId).slice().sort((a,b)=>new Date(a.time)-new Date(b.time));
+  const lots=[];const issues=[];
+  itemMovs.forEach(m=>{
+    const dateLabel=m.localTime||new Date(m.time).toLocaleString([],{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    if(m.type==='in'){
+      lots.push({ref:m.job||'(no invoice ref entered)',date:dateLabel,remaining:m.qty,worker:m.worker,kind:'purchase'});
+    } else if(m.type==='out'){
+      let need=m.qty;const sources=[];
+      for(const lot of lots){
+        if(need<=0)break;
+        if(lot.remaining<=0)continue;
+        const take=Math.min(lot.remaining,need);
+        lot.remaining-=take;need-=take;
+        sources.push({ref:lot.ref,qty:take,date:lot.date});
+      }
+      if(need>0)sources.push({ref:'Untraceable — predates logged receipts',qty:need,date:'—'});
+      issues.push({job:m.job||'—',qty:m.qty,date:dateLabel,worker:m.worker,sources,shortfall:need>0});
+    } else if(m.type==='edit'){
+      const delta=(m.qtyAfter||0)-(m.qtyBefore||0);
+      if(delta>0){
+        lots.push({ref:'Manual adjustment',date:dateLabel,remaining:delta,worker:m.worker,kind:'adjustment'});
+      } else if(delta<0){
+        let need=-delta;const sources=[];
+        for(const lot of lots){
+          if(need<=0)break;
+          if(lot.remaining<=0)continue;
+          const take=Math.min(lot.remaining,need);
+          lot.remaining-=take;need-=take;
+          sources.push({ref:lot.ref,qty:take,date:lot.date});
+        }
+        if(need>0)sources.push({ref:'Untraceable — predates logged receipts',qty:need,date:'—'});
+        issues.push({job:'Manual stocktake correction',qty:-delta,date:dateLabel,worker:m.worker,sources,shortfall:need>0,isAdjustment:true});
+      }
+    }
+  });
+  return {openLots:lots.filter(l=>l.remaining>0),issues};
+}
+window.toggleLotTrace=function(){
+  ltOpen=!ltOpen;
+  document.getElementById('lotTraceBox').style.display=ltOpen?'block':'none';
+  document.getElementById('ltCaret').innerHTML=ltOpen?'&#9662;':'&#9656;';
+  if(ltOpen)renderLotTraceBox();
+};
+function renderLotTraceBox(){
+  const box=document.getElementById('lotTraceBox');
+  if(!editItemId){box.innerHTML='';return;}
+  const {openLots,issues}=computeLotTrace(editItemId);
+  let html='<div style="font-size:11px;color:#aaa;margin-bottom:8px">Best-effort trace from the movement log (oldest stock used first). Accuracy depends on the correct invoice no. being entered on Stock IN.</div>';
+  html+='<div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Still on shelf, by invoice</div>';
+  if(!openLots.length){
+    html+='<div class="empty-state" style="padding:10px;font-size:12px">Nothing traceable on the shelf right now</div>';
+  } else {
+    html+=openLots.map(l=>'<div class="lentry">'
+      +'<span class="ltype in">IN</span>'
+      +'<div><div class="lname">'+l.ref+(l.kind==='adjustment'?' <span class="stock-badge stock-low">Adj</span>':'')+'</div>'
+      +'<div class="lmeta">'+l.date+' · '+(l.worker||'—')+'</div></div>'
+      +'<div class="lqty" style="color:#3B6D11">'+l.remaining+'</div>'
+      +'</div>').join('');
+  }
+  html+='<div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 4px">Issued to jobs (oldest stock first)</div>';
+  if(!issues.length){
+    html+='<div class="empty-state" style="padding:10px;font-size:12px">No stock issued yet</div>';
+  } else {
+    html+=issues.slice().reverse().map(iss=>{
+      const flag=iss.shortfall?' <span class="stock-badge stock-empty">Partial</span>':'';
+      const srcLines=iss.sources.map(s=>'&#8226; '+s.qty+' from <b>'+s.ref+'</b>'+(s.date!=='—'?' ('+s.date+')':'')).join('<br>');
+      return '<div class="lentry">'
+        +'<span class="ltype out">OUT</span>'
+        +'<div><div class="lname">'+(iss.isAdjustment?iss.job:'Job '+iss.job)+flag+'</div>'
+        +'<div class="lmeta">'+iss.date+' · '+(iss.worker||'—')+'</div>'
+        +'<div class="lmeta" style="color:#555;margin-top:3px">'+srcLines+'</div></div>'
+        +'<div class="lqty" style="color:#A32D2D">-'+iss.qty+'</div>'
+        +'</div>';
+    }).join('');
+  }
+  box.innerHTML=html;
+}
 window.saveEditItem=async function(){
   const name=document.getElementById('ei_name').value.trim();
   if(!name){toast('Item name required');return;}
