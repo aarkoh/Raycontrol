@@ -174,10 +174,14 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
       <div class="field"><label>Min stock alert</label><input type="number" id="f_min" min="0" step="any" placeholder="0"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Vendor Invoice / Ref</label><input type="text" id="f_invref" placeholder="e.g. INV-2026-001 (if receiving stock)"></div>
-      <div class="field"><label>Job Ref</label><input type="text" id="f_jobref_qty" placeholder="e.g. 2606037 (if issuing to a job)"></div>
+      <div class="field"><label>Qty Received</label><input type="number" id="f_qtyrecv" min="0" step="any" placeholder="0" oninput="recalcQty()"></div>
+      <div class="field"><label>Vendor Invoice / Ref</label><input type="text" id="f_invref" placeholder="e.g. INV-2026-001"></div>
     </div>
-    <div style="font-size:11px;color:#aaa;margin-top:-8px;margin-bottom:10px">Only used if you change Current qty above — fill in whichever applies so it shows up correctly in Lot Trace. Leave both blank for a plain stocktake correction.</div>
+    <div class="field-row">
+      <div class="field"><label>Qty Issued</label><input type="number" id="f_qtyissue" min="0" step="any" placeholder="0" oninput="recalcQty()"></div>
+      <div class="field"><label>Job Ref</label><input type="text" id="f_jobref_qty" placeholder="e.g. 2606037"></div>
+    </div>
+    <div style="font-size:11px;color:#aaa;margin-top:-8px;margin-bottom:10px">Fill in Qty Received + Invoice when stock comes in, Qty Issued + Job Ref when it goes out to a job — Current qty above updates automatically, and both can be filled in together (e.g. bought for a job, net shelf qty unchanged). Leave all four blank to correct Current qty directly with no reference (plain stocktake correction).</div>
     <div class="field"><label>Location / Warehouse</label><input type="text" id="f_loc" placeholder="e.g. Warehouse A, Shelf 3"></div>
     <div class="field-row3">
       <div class="field"><label>Cost price (S$)</label><input type="number" id="f_cost" min="0" step="0.01" placeholder="0.00"></div>
@@ -207,7 +211,20 @@ const db=getDatabase(fbApp);
 const auth=getAuth(fbApp);
 const WORKERS=['HS','TM','RG','MU','AY','IL','SA','AN'];
 
-let items={}, movements=[], pin='1234', editId=null, movFilter='all';
+let items={}, movements=[], pin='1234', editId=null, movFilter='all', baseQty=0;
+window.recalcQty=function(){
+  const recv=parseFloat(document.getElementById('f_qtyrecv').value)||0;
+  const issue=parseFloat(document.getElementById('f_qtyissue').value)||0;
+  const qf=document.getElementById('f_qty');
+  if(recv||issue){
+    qf.value=baseQty+recv-issue;
+    qf.readOnly=true;
+    qf.style.background='#f5f5f3';
+  } else {
+    qf.readOnly=false;
+    qf.style.background='';
+  }
+};
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
@@ -281,13 +298,18 @@ window.openItemModal=function(id=null){
   editId=id;
   document.getElementById('modalTitle').textContent=id?'Edit item':'Add new item';
   const i=id?items[id]:{};
+  baseQty=i.qty||0;
   document.getElementById('f_name').value=i.name||'';
   document.getElementById('f_sku').value=i.sku||'';
   document.getElementById('f_cat').value=i.category||'';
   document.getElementById('f_make').value=i.make||'';
   document.getElementById('f_model').value=i.model||'';
   document.getElementById('f_qty').value=i.qty??'';
+  document.getElementById('f_qty').readOnly=false;
+  document.getElementById('f_qty').style.background='';
   document.getElementById('f_unit').value=i.unit||'';
+  document.getElementById('f_qtyrecv').value='';
+  document.getElementById('f_qtyissue').value='';
   document.getElementById('f_invref').value='';
   document.getElementById('f_jobref_qty').value='';
   document.getElementById('f_min').value=i.minQty??'';
@@ -305,6 +327,8 @@ window.saveItem=async function(){
   if(!name){toast('Item name is required');return;}
   const invRef=document.getElementById('f_invref').value.trim();
   const jobRef=document.getElementById('f_jobref_qty').value.trim();
+  const qtyRecv=parseFloat(document.getElementById('f_qtyrecv').value)||0;
+  const qtyIssue=parseFloat(document.getElementById('f_qtyissue').value)||0;
   const data={
     name, sku:document.getElementById('f_sku').value.trim(),
     category:document.getElementById('f_cat').value.trim(),
@@ -326,39 +350,56 @@ window.saveItem=async function(){
     if(editId){
       const oldItem=items[editId]||{};
       await update(ref(db,'stock/items/'+editId),data);
-      // Non-qty changes still get a plain edit log entry
+      // Non-qty changes still get noted in the log
       const changes=[];
       if((oldItem.cost||0)!==(data.cost||0)) changes.push('Cost: S$'+(oldItem.cost||0)+' → S$'+(data.cost||0));
       if((oldItem.sell||0)!==(data.sell||0)) changes.push('Sell: S$'+(oldItem.sell||0)+' → S$'+(data.sell||0));
       if((oldItem.location||'')!==(data.location||'')) changes.push('Location: '+(oldItem.location||'—')+' → '+(data.location||'—'));
       if((oldItem.notes||'')!==(data.notes||'')) changes.push('Notes updated');
-      const qtyDelta=(data.qty||0)-(oldItem.qty||0);
-      if(qtyDelta>0){
-        // Qty went up — treat as a receipt, tagged to the vendor invoice if given
+      let running=oldItem.qty||0;
+      let loggedQtyMovement=false;
+      if(qtyRecv>0){
         await push(ref(db,'stock/movements'),{
           itemId:editId, itemName:data.name, sku:data.sku||'',
-          worker:'Manager', type:'in', qty:qtyDelta, unit:data.unit||'pcs',
-          qtyBefore:oldItem.qty||0, qtyAfter:data.qty,
+          worker:'Manager', type:'in', qty:qtyRecv, unit:data.unit||'pcs',
+          qtyBefore:running, qtyAfter:running+qtyRecv,
           job:invRef||'', notes:'Stock IN via Manager'+(changes.length?' (also: '+changes.join(', ')+')':''),
           time:now, localTime, tz:localTZ
         });
-      } else if(qtyDelta<0){
-        // Qty went down — treat as an issue, tagged to the job if given
+        running+=qtyRecv;
+        loggedQtyMovement=true;
+      }
+      if(qtyIssue>0){
         await push(ref(db,'stock/movements'),{
           itemId:editId, itemName:data.name, sku:data.sku||'',
-          worker:'Manager', type:'out', qty:-qtyDelta, unit:data.unit||'pcs',
-          qtyBefore:oldItem.qty||0, qtyAfter:data.qty,
-          job:jobRef||'', notes:'Stock OUT via Manager'+(changes.length?' (also: '+changes.join(', ')+')':''),
+          worker:'Manager', type:'out', qty:qtyIssue, unit:data.unit||'pcs',
+          qtyBefore:running, qtyAfter:running-qtyIssue,
+          job:jobRef||'', notes:'Stock OUT via Manager'+(changes.length&&!loggedQtyMovement?' (also: '+changes.join(', ')+')':''),
           time:now, localTime, tz:localTZ
         });
-      } else if(changes.length){
-        await push(ref(db,'stock/movements'),{
-          itemId:editId, itemName:data.name, sku:data.sku||'',
-          worker:'Manager', type:'edit', qty:0, unit:data.unit||'pcs',
-          qtyBefore:oldItem.qty||0, qtyAfter:data.qty||0,
-          job:'', notes:'Edit (Manager) — '+changes.join(', '),
-          time:now, localTime, tz:localTZ
-        });
+        running-=qtyIssue;
+        loggedQtyMovement=true;
+      }
+      if(!loggedQtyMovement){
+        // Neither Qty Received nor Qty Issued used — fall back to a direct Current Qty correction (no reference)
+        const qtyDelta=(data.qty||0)-(oldItem.qty||0);
+        if(qtyDelta!==0){
+          await push(ref(db,'stock/movements'),{
+            itemId:editId, itemName:data.name, sku:data.sku||'',
+            worker:'Manager', type:'edit', qty:0, unit:data.unit||'pcs',
+            qtyBefore:oldItem.qty||0, qtyAfter:data.qty,
+            job:'', notes:'Manual stocktake correction (Manager)'+(changes.length?' — also: '+changes.join(', '):''),
+            time:now, localTime, tz:localTZ
+          });
+        } else if(changes.length){
+          await push(ref(db,'stock/movements'),{
+            itemId:editId, itemName:data.name, sku:data.sku||'',
+            worker:'Manager', type:'edit', qty:0, unit:data.unit||'pcs',
+            qtyBefore:oldItem.qty||0, qtyAfter:data.qty||0,
+            job:'', notes:'Edit (Manager) — '+changes.join(', '),
+            time:now, localTime, tz:localTZ
+          });
+        }
       }
     } else {
       const newRef=await push(ref(db,'stock/items'),{...data,createdAt:new Date().toISOString()});
