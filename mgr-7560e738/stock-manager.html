@@ -365,6 +365,12 @@ window.saveItem=async function(){
   if(jobRef&&qtyIssue<=0){
     if(!confirm('Job Ref "'+jobRef+'" is filled in but Qty Issued is 0 — nothing will be logged against this job.\n\nClick Cancel to go back and fill in Qty Issued, or OK to save anyway without logging it.'))return;
   }
+  if(qtyRecv>0&&!invRef){
+    if(!confirm('Qty Received is set to '+qtyRecv+' but Vendor Invoice / Ref is blank — this will record a receipt with no invoice to trace it back to.\n\nClick Cancel to add an invoice ref or clear Qty Received, or OK to save anyway without one.'))return;
+  }
+  if(qtyIssue>0&&!jobRef){
+    if(!confirm('Qty Issued is set to '+qtyIssue+' but Job Ref is blank — this will record an issue with no job to trace it to, which may also make the source invoice look fully used up even if it isn\'t.\n\nClick Cancel to add a Job Ref or clear Qty Issued, or OK to save anyway without one.'))return;
+  }
   const data={
     name, sku:document.getElementById('f_sku').value.trim(),
     category:document.getElementById('f_cat').value.trim(),
@@ -461,6 +467,18 @@ window.saveItem=async function(){
 window.deleteItem=async function(id,name){
   if(!confirm(`Delete "${name}"? This cannot be undone.`))return;
   try{await remove(ref(db,'stock/items/'+id));toast('Item deleted');}catch(e){toast('Error: '+e.message);}
+};
+
+window.deleteMovement=async function(movId){
+  const m=movements.find(x=>x.id===movId);
+  if(!m){toast('Movement not found — try refreshing');return;}
+  const label=(m.type==='in'?'IN':m.type==='out'?'OUT':'EDIT')+' · '+(m.qty||0)+' '+(m.unit||'')+(m.job?' · ref: '+m.job:'')+' · '+(m.localTime||m.time||'');
+  if(!confirm('Delete this movement entry?\n\n'+label+'\n\nThis only removes the log entry — it does NOT change the item\'s Current Qty. If this was a duplicate that also inflated Current Qty, adjust the qty separately afterward. This cannot be undone.'))return;
+  try{
+    await remove(ref(db,'stock/movements/'+movId));
+    toast('Movement deleted ✓');
+    fetchAllData();
+  }catch(e){toast('Error: '+e.message);}
 };
 
 // ── History ────────────────────────────────────────────────────
@@ -562,12 +580,12 @@ window.exportCSV=function(){
 // ── Lot Trace (FIFO reconstruction: which invoice supplied which job) ──
 function computeLotTrace(itemId){
   const itemMovs=movements.filter(m=>m.itemId===itemId).slice().sort((a,b)=>new Date(a.time)-new Date(b.time));
-  const lots=[]; // {ref,date,originalQty,remaining,worker,kind}
-  const issues=[]; // {job,qty,date,worker,notes,sources:[{ref,qty,date}],shortfall,isAdjustment}
+  const lots=[]; // {ref,date,originalQty,remaining,worker,kind,movId}
+  const issues=[]; // {job,qty,date,worker,notes,sources:[{ref,qty,date}],shortfall,isAdjustment,movId}
   itemMovs.forEach(m=>{
     const dateLabel=m.localTime||new Date(m.time).toLocaleString([],{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
     if(m.type==='in'){
-      lots.push({ref:m.job||'(no invoice ref entered)',date:dateLabel,originalQty:m.qty,remaining:m.qty,worker:m.worker,kind:'purchase'});
+      lots.push({ref:m.job||'(no invoice ref entered)',date:dateLabel,originalQty:m.qty,remaining:m.qty,worker:m.worker,kind:'purchase',movId:m.id});
     } else if(m.type==='out'){
       let need=m.qty;const sources=[];
       for(const lot of lots){
@@ -578,11 +596,11 @@ function computeLotTrace(itemId){
         sources.push({ref:lot.ref,qty:take,date:lot.date});
       }
       if(need>0)sources.push({ref:'Untraceable — predates logged receipts',qty:need,date:'—'});
-      issues.push({job:m.job||'—',qty:m.qty,date:dateLabel,worker:m.worker,notes:m.notes||'',sources,shortfall:need>0});
+      issues.push({job:m.job||'—',qty:m.qty,date:dateLabel,worker:m.worker,notes:m.notes||'',sources,shortfall:need>0,movId:m.id});
     } else if(m.type==='edit'){
       const delta=(m.qtyAfter||0)-(m.qtyBefore||0);
       if(delta>0){
-        lots.push({ref:'Manual adjustment'+(m.notes?' — '+m.notes:''),date:dateLabel,originalQty:delta,remaining:delta,worker:m.worker,kind:'adjustment'});
+        lots.push({ref:'Manual adjustment'+(m.notes?' — '+m.notes:''),date:dateLabel,originalQty:delta,remaining:delta,worker:m.worker,kind:'adjustment',movId:m.id});
       } else if(delta<0){
         let need=-delta;const sources=[];
         for(const lot of lots){
@@ -593,7 +611,7 @@ function computeLotTrace(itemId){
           sources.push({ref:lot.ref,qty:take,date:lot.date});
         }
         if(need>0)sources.push({ref:'Untraceable — predates logged receipts',qty:need,date:'—'});
-        issues.push({job:'Manual stocktake correction',qty:-delta,date:dateLabel,worker:m.worker,notes:m.notes||'',sources,shortfall:need>0,isAdjustment:true});
+        issues.push({job:'Manual stocktake correction',qty:-delta,date:dateLabel,worker:m.worker,notes:m.notes||'',sources,shortfall:need>0,isAdjustment:true,movId:m.id});
       }
     }
   });
@@ -651,8 +669,8 @@ window.renderLotTrace=function(){
   if(!openLots.length){
     html+='<div class="lempty">No open lots — all received stock has been fully issued (or nothing received yet)</div>';
   } else {
-    html+='<div class="item-table-wrap"><table class="item-table"><thead><tr><th>Invoice / Ref</th><th>Received</th><th>Worker</th><th>Original qty</th><th>Remaining</th></tr></thead><tbody>'
-      +openLots.map(l=>`<tr><td style="font-weight:500">${l.ref}${l.kind==='adjustment'?' <span class="stock-badge stock-low">Adj</span>':''}</td><td style="color:#888">${l.date}</td><td style="color:#888">${l.worker||'—'}</td><td>${l.originalQty}</td><td><b>${l.remaining}</b></td></tr>`).join('')
+    html+='<div class="item-table-wrap"><table class="item-table"><thead><tr><th>Invoice / Ref</th><th>Received</th><th>Worker</th><th>Original qty</th><th>Remaining</th><th></th></tr></thead><tbody>'
+      +openLots.map(l=>`<tr><td style="font-weight:500">${l.ref}${l.kind==='adjustment'?' <span class="stock-badge stock-low">Adj</span>':''}</td><td style="color:#888">${l.date}</td><td style="color:#888">${l.worker||'—'}</td><td>${l.originalQty}</td><td><b>${l.remaining}</b></td><td>${l.movId?`<button class="btn-exp" style="color:#A32D2D;border-color:#A32D2D" onclick="deleteMovement('${l.movId}')">Delete</button>`:''}</td></tr>`).join('')
       +'</tbody></table></div>';
   }
   html+='</div>';
@@ -667,7 +685,10 @@ window.renderLotTrace=function(){
       return `<div class="lentry" style="grid-template-columns:1fr">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
           <div><span class="lname">${iss.isAdjustment?iss.job:'Job '+iss.job}</span> ${flagBadge}${adjBadge}</div>
-          <div class="lqty" style="color:#A32D2D">-${iss.qty} ${item.unit||'pcs'}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="lqty" style="color:#A32D2D">-${iss.qty} ${item.unit||'pcs'}</div>
+            ${iss.movId?`<button class="btn-exp" style="color:#A32D2D;border-color:#A32D2D;font-size:11px;padding:2px 8px" onclick="deleteMovement('${iss.movId}')">Delete</button>`:''}
+          </div>
         </div>
         <div class="lmeta">${iss.date} · ${iss.worker||'—'}${iss.notes?' · '+iss.notes:''}</div>
         <div style="margin-top:6px">${sourcesHtml}</div>
