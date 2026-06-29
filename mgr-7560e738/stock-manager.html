@@ -472,11 +472,24 @@ window.deleteItem=async function(id,name){
 window.deleteMovement=async function(movId){
   const m=movements.find(x=>x.id===movId);
   if(!m){toast('Movement not found — try refreshing');return;}
+  const isBackfill=/\(backfill/i.test(m.notes||'');
+  const qtyDelta=(m.qtyAfter||0)-(m.qtyBefore||0);
+  const item=items[m.itemId];
   const label=(m.type==='in'?'IN':m.type==='out'?'OUT':'EDIT')+' · '+(m.qty||0)+' '+(m.unit||'')+(m.job?' · ref: '+m.job:'')+' · '+(m.localTime||m.time||'');
-  if(!confirm('Delete this movement entry?\n\n'+label+'\n\nThis only removes the log entry — it does NOT change the item\'s Current Qty. If this was a duplicate that also inflated Current Qty, adjust the qty separately afterward. This cannot be undone.'))return;
+  if(!confirm('Delete this movement entry?\n\n'+label+'\n\nThis cannot be undone.'))return;
+  let reverseQty=false;
+  if(!isBackfill&&qtyDelta!==0&&item){
+    reverseQty=confirm('This movement changed "'+(item.name||'item')+'" from '+(m.qtyBefore??'?')+' to '+(m.qtyAfter??'?')+'.\n\nAlso reverse that on Current Qty (set it back to '+Math.max(0,(item.qty||0)-qtyDelta)+')?\n\nClick OK to reverse the qty too, Cancel to just delete the log entry and leave Current Qty as it is now.');
+  }
   try{
     await remove(ref(db,'stock/movements/'+movId));
-    toast('Movement deleted ✓');
+    if(reverseQty){
+      const newQty=Math.max(0,(item.qty||0)-qtyDelta);
+      await update(ref(db,'stock/items/'+m.itemId),{qty:newQty,updatedAt:new Date().toISOString()});
+      toast('Movement deleted and qty reversed ✓');
+    } else {
+      toast('Movement deleted ✓');
+    }
     fetchAllData();
   }catch(e){toast('Error: '+e.message);}
 };
@@ -505,7 +518,10 @@ function renderHistory(){
         <div class="lmeta">${t}${m.job?' · <b>Job: '+m.job+'</b>':''}${m.notes?' · '+m.notes:''}</div>
         <div class="lmeta" style="color:#aaa">${qtyBadge}</div>
       </div>
-      <div class="lqty" style="color:${m.type==='in'?'#3B6D11':m.type==='out'?'#A32D2D':'#185FA5'}">${m.type==='in'?'+':m.type==='out'?'-':''}${m.type==='edit'?'—':m.qty+' '+(m.unit||'pcs')}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div class="lqty" style="color:${m.type==='in'?'#3B6D11':m.type==='out'?'#A32D2D':'#185FA5'}">${m.type==='in'?'+':m.type==='out'?'-':''}${m.type==='edit'?'—':m.qty+' '+(m.unit||'pcs')}</div>
+        <button class="btn-exp" style="color:#A32D2D;border-color:#A32D2D;font-size:10px;padding:1px 7px" onclick="deleteMovement('${m.id}')">Delete</button>
+      </div>
     </div>`;
   }).join('');
 }
