@@ -419,6 +419,10 @@ function isLocSingapore(locStr) {
   if (!locStr) return null; // unknown
   return locStr.toLowerCase().includes('singapore');
 }
+// Exposed for the edit-log modal (plain <script>, outside this module's scope)
+window.isInSingapore = isInSingapore;
+window.isLocSingapore = isLocSingapore;
+window.tzFromLoc = tzFromLoc;
 
 function isOT(dt, tz) {
   // Convert timestamp to local time in the given timezone before checking hour/day
@@ -569,8 +573,15 @@ window.doAction=async function(type){
   getGeo(async(geo,err)=>{
     if(err)setGeoUI('err',err);
     const now=new Date().toISOString();
-    // Capture the worker's device timezone so OT is calculated in local time
-    const deviceTZ=Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Singapore';
+    // Capture the worker's device timezone so OT is calculated in local time.
+    // Phones sometimes briefly pick up a neighbouring country's timezone via
+    // cell/network signal (e.g. near the West Coast ferry terminal to Indonesia)
+    // even while physically in Singapore. GPS is more authoritative than the
+    // device clock for *where* someone is, so if GPS confirms Singapore, trust
+    // that over whatever timezone the phone itself reports.
+    const rawDeviceTZ=Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Singapore';
+    const gpsInSG=geo?isInSingapore(geo.lat,geo.lon):null;
+    const deviceTZ=gpsInSG===true?'Asia/Singapore':rawDeviceTZ;
     // Build a human-readable local timestamp for manager/log display
     const localTime=new Date().toLocaleString('en-SG',{timeZone:deviceTZ,day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
     const coordStr=geo?`${geo.lat.toFixed(5)}, ${geo.lon.toFixed(5)}`:'';
@@ -648,7 +659,7 @@ function renderSummary(){
       const eIn=inT<start?start:inT,eOut=outT>end?end:outT;
       mins+=(eOut-eIn)/60000;
       const lat=s.in.lat,lon=s.in.lon,loc=s.in.loc||'';
-      const overseas=lat!=null?(isInSingapore(lat,lon)===false):(isLocSingapore(loc)===false);
+      const overseas=s.in.regionOverride==='sg'?false:s.in.regionOverride==='overseas'?true:(lat!=null?(isInSingapore(lat,lon)===false):(isLocSingapore(loc)===false));
       // Use saved timezone from device (most accurate), fallback to location-derived tz
       const shiftTZ = s.in.tz || (overseas ? tzFromLoc(loc) : 'Asia/Singapore');
       // Use manager's OT override if set, otherwise compute automatically
@@ -925,7 +936,7 @@ window.printWorkerSummary=function(workerName){
         const durMins=(eOut-eIn)/60000;
         const hrs=(durMins/60).toFixed(1);
         const lat=s.in.lat,lon=s.in.lon,loc=s.in.loc||'';
-        const overseas=lat!=null?(isInSingapore(lat,lon)===false):(isLocSingapore(loc)===false);
+        const overseas=s.in.regionOverride==='sg'?false:s.in.regionOverride==='overseas'?true:(lat!=null?(isInSingapore(lat,lon)===false):(isLocSingapore(loc)===false));
         const shiftTZ=s.in.tz||(overseas?tzFromLoc(loc):'Asia/Singapore');
         const otM=s.in.otOverride!=null?s.in.otOverride*60:calcOTMins(eIn,eOut,shiftTZ);
         const otH=(otM/60).toFixed(1);
@@ -1056,7 +1067,7 @@ function renderLog(){
   if(!entries.length){list.innerHTML='<div class="lempty">No entries found</div>';return;}
   list.innerHTML=entries.slice(0,200).map(e=>{
     const d=new Date(e.time);
-    const tzLabel=e.tz&&e.tz!=='Asia/Singapore'?` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">${e.tz.split('/').pop().replace(/_/g,' ')}</span>`:'';
+    const tzLabel=e.regionOverride?(e.regionOverride==='sg'?` <span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:1px 5px;border-radius:8px;font-weight:600">SG (manually set)</span>`:` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">Overseas (manually set)</span>`):(e.tz&&e.tz!=='Asia/Singapore'?` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">${e.tz.split('/').pop().replace(/_/g,' ')}</span>`:'');
     const loc=e.loc||(e.lat!=null?`${e.lat.toFixed(4)}, ${e.lon.toFixed(4)}`:'No location');
     // Local time display: use saved localTime or convert UTC to worker's tz
     const displayTime = e.localTime || fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
@@ -1373,6 +1384,15 @@ setTimeout(()=>document.getElementById('loadingScreen').classList.add('hide'),10
       <label style="font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500">Location <span style="font-weight:400;color:#bbb">(address or description)</span></label>
       <input type="text" id="editLogLoc" placeholder="e.g. Tuas Power Plant, Singapore" style="width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7">
     </div>
+    <div style="margin-bottom:.75rem">
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500">Region <span style="font-weight:400;color:#bbb">(overrides GPS/device detection for OT & OVS calc)</span></label>
+      <select id="editLogRegion" style="width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7">
+        <option value="">Auto-detect (GPS / device timezone)</option>
+        <option value="sg">Singapore — force SG, no overseas allowance</option>
+        <option value="overseas">Overseas — force overseas allowance</option>
+      </select>
+      <div id="editLogRegionNote" style="font-size:11px;color:#A32D2D;margin-top:4px;display:none">This entry was auto-detected as <b id="editLogRegionAuto"></b>. Pick a region above only to correct a wrong detection (e.g. phone timezone glitches near the border).</div>
+    </div>
     <div style="margin-bottom:1rem">
       <label style="font-size:12px;color:#888;display:block;margin-bottom:3px;font-weight:500">Reason for edit</label>
       <input type="text" id="editLogReason" placeholder="e.g. Wrong clock-out location" style="width:100%;padding:8px 11px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#f9f9f7">
@@ -1407,6 +1427,15 @@ function openEditLog(id){
   document.getElementById('editLogLoc').value = e.loc||'';
   document.getElementById('editLogReason').value = '';
   document.getElementById('editLogJobDrop').style.display = 'none';
+  document.getElementById('editLogRegion').value = e.regionOverride||'';
+  var autoOverseas = e.lat!=null ? (isInSingapore(e.lat,e.lon)===false) : (isLocSingapore(e.loc||'')===false);
+  var regionNoteEl = document.getElementById('editLogRegionNote');
+  if(!e.regionOverride){
+    document.getElementById('editLogRegionAuto').textContent = autoOverseas?'Overseas':'Singapore';
+    regionNoteEl.style.display = 'block';
+  }else{
+    regionNoteEl.style.display = 'none';
+  }
   // Show OT override only for clock-in entries
   var isIn = e.type === 'in';
   document.getElementById('otOverrideSection').style.display = isIn ? 'block' : 'none';
@@ -1492,6 +1521,7 @@ async function saveEditLog(){
   var e = log2.find(function(x){return x.id===id;});
   var jobVal = document.getElementById('editLogJob').value.trim() || document.getElementById('editLogJobInp').value.trim();
   var locVal = document.getElementById('editLogLoc').value.trim();
+  var regionVal = document.getElementById('editLogRegion').value;
   var upd = {
     time: utcTime,
     localTime: localTime,
@@ -1501,6 +1531,19 @@ async function saveEditLog(){
     editedAt: new Date().toISOString(),
     editReason: reason||'Manual correction by manager'
   };
+  // Region override: lets a manager correct a wrong GPS/device-timezone detection
+  // (e.g. phone briefly reads Asia/Jakarta near the ferry terminal while physically in SG)
+  // without needing to fake GPS coordinates. This takes priority over the automatic
+  // lat/lon and device-timezone based overseas detection everywhere it's used.
+  if(regionVal==='sg'){
+    upd.regionOverride = 'sg';
+    upd.tz = 'Asia/Singapore';
+  }else if(regionVal==='overseas'){
+    upd.regionOverride = 'overseas';
+    upd.tz = tzFromLoc(locVal) || e.tz || 'Asia/Singapore';
+  }else{
+    upd.regionOverride = null; // revert to auto-detection from GPS/device timezone
+  }
   // Save OT override if this is a clock-in entry and a value was entered
   if(e && e.type === 'in'){
     var otOvEl = document.getElementById('editLogOTOverride');
