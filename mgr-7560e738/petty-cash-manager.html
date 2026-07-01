@@ -77,7 +77,7 @@ input[readonly]{background:#f9fafb;color:#6b7280}
 .bal-pos{color:#15803d}.bal-neg{color:#dc2626}
 .bal-settings{border-top:1px solid #f1f3f5;padding:10px 18px 14px}
 .bal-settings summary{cursor:pointer;font-size:12px;color:#6b7280;font-weight:600;user-select:none}
-.bal-set-grid{display:grid;grid-template-columns:220px auto;gap:12px;margin-top:12px;align-items:end}
+.bal-set-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;margin-top:12px;align-items:end}
 .bal-set-grid label{font-size:11px}
 .bal-hint{font-size:11px;color:#9ca3af;margin-top:8px;line-height:1.5}
 .bal-allrow{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #f1f3f5}
@@ -109,9 +109,10 @@ input[readonly]{background:#f9fafb;color:#6b7280}
       <summary>&#9881;&#65039; Fund settings</summary>
       <div class="bal-set-grid">
         <div><label>Monthly top-up (S$)</label><input type="number" step="0.01" min="0" id="cfgTopUp" placeholder="550.00"></div>
+        <div><label>Ledger opening balance (S$)</label><input type="number" step="0.01" id="cfgLedgerOpen" placeholder="0.00"></div>
         <div><button class="btn btn-green" onclick="window.saveSettings()">Save</button></div>
       </div>
-      <div class="bal-hint">Opening balance each month = the monthly top-up + that month&#39;s carry-over. Carry-over is keyed in manually per month above (in the balance card) &mdash; it no longer rolls forward automatically.</div>
+      <div class="bal-hint">Opening balance each month = the monthly top-up + that month&#39;s carry-over. Carry-over is keyed in manually per month above (in the balance card) &mdash; it no longer rolls forward automatically.<br>Ledger opening balance is the brought-forward (BF) balance for the very first voucher below &mdash; the cash on hand before you started tracking here.</div>
     </details>
   </div>
   <div class="card">
@@ -126,12 +127,16 @@ input[readonly]{background:#f9fafb;color:#6b7280}
       <table>
         <thead>
           <tr>
-            <th>Voucher No</th>
-            <th>Cheque No</th>
-            <th>Staff</th>
-            <th>Items</th>
-            <th style="text-align:right">Cheque Amt (S$)</th>
+            <th>Trans</th>
             <th>Date</th>
+            <th>ChqNo</th>
+            <th>Staff</th>
+            <th style="text-align:right">Amt</th>
+            <th style="text-align:right">BF</th>
+            <th style="text-align:right">TT Amt</th>
+            <th style="text-align:right">Bill TT</th>
+            <th style="text-align:right">Cal Bal</th>
+            <th style="text-align:right">Adj Bal</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -253,6 +258,7 @@ window.removeLI=function(){};
 window.onMonthChange=function(){};
 window.saveMonthCarry=function(){};
 window.applyNextCarry=function(){};
+window.saveAdjBal=function(){};
 window.saveSettings=function(){};
 </script>
 
@@ -326,6 +332,30 @@ function nextVoucherNo(){
    rolled forward from the previous month's closing balance. */
 function monthKey(ts){const d=new Date(ts||Date.now());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 function voucherMonthKey(v){return v.voucherDate?v.voucherDate.slice(0,7):monthKey(v.createdAt);}
+/* ── Running voucher ledger (BF / TT Amt / Bill TT / Cal Bal / Adj Bal) ──
+   Chained chronologically across ALL vouchers regardless of month/search filters,
+   so Brought Forward always reflects true history. Adj Bal is the only value
+   actually stored (per voucher) — everything else is derived live, so editing
+   an older voucher automatically ripples forward through later balances. */
+function computeLedger(){
+  const topUp = pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550;
+  const openBal = parseFloat(pettyCfg.ledgerOpeningBalance)||0;
+  const arr=Object.values(vouchers).slice().sort((a,b)=>{
+    const da=a.voucherDate||dateStrFrom(a.createdAt), db=b.voucherDate||dateStrFrom(b.createdAt);
+    if(da!==db) return da<db?-1:1;
+    return (a.createdAt||0)-(b.createdAt||0);
+  });
+  let bf=openBal;
+  return arr.map(v=>{
+    const billTT=(v.lineItems||[]).reduce((s,r)=>s+(parseFloat(r.total)||0),0);
+    const ttAmt=bf+topUp;
+    const calBal=ttAmt-billTT;
+    const adjBal=v.adjBal!=null?(parseFloat(v.adjBal)||0):calBal;
+    const row={v,bf,amt:topUp,ttAmt,billTT,calBal,adjBal};
+    bf=adjBal;
+    return row;
+  });
+}
 function monthLabel(k){const p=(k||'').split('-');if(p.length<2)return k||'';return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-SG',{month:'short',year:'numeric'});}
 function nextMonthKey(k){const p=(k||'').split('-');let y=Number(p[0]),m=Number(p[1])+1;if(m>12){m=1;y++;}return y+'-'+String(m).padStart(2,'0');}
 function computeBalances(){
@@ -401,11 +431,13 @@ window.applyNextCarry=function(nextKey,closingVal){
 };
 window.saveSettings=function(){
   const t=parseFloat(document.getElementById('cfgTopUp').value);
-  update(ref(db,'config/pettyCash'),{monthlyTopUp:isNaN(t)?550:t}).then(()=>toast('Fund settings saved.'));
+  const lo=parseFloat(document.getElementById('cfgLedgerOpen').value);
+  update(ref(db,'config/pettyCash'),{monthlyTopUp:isNaN(t)?550:t,ledgerOpeningBalance:isNaN(lo)?0:lo}).then(()=>toast('Fund settings saved.'));
 };
 onValue(ref(db,'config/pettyCash'),snap=>{
   pettyCfg=snap.exists()?(snap.val()||{}):{};
   const t=document.getElementById('cfgTopUp'); if(t&&document.activeElement!==t)t.value=pettyCfg.monthlyTopUp!=null?pettyCfg.monthlyTopUp:550;
+  const lo=document.getElementById('cfgLedgerOpen'); if(lo&&document.activeElement!==lo)lo.value=pettyCfg.ledgerOpeningBalance!=null?pettyCfg.ledgerOpeningBalance:0;
   window.renderList();
 });
 
@@ -415,32 +447,38 @@ window.renderList=function(){
   populateMonthSelect(balances);
   renderBalance(balances);
   const q=(document.getElementById('srch').value||'').toLowerCase();
-  let arr=Object.values(vouchers).sort((a,b)=>(b.voucherDate||dateStrFrom(b.createdAt)).localeCompare(a.voucherDate||dateStrFrom(a.createdAt))||(b.createdAt||0)-(a.createdAt||0));
-  if(selMonth&&selMonth!=='all') arr=arr.filter(v=>voucherMonthKey(v)===selMonth);
-  const filtered=arr.filter(v=>{
+  const ledger=computeLedger(); // ascending, full history — needed for correct BF chaining
+  let rows=ledger.slice();
+  if(selMonth&&selMonth!=='all') rows=rows.filter(row=>voucherMonthKey(row.v)===selMonth);
+  const filtered=rows.filter(row=>{
     if(!q)return true;
+    const v=row.v;
     return (v.voucherNo||'').toLowerCase().includes(q)
       ||(v.chequeNo||'').toLowerCase().includes(q)
       ||(v.staff||'').toLowerCase().includes(q)
       ||(v.lineItems||[]).some(li=>(li.company||'').toLowerCase().includes(q)||(li.billNo||'').toLowerCase().includes(q));
-  });
+  }).reverse(); // display newest-first, like the reference ledger
   const tbody=document.getElementById('tbody');
   tbody.innerHTML='';
   document.getElementById('nodata').style.display=filtered.length?'none':'block';
-  document.getElementById('vcount').textContent=arr.length+' voucher'+(arr.length!==1?'s':'')+((selMonth&&selMonth!=='all')?(' \u00b7 '+monthLabel(selMonth)):'');
-  filtered.forEach(v=>{
-    const li=v.lineItems||[];
-    const chequeAmt=li.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
+  document.getElementById('vcount').textContent=rows.length+' voucher'+(rows.length!==1?'s':'')+((selMonth&&selMonth!=='all')?(' \u00b7 '+monthLabel(selMonth)):'');
+  filtered.forEach(row=>{
+    const v=row.v, vid=v.id;
     const d=new Date((v.voucherDate||dateStrFrom(v.createdAt))+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+    const staff=[...new Set((v.lineItems||[]).map(li=>li.staff||'').filter(Boolean))].join(', ')||'—';
+    const adjDiffers=Math.abs(row.adjBal-row.calBal)>0.004;
     const tr=document.createElement('tr');
-    const vid=v.id;
     tr.innerHTML=''
       +'<td><span class="voucher-no" onclick="window.openEdit(\'' + vid + '\')">'+(v.voucherNo||'—')+'</span></td>'
-      +'<td>'+(v.chequeNo||'—')+'</td>'
-      +'<td>'+([...new Set((v.lineItems||[]).map(li=>li.staff||'').filter(Boolean))].join(', ')||'—')+'</td>'
-      +'<td style="color:#6b7280;font-size:12px">'+li.length+' item'+(li.length!==1?'s':'')+'</td>'
-      +'<td style="text-align:right;font-weight:600">'+fmt(chequeAmt)+'</td>'
       +'<td>'+d+'</td>'
+      +'<td>'+(v.chequeNo||'—')+'</td>'
+      +'<td>'+staff+'</td>'
+      +'<td style="text-align:right">'+fmt(row.amt)+'</td>'
+      +'<td style="text-align:right">'+fmt(row.bf)+'</td>'
+      +'<td style="text-align:right">'+fmt(row.ttAmt)+'</td>'
+      +'<td style="text-align:right;font-weight:600">'+fmt(row.billTT)+'</td>'
+      +'<td style="text-align:right'+(adjDiffers?';color:#9ca3af':'')+'">'+fmt(row.calBal)+'</td>'
+      +'<td style="text-align:right"><input type="number" step="0.01" value="'+row.adjBal.toFixed(2)+'" style="width:88px;text-align:right;padding:3px 6px;border:1px solid '+(adjDiffers?'#dc2626':'#d1d5db')+';border-radius:6px;font-size:12px;font-family:inherit" onchange="window.saveAdjBal(\''+vid+'\',this.value)"></td>'
       +'<td><div class="action-btns">'
       +'<button class="btn btn-outline btn-sm" onclick="window.printVoucher(\'' + vid + '\')">&#x1F5A8; Print</button>'
       +'<button class="btn btn-outline btn-sm" onclick="window.openEdit(\'' + vid + '\')">&#x270F;</button>'
@@ -448,6 +486,10 @@ window.renderList=function(){
       +'</div></td>';
     tbody.appendChild(tr);
   });
+};
+window.saveAdjBal=function(id,val){
+  const v=parseFloat(val);
+  update(ref(db,'pettyVouchers/'+id),{adjBal:isNaN(v)?null:v}).then(()=>{toast('Adjusted balance saved.');window.renderList();});
 };
 
 /* ── Line items ── */
