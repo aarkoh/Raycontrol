@@ -112,7 +112,7 @@ input[readonly]{background:#f9fafb;color:#6b7280}
         <div><label>Ledger opening balance (S$)</label><input type="number" step="0.01" id="cfgLedgerOpen" placeholder="0.00"></div>
         <div><button class="btn btn-green" onclick="window.saveSettings()">Save</button></div>
       </div>
-      <div class="bal-hint">Opening balance each month = the monthly top-up + that month&#39;s carry-over. Carry-over is keyed in manually per month above (in the balance card) &mdash; it no longer rolls forward automatically.<br>Ledger opening balance is the brought-forward (BF) balance for the very first voucher below &mdash; the cash on hand before you started tracking here.</div>
+      <div class="bal-hint">Opening balance each month = the monthly top-up(s) + that month&#39;s carry-over. Carry-over is now calculated automatically from your voucher ledger below (last voucher&#39;s Adj Bal before the month starts). You can still type a manual override in the balance card if needed &mdash; it will take priority over the ledger.<br>Ledger opening balance is the brought-forward (BF) balance for the very first voucher below &mdash; the cash on hand before you started tracking here.</div>
     </details>
   </div>
   <div class="card">
@@ -257,7 +257,7 @@ window.liChange=function(){};
 window.removeLI=function(){};
 window.onMonthChange=function(){};
 window.saveMonthCarry=function(){};
-window.applyNextCarry=function(){};
+window.clearMonthCarry=function(){};
 window.saveAdjBal=function(){};
 window.saveSettings=function(){};
 </script>
@@ -361,22 +361,37 @@ function nextMonthKey(k){const p=(k||'').split('-');let y=Number(p[0]),m=Number(
 function computeBalances(){
   const topUp = pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550;
   const carryOverride = pettyCfg.carryOverride||{};
-  const curK = monthKey(Date.now());
-  const spent={};
-  Object.values(vouchers).forEach(v=>{
-    const k=voucherMonthKey(v);
-    const amt=(v.lineItems||[]).reduce((s,r)=>s+(parseFloat(r.total)||0),0);
-    spent[k]=(spent[k]||0)+amt;
+  const ledger = computeLedger(); // ascending — the real source of truth
+  const byMonth={};
+  ledger.forEach(row=>{
+    const k=voucherMonthKey(row.v);
+    (byMonth[k]=byMonth[k]||[]).push(row);
   });
-  const months=new Set([...Object.keys(spent),...Object.keys(carryOverride),curK]);
+  const curK = monthKey(Date.now());
+  const months=new Set([...Object.keys(byMonth),...Object.keys(carryOverride),curK]);
   const sortedAll=[...months].sort();
   const byKey={}, ordered=[];
   sortedAll.forEach(k=>{
-    const carryIn = carryOverride[k]!=null?(parseFloat(carryOverride[k])||0):0;
-    const opening = topUp+carryIn;
-    const sp = spent[k]||0;
-    const closing = opening-sp;
-    const row={key:k,carryIn,topUp,opening,spent:sp,closing};
+    const rowsThisMonth=byMonth[k]||[];
+    // Balance actually on hand right before this month's first voucher, per the ledger
+    const priorRows=ledger.filter(row=>voucherMonthKey(row.v)<k);
+    const ledgerCarry=priorRows.length?priorRows[priorRows.length-1].adjBal:0;
+    // A manual override (if the manager set one) always wins over the ledger-derived value
+    const carryIn = carryOverride[k]!=null?(parseFloat(carryOverride[k])||0):ledgerCarry;
+    let opening, spentTotal, closing, topUpThisMonth;
+    if(rowsThisMonth.length){
+      topUpThisMonth = rowsThisMonth.reduce((s,row)=>s+row.amt,0);
+      opening = carryIn+topUpThisMonth;
+      spentTotal = rowsThisMonth.reduce((s,row)=>s+row.billTT,0);
+      closing = rowsThisMonth[rowsThisMonth.length-1].adjBal;
+    }else{
+      // No vouchers yet this month — project a single top-up for planning purposes
+      topUpThisMonth = topUp;
+      opening = carryIn+topUpThisMonth;
+      spentTotal = 0;
+      closing = opening;
+    }
+    const row={key:k,carryIn,topUp:topUpThisMonth,opening,spent:spentTotal,closing};
     byKey[k]=row; ordered.push(row);
   });
   return {ordered,byKey};
@@ -405,29 +420,25 @@ function renderBalance(b){
     body.innerHTML=h; return;
   }
   const r=b.byKey[selMonth]||{key:selMonth,carryIn:0,topUp:topUpNow,spent:0,opening:0,closing:0};
-  const nk=nextMonthKey(selMonth), nextHasOverride=(pettyCfg.carryOverride||{})[nk]!=null;
+  const hasOverride=(pettyCfg.carryOverride||{})[selMonth]!=null;
   body.innerHTML=
-     '<div class="bal-line"><span class="lbl">Carry-over from previous month</span><span class="val bal-editable"><input type="number" step="0.01" id="carryInInput" value="'+r.carryIn+'" style="width:100px;text-align:right;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit"><button class="btn btn-outline btn-sm" style="margin-left:6px" onclick="window.saveMonthCarry()">Save</button></span></div>'
-    +'<div class="bal-line"><span class="lbl">+ Monthly top-up</span><span class="val">S$ '+fmt(r.topUp)+'</span></div>'
+     '<div class="bal-line"><span class="lbl">Carry-over from previous month'+(hasOverride?' <span style="font-weight:400;color:#9ca3af;font-size:11px">(manual override)</span>':' <span style="font-weight:400;color:#9ca3af;font-size:11px">(auto, from voucher ledger)</span>')+'</span><span class="val bal-editable"><input type="number" step="0.01" id="carryInInput" value="'+r.carryIn+'" style="width:100px;text-align:right;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit"><button class="btn btn-outline btn-sm" style="margin-left:6px" onclick="window.saveMonthCarry()">Save</button>'+(hasOverride?' <button class="btn btn-outline btn-sm" style="margin-left:4px" onclick="window.clearMonthCarry()">Reset to auto</button>':'')+'</span></div>'
+    +'<div class="bal-line"><span class="lbl">+ Monthly top-up'+(topUpNow>0&&Math.abs(r.topUp-topUpNow)>0.004?' <span style="font-weight:400;color:#9ca3af;font-size:11px">('+Math.round(r.topUp/topUpNow)+'&#215; vouchers this month)</span>':'')+'</span><span class="val">S$ '+fmt(r.topUp)+'</span></div>'
     +'<div class="bal-line"><span class="lbl">= Opening balance</span><span class="val">S$ '+fmt(r.opening)+'</span></div>'
     +'<div class="bal-line"><span class="lbl">\u2212 Spent this month</span><span class="val bal-neg">S$ '+fmt(r.spent)+'</span></div>'
     +'<div class="bal-line total"><span class="lbl">Closing balance carried forward</span><span class="val '+(r.closing<0?'bal-neg':'bal-pos')+'">S$ '+fmt(r.closing)+'</span></div>'
-    +'<div class="bal-hint" style="padding-top:8px">Carry-over is keyed in manually each month &mdash; it is not automatically rolled forward from last month\u2019s closing balance.</div>'
-    +'<div class="bal-line" style="border-top:1px dashed #eef0f2;margin-top:8px;padding-top:10px"><span class="lbl">Carried forward to '+monthLabel(nk)+'</span><span class="val">S$ '+fmt(r.closing)+(nextHasOverride?' <span style="font-weight:400;color:#9ca3af;font-size:11px">(already set)</span>':' <button class="btn btn-outline btn-sm" style="margin-left:6px" onclick="window.applyNextCarry(\''+nk+'\','+r.closing+')">Use for '+monthLabel(nk)+'</button>')+'</span></div>';
+    +'<div class="bal-hint" style="padding-top:8px">Carry-over now flows automatically from the voucher ledger below (each month picks up the last voucher\u2019s Adj Bal before it starts). Use the override above only if you need to force a different starting figure.</div>';
 }
 window.onMonthChange=function(){selMonth=document.getElementById('monthSel').value;window.renderList();};
 window.saveMonthCarry=function(){
   if(!selMonth||selMonth==='all')return;
   const el=document.getElementById('carryInInput'); if(!el)return;
   const v=parseFloat(el.value);
-  update(ref(db,'config/pettyCash/carryOverride'),{[selMonth]:isNaN(v)?0:v}).then(()=>toast('Opening carry-over saved.'));
+  update(ref(db,'config/pettyCash/carryOverride'),{[selMonth]:isNaN(v)?0:v}).then(()=>toast('Carry-over override saved.'));
 };
-window.applyNextCarry=function(nextKey,closingVal){
-  update(ref(db,'config/pettyCash/carryOverride'),{[nextKey]:parseFloat(closingVal.toFixed(2))}).then(()=>{
-    toast('Carried forward to '+monthLabel(nextKey)+'.');
-    selMonth=nextKey;
-    window.renderList();
-  });
+window.clearMonthCarry=function(){
+  if(!selMonth||selMonth==='all')return;
+  update(ref(db,'config/pettyCash/carryOverride'),{[selMonth]:null}).then(()=>toast('Reset to auto-calculated carry-over.'));
 };
 window.saveSettings=function(){
   const t=parseFloat(document.getElementById('cfgTopUp').value);
