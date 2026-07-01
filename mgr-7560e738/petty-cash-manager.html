@@ -77,7 +77,7 @@ input[readonly]{background:#f9fafb;color:#6b7280}
 .bal-pos{color:#15803d}.bal-neg{color:#dc2626}
 .bal-settings{border-top:1px solid #f1f3f5;padding:10px 18px 14px}
 .bal-settings summary{cursor:pointer;font-size:12px;color:#6b7280;font-weight:600;user-select:none}
-.bal-set-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;margin-top:12px;align-items:end}
+.bal-set-grid{display:grid;grid-template-columns:220px auto;gap:12px;margin-top:12px;align-items:end}
 .bal-set-grid label{font-size:11px}
 .bal-hint{font-size:11px;color:#9ca3af;margin-top:8px;line-height:1.5}
 .bal-allrow{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #f1f3f5}
@@ -109,11 +109,9 @@ input[readonly]{background:#f9fafb;color:#6b7280}
       <summary>&#9881;&#65039; Fund settings</summary>
       <div class="bal-set-grid">
         <div><label>Monthly top-up (S$)</label><input type="number" step="0.01" min="0" id="cfgTopUp" placeholder="550.00"></div>
-        <div><label>Opening carry-over (S$)</label><input type="number" step="0.01" id="cfgSeed" placeholder="0.00"></div>
-        <div><label>Carry-over applies from</label><input type="month" id="cfgSeedMonth"></div>
         <div><button class="btn btn-green" onclick="window.saveSettings()">Save</button></div>
       </div>
-      <div class="bal-hint">Opening balance each month = previous month&#39;s closing balance + the monthly top-up. The opening carry-over is the cash left over before you started tracking here &mdash; set it once, on the month you begin.</div>
+      <div class="bal-hint">Opening balance each month = the monthly top-up + that month&#39;s carry-over. Carry-over is keyed in manually per month above (in the balance card) &mdash; it no longer rolls forward automatically.</div>
     </details>
   </div>
   <div class="card">
@@ -155,7 +153,7 @@ input[readonly]{background:#f9fafb;color:#6b7280}
       <div class="form-grid">
         <div>
           <label>Voucher No</label>
-          <input id="f_vno" readonly placeholder="Auto-generated">
+          <input id="f_vno" placeholder="e.g. 892">
         </div>
         <div>
           <label>Cheque No</label>
@@ -250,6 +248,7 @@ window.renderList=function(){};
 window.liChange=function(){};
 window.removeLI=function(){};
 window.onMonthChange=function(){};
+window.saveMonthCarry=function(){};
 window.saveSettings=function(){};
 </script>
 
@@ -316,12 +315,15 @@ function nextVoucherNo(){
   return String(max+1);
 }
 
-/* ── Monthly balance engine ── */
+/* ── Monthly balance engine ──
+   Each month's opening carry-over is keyed in manually by the manager
+   (config/pettyCash/carryOverride/{monthKey}) instead of being automatically
+   rolled forward from the previous month's closing balance. */
 function monthKey(ts){const d=new Date(ts||Date.now());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 function monthLabel(k){const p=(k||'').split('-');if(p.length<2)return k||'';return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-SG',{month:'short',year:'numeric'});}
 function computeBalances(){
   const topUp = pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550;
-  const seedCarry = parseFloat(pettyCfg.seedCarry)||0;
+  const carryOverride = pettyCfg.carryOverride||{};
   const curK = monthKey(Date.now());
   const spent={};
   Object.values(vouchers).forEach(v=>{
@@ -329,27 +331,17 @@ function computeBalances(){
     const amt=(v.lineItems||[]).reduce((s,r)=>s+(parseFloat(r.total)||0),0);
     spent[k]=(spent[k]||0)+amt;
   });
-  const months=new Set(Object.keys(spent)); months.add(curK);
-  if(pettyCfg.seedMonth) months.add(pettyCfg.seedMonth);
+  const months=new Set([...Object.keys(spent),...Object.keys(carryOverride),curK]);
   const sortedAll=[...months].sort();
-  if(!sortedAll.length) return {ordered:[],byKey:{}};
-  const start = pettyCfg.seedMonth || sortedAll[0];
-  const end = sortedAll[sortedAll.length-1];
   const byKey={}, ordered=[];
-  let yr=Number(start.split('-')[0]), mo=Number(start.split('-')[1]);
-  const ey=Number(end.split('-')[0]), em=Number(end.split('-')[1]);
-  let carry=0, first=true, guard=0;
-  while((yr<ey||(yr===ey&&mo<=em)) && guard<600){
-    const k=yr+'-'+String(mo).padStart(2,'0');
-    const carryIn = first?seedCarry:carry;
+  sortedAll.forEach(k=>{
+    const carryIn = carryOverride[k]!=null?(parseFloat(carryOverride[k])||0):0;
     const opening = topUp+carryIn;
     const sp = spent[k]||0;
     const closing = opening-sp;
     const row={key:k,carryIn,topUp,opening,spent:sp,closing};
     byKey[k]=row; ordered.push(row);
-    carry=closing; first=false;
-    mo++; if(mo>12){mo=1;yr++;} guard++;
-  }
+  });
   return {ordered,byKey};
 }
 function populateMonthSelect(b){
@@ -370,27 +362,29 @@ function renderBalance(b){
     b.ordered.slice().reverse().forEach(r=>{h+='<div class="bal-allrow"><span>'+monthLabel(r.key)+'</span><span>'+fmt(r.opening)+'</span><span>'+fmt(r.spent)+'</span><span class="'+(r.closing<0?'bal-neg':'bal-pos')+'">'+fmt(r.closing)+'</span></div>';});
     body.innerHTML=h; return;
   }
-  const r=b.byKey[selMonth];
-  if(!r){body.innerHTML='<div class="bal-hint" style="padding:14px 0">No activity for this month.</div>';return;}
+  const r=b.byKey[selMonth]||{key:selMonth,carryIn:0,topUp:(pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550),spent:0,opening:0,closing:0};
   body.innerHTML=
-     '<div class="bal-line"><span class="lbl">Carry-over from previous month</span><span class="val">S$ '+fmt(r.carryIn)+'</span></div>'
+     '<div class="bal-line"><span class="lbl">Carry-over from previous month</span><span class="val bal-editable"><input type="number" step="0.01" id="carryInInput" value="'+r.carryIn+'" style="width:100px;text-align:right;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit"><button class="btn btn-outline btn-sm" style="margin-left:6px" onclick="window.saveMonthCarry()">Save</button></span></div>'
     +'<div class="bal-line"><span class="lbl">+ Monthly top-up</span><span class="val">S$ '+fmt(r.topUp)+'</span></div>'
     +'<div class="bal-line"><span class="lbl">= Opening balance</span><span class="val">S$ '+fmt(r.opening)+'</span></div>'
     +'<div class="bal-line"><span class="lbl">\u2212 Spent this month</span><span class="val bal-neg">S$ '+fmt(r.spent)+'</span></div>'
-    +'<div class="bal-line total"><span class="lbl">Closing balance carried forward</span><span class="val '+(r.closing<0?'bal-neg':'bal-pos')+'">S$ '+fmt(r.closing)+'</span></div>';
+    +'<div class="bal-line total"><span class="lbl">Closing balance carried forward</span><span class="val '+(r.closing<0?'bal-neg':'bal-pos')+'">S$ '+fmt(r.closing)+'</span></div>'
+    +'<div class="bal-hint" style="padding-top:8px">Carry-over is keyed in manually each month &mdash; it is not automatically rolled forward from last month\u2019s closing balance.</div>';
 }
 window.onMonthChange=function(){selMonth=document.getElementById('monthSel').value;window.renderList();};
+window.saveMonthCarry=function(){
+  if(!selMonth||selMonth==='all')return;
+  const el=document.getElementById('carryInInput'); if(!el)return;
+  const v=parseFloat(el.value);
+  update(ref(db,'config/pettyCash/carryOverride'),{[selMonth]:isNaN(v)?0:v}).then(()=>toast('Opening carry-over saved.'));
+};
 window.saveSettings=function(){
   const t=parseFloat(document.getElementById('cfgTopUp').value);
-  const sd=parseFloat(document.getElementById('cfgSeed').value);
-  const sm=document.getElementById('cfgSeedMonth').value||'';
-  update(ref(db,'config/pettyCash'),{monthlyTopUp:isNaN(t)?550:t,seedCarry:isNaN(sd)?0:sd,seedMonth:sm}).then(()=>toast('Fund settings saved.'));
+  update(ref(db,'config/pettyCash'),{monthlyTopUp:isNaN(t)?550:t}).then(()=>toast('Fund settings saved.'));
 };
 onValue(ref(db,'config/pettyCash'),snap=>{
   pettyCfg=snap.exists()?(snap.val()||{}):{};
   const t=document.getElementById('cfgTopUp'); if(t&&document.activeElement!==t)t.value=pettyCfg.monthlyTopUp!=null?pettyCfg.monthlyTopUp:550;
-  const sd=document.getElementById('cfgSeed'); if(sd&&document.activeElement!==sd)sd.value=pettyCfg.seedCarry!=null?pettyCfg.seedCarry:'';
-  const mm=document.getElementById('cfgSeedMonth'); if(mm&&document.activeElement!==mm)mm.value=pettyCfg.seedMonth||'';
   window.renderList();
 });
 
@@ -519,6 +513,8 @@ window.saveVoucher=function(){
   const chqno=document.getElementById('f_chqno').value.trim();
   if(!vno){toast('Voucher No missing.');return;}
   if(!lineItems.length){toast('Add at least one line item.');return;}
+  const dup=Object.values(vouchers).some(v=>v.id!==editId&&(v.voucherNo||'').trim().toLowerCase()===vno.toLowerCase());
+  if(dup&&!confirm('Voucher No "'+vno+'" is already used by another voucher. Save anyway?'))return;
   const chequeAmount=lineItems.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
   const data={
     voucherNo:vno,chequeNo:chqno,
