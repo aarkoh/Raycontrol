@@ -252,6 +252,7 @@ window.liChange=function(){};
 window.removeLI=function(){};
 window.onMonthChange=function(){};
 window.saveMonthCarry=function(){};
+window.applyNextCarry=function(){};
 window.saveSettings=function(){};
 </script>
 
@@ -326,6 +327,7 @@ function nextVoucherNo(){
 function monthKey(ts){const d=new Date(ts||Date.now());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 function voucherMonthKey(v){return v.voucherDate?v.voucherDate.slice(0,7):monthKey(v.createdAt);}
 function monthLabel(k){const p=(k||'').split('-');if(p.length<2)return k||'';return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-SG',{month:'short',year:'numeric'});}
+function nextMonthKey(k){const p=(k||'').split('-');let y=Number(p[0]),m=Number(p[1])+1;if(m>12){m=1;y++;}return y+'-'+String(m).padStart(2,'0');}
 function computeBalances(){
   const topUp = pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550;
   const carryOverride = pettyCfg.carryOverride||{};
@@ -361,20 +363,27 @@ function populateMonthSelect(b){
 }
 function renderBalance(b){
   const body=document.getElementById('balBody'); if(!body)return;
+  const topUpNow=pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550;
   if(selMonth==='all'){
     if(!b.ordered.length){body.innerHTML='<div class="bal-hint" style="padding:14px 0">No data yet.</div>';return;}
     let h='<div class="bal-allrow head"><span>Month</span><span>Opening</span><span>Spent</span><span>Closing</span></div>';
     b.ordered.slice().reverse().forEach(r=>{h+='<div class="bal-allrow"><span>'+monthLabel(r.key)+'</span><span>'+fmt(r.opening)+'</span><span>'+fmt(r.spent)+'</span><span class="'+(r.closing<0?'bal-neg':'bal-pos')+'">'+fmt(r.closing)+'</span></div>';});
+    const lastKey=b.ordered[b.ordered.length-1].key, lastClosing=b.ordered[b.ordered.length-1].closing, nk=nextMonthKey(lastKey);
+    if(!b.byKey[nk]){
+      h+='<div class="bal-allrow" style="opacity:.6;font-style:italic"><span>'+monthLabel(nk)+' (projected)</span><span>'+fmt(topUpNow+lastClosing)+'</span><span>&mdash;</span><span>&mdash;</span></div>';
+    }
     body.innerHTML=h; return;
   }
-  const r=b.byKey[selMonth]||{key:selMonth,carryIn:0,topUp:(pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550),spent:0,opening:0,closing:0};
+  const r=b.byKey[selMonth]||{key:selMonth,carryIn:0,topUp:topUpNow,spent:0,opening:0,closing:0};
+  const nk=nextMonthKey(selMonth), nextHasOverride=(pettyCfg.carryOverride||{})[nk]!=null;
   body.innerHTML=
      '<div class="bal-line"><span class="lbl">Carry-over from previous month</span><span class="val bal-editable"><input type="number" step="0.01" id="carryInInput" value="'+r.carryIn+'" style="width:100px;text-align:right;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit"><button class="btn btn-outline btn-sm" style="margin-left:6px" onclick="window.saveMonthCarry()">Save</button></span></div>'
     +'<div class="bal-line"><span class="lbl">+ Monthly top-up</span><span class="val">S$ '+fmt(r.topUp)+'</span></div>'
     +'<div class="bal-line"><span class="lbl">= Opening balance</span><span class="val">S$ '+fmt(r.opening)+'</span></div>'
     +'<div class="bal-line"><span class="lbl">\u2212 Spent this month</span><span class="val bal-neg">S$ '+fmt(r.spent)+'</span></div>'
     +'<div class="bal-line total"><span class="lbl">Closing balance carried forward</span><span class="val '+(r.closing<0?'bal-neg':'bal-pos')+'">S$ '+fmt(r.closing)+'</span></div>'
-    +'<div class="bal-hint" style="padding-top:8px">Carry-over is keyed in manually each month &mdash; it is not automatically rolled forward from last month\u2019s closing balance.</div>';
+    +'<div class="bal-hint" style="padding-top:8px">Carry-over is keyed in manually each month &mdash; it is not automatically rolled forward from last month\u2019s closing balance.</div>'
+    +'<div class="bal-line" style="border-top:1px dashed #eef0f2;margin-top:8px;padding-top:10px"><span class="lbl">Carried forward to '+monthLabel(nk)+'</span><span class="val">S$ '+fmt(r.closing)+(nextHasOverride?' <span style="font-weight:400;color:#9ca3af;font-size:11px">(already set)</span>':' <button class="btn btn-outline btn-sm" style="margin-left:6px" onclick="window.applyNextCarry(\''+nk+'\','+r.closing+')">Use for '+monthLabel(nk)+'</button>')+'</span></div>';
 }
 window.onMonthChange=function(){selMonth=document.getElementById('monthSel').value;window.renderList();};
 window.saveMonthCarry=function(){
@@ -382,6 +391,13 @@ window.saveMonthCarry=function(){
   const el=document.getElementById('carryInInput'); if(!el)return;
   const v=parseFloat(el.value);
   update(ref(db,'config/pettyCash/carryOverride'),{[selMonth]:isNaN(v)?0:v}).then(()=>toast('Opening carry-over saved.'));
+};
+window.applyNextCarry=function(nextKey,closingVal){
+  update(ref(db,'config/pettyCash/carryOverride'),{[nextKey]:parseFloat(closingVal.toFixed(2))}).then(()=>{
+    toast('Carried forward to '+monthLabel(nextKey)+'.');
+    selMonth=nextKey;
+    window.renderList();
+  });
 };
 window.saveSettings=function(){
   const t=parseFloat(document.getElementById('cfgTopUp').value);
