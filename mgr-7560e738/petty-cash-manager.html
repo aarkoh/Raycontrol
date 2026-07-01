@@ -131,7 +131,7 @@ input[readonly]{background:#f9fafb;color:#6b7280}
             <th>Staff</th>
             <th>Items</th>
             <th style="text-align:right">Cheque Amt (S$)</th>
-            <th>Created</th>
+            <th>Date</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -159,7 +159,10 @@ input[readonly]{background:#f9fafb;color:#6b7280}
           <label>Cheque No</label>
           <input id="f_chqno" placeholder="e.g. 001234">
         </div>
-
+        <div>
+          <label>Voucher Date <span style="font-weight:400;color:#9ca3af">(sets which month this counts against)</span></label>
+          <input type="date" id="f_vdate">
+        </div>
       </div>
 
       <div class="li-section">
@@ -277,6 +280,7 @@ let vouchers={}, staffList=[], editId=null, lineItems=[], pettyCfg={}, selMonth=
 
 /* ── Helpers ── */
 function todayStr(){return new Date().toISOString().slice(0,10);}
+function dateStrFrom(ts){return ts?new Date(ts).toISOString().slice(0,10):todayStr();}
 
 /* ── Staff from config/staffPins ── */
 onValue(ref(db,'config/staffPins'),snap=>{
@@ -320,6 +324,7 @@ function nextVoucherNo(){
    (config/pettyCash/carryOverride/{monthKey}) instead of being automatically
    rolled forward from the previous month's closing balance. */
 function monthKey(ts){const d=new Date(ts||Date.now());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function voucherMonthKey(v){return v.voucherDate?v.voucherDate.slice(0,7):monthKey(v.createdAt);}
 function monthLabel(k){const p=(k||'').split('-');if(p.length<2)return k||'';return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-SG',{month:'short',year:'numeric'});}
 function computeBalances(){
   const topUp = pettyCfg.monthlyTopUp!=null?(parseFloat(pettyCfg.monthlyTopUp)||0):550;
@@ -327,7 +332,7 @@ function computeBalances(){
   const curK = monthKey(Date.now());
   const spent={};
   Object.values(vouchers).forEach(v=>{
-    const k=monthKey(v.createdAt);
+    const k=voucherMonthKey(v);
     const amt=(v.lineItems||[]).reduce((s,r)=>s+(parseFloat(r.total)||0),0);
     spent[k]=(spent[k]||0)+amt;
   });
@@ -394,8 +399,8 @@ window.renderList=function(){
   populateMonthSelect(balances);
   renderBalance(balances);
   const q=(document.getElementById('srch').value||'').toLowerCase();
-  let arr=Object.values(vouchers).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  if(selMonth&&selMonth!=='all') arr=arr.filter(v=>monthKey(v.createdAt)===selMonth);
+  let arr=Object.values(vouchers).sort((a,b)=>(b.voucherDate||dateStrFrom(b.createdAt)).localeCompare(a.voucherDate||dateStrFrom(a.createdAt))||(b.createdAt||0)-(a.createdAt||0));
+  if(selMonth&&selMonth!=='all') arr=arr.filter(v=>voucherMonthKey(v)===selMonth);
   const filtered=arr.filter(v=>{
     if(!q)return true;
     return (v.voucherNo||'').toLowerCase().includes(q)
@@ -410,7 +415,7 @@ window.renderList=function(){
   filtered.forEach(v=>{
     const li=v.lineItems||[];
     const chequeAmt=li.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
-    const d=new Date(v.createdAt||0).toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+    const d=new Date((v.voucherDate||dateStrFrom(v.createdAt))+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
     const tr=document.createElement('tr');
     const vid=v.id;
     tr.innerHTML=''
@@ -485,6 +490,7 @@ window.openAdd=function(){
   lineItems=[{date:todayStr(),billNo:'',company:'',staff:'',subAmount:'',gst:'',total:''}];
   document.getElementById('f_vno').value=nextVoucherNo();
   document.getElementById('f_chqno').value='';
+  document.getElementById('f_vdate').value=todayStr();
   document.getElementById('modalTitle').textContent='New Petty Cash Voucher';
   renderLineItems();
   document.getElementById('addModal').classList.add('active');
@@ -497,6 +503,7 @@ window.openEdit=function(id){
   lineItems=(v.lineItems||[]).map(li=>({...li}));
   document.getElementById('f_vno').value=v.voucherNo||'';
   document.getElementById('f_chqno').value=v.chequeNo||'';
+  document.getElementById('f_vdate').value=v.voucherDate||dateStrFrom(v.createdAt);
   document.getElementById('modalTitle').textContent='Edit '+(v.voucherNo||'Voucher');
   renderLineItems();
   document.getElementById('addModal').classList.add('active');
@@ -511,13 +518,15 @@ window.closeModal=function(){
 window.saveVoucher=function(){
   const vno=document.getElementById('f_vno').value.trim();
   const chqno=document.getElementById('f_chqno').value.trim();
+  const vdate=document.getElementById('f_vdate').value;
   if(!vno){toast('Voucher No missing.');return;}
+  if(!vdate){toast('Voucher Date missing.');return;}
   if(!lineItems.length){toast('Add at least one line item.');return;}
   const dup=Object.values(vouchers).some(v=>v.id!==editId&&(v.voucherNo||'').trim().toLowerCase()===vno.toLowerCase());
   if(dup&&!confirm('Voucher No "'+vno+'" is already used by another voucher. Save anyway?'))return;
   const chequeAmount=lineItems.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
   const data={
-    voucherNo:vno,chequeNo:chqno,
+    voucherNo:vno,chequeNo:chqno,voucherDate:vdate,
     chequeAmount:parseFloat(chequeAmount.toFixed(2)),
     lineItems:lineItems.map(li=>({
       date:li.date||'',billNo:li.billNo||'',company:li.company||'',staff:li.staff||'',
