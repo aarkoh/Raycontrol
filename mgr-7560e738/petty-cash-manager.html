@@ -57,6 +57,12 @@ input[readonly]{background:#f9fafb;color:#6b7280}
 .li-table td{padding:5px 4px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
 .li-table input{padding:6px 8px;font-size:12px}
 .li-staff-sel{width:100%;padding:5px 6px;font-size:12px;font-family:inherit;border:1px solid #e5e7eb;border-radius:6px;background:#fff;color:#111}
+.job-drop{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.1);max-height:170px;overflow-y:auto;z-index:60;display:none;margin-top:2px}
+.job-drop.show{display:block}
+.job-drop-item{padding:6px 10px;font-size:12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#111}
+.job-drop-item .jd-vessel{color:#9ca3af;font-size:11px;margin-left:6px}
+.job-drop-item:hover,.job-drop-item.active{background:#f0f4f8}
+.job-drop-empty{padding:6px 10px;font-size:11px;color:#9ca3af;font-style:italic}
 .add-li-btn{margin-top:8px;font-size:12px}
 .modal-footer{padding:14px 20px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;background:#f9fafb;border-radius:0 0 12px 12px}
 .totals-row{display:flex;justify-content:flex-end;margin-top:10px;gap:24px}
@@ -177,6 +183,7 @@ input[readonly]{background:#f9fafb;color:#6b7280}
             <tr>
               <th style="width:115px">Date</th>
               <th style="width:110px">Bill No</th>
+              <th style="width:100px">Job No</th>
               <th>Company</th>
               <th style="width:120px">Staff</th>
               <th style="width:105px;text-align:right">Sub Amt (S$)</th>
@@ -284,10 +291,20 @@ signInAnonymously(auth).catch(console.error);
 
 /* ── State ── */
 let vouchers={}, staffList=[], editId=null, lineItems=[], pettyCfg={}, selMonth='';
+let jobsList=[], jobDropIndex=-1;
 
 /* ── Helpers ── */
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function dateStrFrom(ts){return ts?new Date(ts).toISOString().slice(0,10):todayStr();}
+
+/* ── Jobs from jobs node (for Job No autocomplete) ── */
+onValue(ref(db,'jobs'),snap=>{
+  const data=snap.val()||{};
+  jobsList=Object.values(data)
+    .filter(j=>j.ref&&!j.archived)
+    .map(j=>({ref:j.ref,vessel:j.vessel||'',customerName:j.customerName||''}))
+    .sort((a,b)=>b.ref.localeCompare(a.ref));
+});
 
 /* ── Staff from config/staffPins ── */
 onValue(ref(db,'config/staffPins'),snap=>{
@@ -467,7 +484,7 @@ window.renderList=function(){
     return (v.voucherNo||'').toLowerCase().includes(q)
       ||(v.chequeNo||'').toLowerCase().includes(q)
       ||(v.staff||'').toLowerCase().includes(q)
-      ||(v.lineItems||[]).some(li=>(li.company||'').toLowerCase().includes(q)||(li.billNo||'').toLowerCase().includes(q));
+      ||(v.lineItems||[]).some(li=>(li.company||'').toLowerCase().includes(q)||(li.billNo||'').toLowerCase().includes(q)||(li.jobNo||'').toLowerCase().includes(q));
   }).reverse(); // display newest-first, like the reference ledger
   const tbody=document.getElementById('tbody');
   tbody.innerHTML='';
@@ -505,7 +522,7 @@ window.saveAdjBal=function(id,val){
 
 /* ── Line items ── */
 window.addLineItem=function(){
-  lineItems.push({date:todayStr(),billNo:'',company:'',staff:'',subAmount:'',gst:'',total:''});
+  lineItems.push({date:todayStr(),billNo:'',jobNo:'',company:'',staff:'',subAmount:'',gst:'',total:''});
   renderLineItems();
 };
 
@@ -517,6 +534,7 @@ function renderLineItems(){
     tr.innerHTML=''
       +'<td><input type="date" value="'+(li.date||'')+'" onchange="window.liChange('+i+',\'date\',this.value)"></td>'
       +'<td><input type="text" value="'+(li.billNo||'')+'" placeholder="Bill No" oninput="window.liChange('+i+',\'billNo\',this.value)"></td>'
+      +'<td style="position:relative"><input type="text" value="'+(li.jobNo||'')+'" placeholder="Job No" autocomplete="off" oninput="window.jobNoInput('+i+',this.value)" onfocus="window.jobNoInput('+i+',this.value)" onkeydown="window.jobDropKey(event,'+i+')" onblur="window.jobDropBlur('+i+')"><div class="job-drop" id="jobDrop_'+i+'"></div></td>'
       +'<td><input type="text" value="'+(li.company||'')+'" placeholder="Company name" oninput="window.liChange('+i+',\'company\',this.value)"></td>'
       +'<td><select class="li-staff-sel" onchange="window.liChange('+i+',\'staff\',this.value)">'+staffOptionsHTML(li.staff||'')+'</select></td>'
       +'<td><input type="number" step="0.01" min="0" value="'+(li.subAmount||'')+'" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',\'subAmount\',this.value)"></td>'
@@ -535,7 +553,7 @@ window.liChange=function(i,field,val){
     const g=parseFloat(lineItems[i].gst)||0;
     lineItems[i].total=(s+g).toFixed(2);
     const tb=document.getElementById('liBody');
-    if(tb.rows[i]) tb.rows[i].cells[6].querySelector('input').value=lineItems[i].total;
+    if(tb.rows[i]) tb.rows[i].cells[7].querySelector('input').value=lineItems[i].total;
   }
   updateTotals();
 };
@@ -543,6 +561,68 @@ window.liChange=function(i,field,val){
 window.removeLI=function(i){
   lineItems.splice(i,1);
   renderLineItems();
+};
+
+/* ── Job No autocomplete (sourced from real jobs node) ── */
+window.jobNoInput=function(i,val){
+  lineItems[i].jobNo=val;
+  const dd=document.getElementById('jobDrop_'+i);
+  if(!dd)return;
+  const q=(val||'').trim().toLowerCase();
+  if(!q){dd.classList.remove('show');dd.innerHTML='';return;}
+  const matches=jobsList.filter(j=>j.ref.toLowerCase().includes(q)).slice(0,8);
+  jobDropIndex=-1;
+  if(!matches.length){
+    dd.innerHTML='<div class="job-drop-empty">No matching job</div>';
+    dd.classList.add('show');
+    return;
+  }
+  dd.innerHTML=matches.map(j=>'<div class="job-drop-item" onmousedown="window.selectJobRef('+i+',\''+esc(j.ref).replace(/'/g,"\\'")+'\')">'
+    +esc(j.ref)+(j.vessel?' <span class="jd-vessel">'+esc(j.vessel)+'</span>':'')
+    +'</div>').join('');
+  dd.classList.add('show');
+};
+
+window.selectJobRef=function(i,jobRef){
+  lineItems[i].jobNo=jobRef;
+  const tb=document.getElementById('liBody');
+  if(tb.rows[i]){
+    const inp=tb.rows[i].cells[2].querySelector('input');
+    if(inp) inp.value=jobRef;
+  }
+  const dd=document.getElementById('jobDrop_'+i);
+  if(dd){dd.classList.remove('show');dd.innerHTML='';}
+};
+
+window.jobDropBlur=function(i){
+  setTimeout(()=>{
+    const dd=document.getElementById('jobDrop_'+i);
+    if(dd){dd.classList.remove('show');dd.innerHTML='';}
+  },150);
+};
+
+window.jobDropKey=function(e,i){
+  const dd=document.getElementById('jobDrop_'+i);
+  if(!dd||!dd.classList.contains('show'))return;
+  const items=dd.querySelectorAll('.job-drop-item');
+  if(!items.length)return;
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    jobDropIndex=Math.min(jobDropIndex+1,items.length-1);
+    items.forEach((el,idx)=>el.classList.toggle('active',idx===jobDropIndex));
+  } else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    jobDropIndex=Math.max(jobDropIndex-1,0);
+    items.forEach((el,idx)=>el.classList.toggle('active',idx===jobDropIndex));
+  } else if(e.key==='Enter'){
+    if(jobDropIndex>=0&&items[jobDropIndex]){
+      e.preventDefault();
+      items[jobDropIndex].dispatchEvent(new MouseEvent('mousedown'));
+    }
+  } else if(e.key==='Escape'){
+    dd.classList.remove('show');
+    dd.innerHTML='';
+  }
 };
 
 function updateTotals(){
@@ -556,7 +636,7 @@ function updateTotals(){
 /* ── Open / Close modals ── */
 window.openAdd=function(){
   editId=null;
-  lineItems=[{date:todayStr(),billNo:'',company:'',staff:'',subAmount:'',gst:'',total:''}];
+  lineItems=[{date:todayStr(),billNo:'',jobNo:'',company:'',staff:'',subAmount:'',gst:'',total:''}];
   document.getElementById('f_vno').value=nextVoucherNo();
   document.getElementById('f_chqno').value='';
   document.getElementById('f_vdate').value=todayStr();
@@ -598,7 +678,7 @@ window.saveVoucher=function(){
     voucherNo:vno,chequeNo:chqno,voucherDate:vdate,
     chequeAmount:parseFloat(chequeAmount.toFixed(2)),
     lineItems:lineItems.map(li=>({
-      date:li.date||'',billNo:li.billNo||'',company:li.company||'',staff:li.staff||'',
+      date:li.date||'',billNo:li.billNo||'',jobNo:li.jobNo||'',company:li.company||'',staff:li.staff||'',
       subAmount:parseFloat(li.subAmount)||0,
       gst:parseFloat(li.gst)||0,
       total:parseFloat(li.total)||0
@@ -631,6 +711,7 @@ window.printVoucher=function(id){
     +'<td style="text-align:center">'+(i+1)+'</td>'
     +'<td>'+fmtDatePrint(r.date)+'</td>'
     +'<td>'+esc(r.billNo)+'</td>'
+    +'<td>'+esc(r.jobNo||'—')+'</td>'
     +'<td>'+esc(r.company)+'</td>'
     +'<td>'+esc(r.staff||'—')+'</td>'
     +'<td style="text-align:right">'+fmt(r.subAmount)+'</td>'
@@ -669,6 +750,7 @@ window.printVoucher=function(id){
     +'<th style="width:32px;text-align:center">No.</th>'
     +'<th style="width:88px">Date</th>'
     +'<th style="width:90px">Bill No</th>'
+    +'<th style="width:80px">Job No</th>'
     +'<th>Company</th>'
     +'<th style="width:90px">Staff</th>'
     +'<th style="width:90px;text-align:right">Sub Amt</th>'
@@ -677,7 +759,7 @@ window.printVoucher=function(id){
     +'</tr></thead>'
     +'<tbody>'+liRows+'</tbody>'
     +'<tfoot><tr style="background:#f0f4f8">'
-    +'<td colspan="5" style="text-align:right;font-weight:700;font-size:9pt">Totals:</td>'
+    +'<td colspan="6" style="text-align:right;font-weight:700;font-size:9pt">Totals:</td>'
     +'<td style="text-align:right;font-weight:600">'+fmt(sub)+'</td>'
     +'<td style="text-align:right;font-weight:600">'+fmt(gst)+'</td>'
     +'<td style="text-align:right;font-weight:700;color:#1e3a5f;font-size:10pt">'+fmt(total)+'</td>'
