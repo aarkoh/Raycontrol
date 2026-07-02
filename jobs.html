@@ -413,7 +413,11 @@ function renderList(){
   var list=Object.entries(jobs).filter(function(e){
     var j=e[1];
     var isArchived=!!j.archived;
-    if(sFilter==="_archived")return isArchived;
+    if(sFilter==="_archived"){
+      if(!isArchived)return false;
+      if(q&&![j.ref,j.customerName,j.vessel,j.equip,j.memo].filter(Boolean).some(function(x){return x.toLowerCase().includes(q);}))return false;
+      return true;
+    }
     if(isArchived)return false; // hide archived from all other views
     if(sFilter!=="all"&&j.status!==sFilter)return false;
     if(q&&![j.ref,j.customerName,j.vessel,j.equip,j.memo].filter(Boolean).some(function(x){return x.toLowerCase().includes(q);}))return false;
