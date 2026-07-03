@@ -2468,15 +2468,12 @@ window.printSOA = function() {
     <div class="cipl-fi"><label>Company / Consignee Name</label><input type="text" id="cipl_consignee"></div>
     <div class="cipl-fi"><label>Delivery Address</label><textarea id="cipl_addr" rows="3" placeholder="Full delivery address&hellip;"></textarea></div>
     <div class="cipl-fi"><label>Marks &amp; Numbers</label><input type="text" id="cipl_marks" placeholder="e.g. RC/2603001/C1-C3"></div>
-    <div class="cipl-sec">Packing Details &mdash; combined for all selected items</div>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end">
-      <div class="cipl-fi"><label>Pkgs</label><input type="number" id="cp_pkgs" min="1" step="1" value="1"></div>
-      <div class="cipl-fi"><label>L (cm)</label><input type="number" id="cp_l" step="0.1" placeholder="—"></div>
-      <div class="cipl-fi"><label>W (cm)</label><input type="number" id="cp_w" step="0.1" placeholder="—"></div>
-      <div class="cipl-fi"><label>H (cm)</label><input type="number" id="cp_h" step="0.1" placeholder="—"></div>
-      <div class="cipl-fi"><label>Gross Wt (kg)</label><input type="number" id="cp_gw" step="0.01" placeholder="0.00"></div>
-      <div class="cipl-fi"><label>Net Wt (kg)</label><input type="number" id="cp_nw" step="0.01" placeholder="0.00"></div>
-    </div>
+    <div class="cipl-sec">Packing Details</div>
+    <table class="cipl-pack-tbl" id="cipl_pack_tbl">
+      <thead><tr><th style="width:14%">Pkgs</th><th style="width:16%">L (cm)</th><th style="width:16%">W (cm)</th><th style="width:16%">H (cm)</th><th style="width:18%">Gross Wt (kg)</th><th style="width:18%">Net Wt (kg)</th><th style="width:28px"></th></tr></thead>
+      <tbody id="cipl_pack_rows"></tbody>
+    </table>
+    <div style="margin-top:6px"><a href="#" onclick="window.ciplAddPackRow();return false" style="color:#185FA5;font-size:12px;font-weight:600">+ Add Line</a></div>
     <div class="cipl-sec">Additional</div>
     <div class="cipl-fi"><label>Remarks</label><textarea id="cipl_remarks" rows="2" placeholder="Any special remarks&hellip;"></textarea></div>
     <div class="cipl-mfoot">
@@ -2694,13 +2691,8 @@ window.openCIPL = function(id) {
   document.getElementById('cipl_addr').value='';
   document.getElementById('cipl_marks').value='RC/'+(j.ref||'');
   document.getElementById('cipl_remarks').value='';
-  // Reset combined packing fields
-  document.getElementById('cp_pkgs').value='1';
-  document.getElementById('cp_l').value='';
-  document.getElementById('cp_w').value='';
-  document.getElementById('cp_h').value='';
-  document.getElementById('cp_gw').value='';
-  document.getElementById('cp_nw').value='';
+  // Reset packing lines
+  document.getElementById('cipl_pack_rows').innerHTML='';
   // ── Restore saved CIPL draft (overrides defaults above) ──
   var _ciplD=j.ciplDraft||null;
   if(_ciplD){
@@ -2710,12 +2702,14 @@ window.openCIPL = function(id) {
     if(_ciplD.remarks!==undefined)   document.getElementById('cipl_remarks').value=_ciplD.remarks;
     if(_ciplD.shipName)              document.getElementById('cipl_ship_name').value=_ciplD.shipName;
     if(_ciplD.shipAddr)              document.getElementById('cipl_ship_addr').value=_ciplD.shipAddr;
-    if(_ciplD.pkgs)                  document.getElementById('cp_pkgs').value=_ciplD.pkgs;
-    if(_ciplD.l)                     document.getElementById('cp_l').value=_ciplD.l;
-    if(_ciplD.w)                     document.getElementById('cp_w').value=_ciplD.w;
-    if(_ciplD.h)                     document.getElementById('cp_h').value=_ciplD.h;
-    if(_ciplD.gw)                    document.getElementById('cp_gw').value=_ciplD.gw;
-    if(_ciplD.nw)                    document.getElementById('cp_nw').value=_ciplD.nw;
+  }
+  // Restore packing lines: new multi-line format, old single-line format, or default
+  if(_ciplD&&_ciplD.packLines&&_ciplD.packLines.length){
+    _ciplD.packLines.forEach(function(pl){window.ciplAddPackRow(pl);});
+  }else if(_ciplD&&(_ciplD.pkgs||_ciplD.l||_ciplD.w||_ciplD.h||_ciplD.gw||_ciplD.nw)){
+    window.ciplAddPackRow({pkgs:_ciplD.pkgs,l:_ciplD.l,w:_ciplD.w,h:_ciplD.h,gw:_ciplD.gw,nw:_ciplD.nw});
+  }else{
+    window.ciplAddPackRow();
   }
   // Build item checkboxes (support parent/child)
   var list=document.getElementById('cipl_item_list');
@@ -2748,6 +2742,24 @@ window.openCIPL = function(id) {
 };
 window.ciplSelectAll=function(v){document.querySelectorAll('[id^="cipl_ic_"]').forEach(function(cb){cb.checked=v;});};
 window.ciplToggleParent=function(i,v){document.querySelectorAll('[data-parent="'+i+'"]').forEach(function(cb){cb.checked=v;});};
+window.ciplAddPackRow=function(d){
+  d=d||{};
+  var tbody=document.getElementById('cipl_pack_rows');
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td><input type="number" class="cp-pkgs" min="1" step="1" value="'+(d.pkgs!=null&&d.pkgs!==''?d.pkgs:1)+'"></td>'
+    +'<td><input type="number" class="cp-l" step="0.1" placeholder="—" value="'+(d.l||'')+'"></td>'
+    +'<td><input type="number" class="cp-w" step="0.1" placeholder="—" value="'+(d.w||'')+'"></td>'
+    +'<td><input type="number" class="cp-h" step="0.1" placeholder="—" value="'+(d.h||'')+'"></td>'
+    +'<td><input type="number" class="cp-gw" step="0.01" placeholder="0.00" value="'+(d.gw||'')+'"></td>'
+    +'<td><input type="number" class="cp-nw" step="0.01" placeholder="0.00" value="'+(d.nw||'')+'"></td>'
+    +'<td style="text-align:center"><button type="button" onclick="window.ciplRemovePackRow(this)" style="border:none;background:none;color:#c0392b;cursor:pointer;font-size:15px;padding:2px 6px;line-height:1" title="Remove line">&times;</button></td>';
+  tbody.appendChild(tr);
+};
+window.ciplRemovePackRow=function(btn){
+  var tbody=document.getElementById('cipl_pack_rows');
+  if(tbody.children.length<=1){window.toast('At least one packing line is required');return;}
+  btn.closest('tr').remove();
+};
 
 window.generateCIPL = function() {
   var id=document.getElementById('cipl_jobid').value;
@@ -2790,13 +2802,21 @@ window.generateCIPL = function() {
   });
   if(!selected.length){window.toast('Select at least one item');return;}
 
-  // Combined packing details
-  var pkgs=parseFloat(document.getElementById('cp_pkgs').value)||1;
-  var cl=parseFloat(document.getElementById('cp_l').value)||0;
-  var cw=parseFloat(document.getElementById('cp_w').value)||0;
-  var ch2=parseFloat(document.getElementById('cp_h').value)||0;
-  var cgw=parseFloat(document.getElementById('cp_gw').value)||0;
-  var cnw=parseFloat(document.getElementById('cp_nw').value)||0;
+  // Packing lines (one or more)
+  var packRows=Array.prototype.slice.call(document.querySelectorAll('#cipl_pack_rows tr'));
+  var packLines=packRows.map(function(tr){
+    return {
+      pkgs:parseFloat(tr.querySelector('.cp-pkgs').value)||0,
+      l:parseFloat(tr.querySelector('.cp-l').value)||0,
+      w:parseFloat(tr.querySelector('.cp-w').value)||0,
+      h:parseFloat(tr.querySelector('.cp-h').value)||0,
+      gw:parseFloat(tr.querySelector('.cp-gw').value)||0,
+      nw:parseFloat(tr.querySelector('.cp-nw').value)||0
+    };
+  });
+  var pkgs=packLines.reduce(function(s,pl){return s+pl.pkgs;},0);
+  var cgw=packLines.reduce(function(s,pl){return s+pl.gw;},0);
+  var cnw=packLines.reduce(function(s,pl){return s+pl.nw;},0);
 
   function fmtN(n){return(parseFloat(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
   var fmt=window._fmt||fmtN;
@@ -2822,14 +2842,16 @@ window.generateCIPL = function() {
     +'</tr>';
   }).join('');
 
-  // Single combined packing row listing all item descriptions
-  var dims=(cl&&cw&&ch2)?cl+'×'+cw+'×'+ch2:'—';
-  var plRow='<tr>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+pkgs+'</td>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+dims+'</td>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(cgw)+'</td>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(cnw)+'</td>'
-  +'</tr>';
+  // One packing row per line entered
+  var plRow=packLines.map(function(pl){
+    var dims=(pl.l&&pl.w&&pl.h)?pl.l+'×'+pl.w+'×'+pl.h:'—';
+    return '<tr>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+pl.pkgs+'</td>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+dims+'</td>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(pl.gw)+'</td>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(pl.nw)+'</td>'
+    +'</tr>';
+  }).join('');
 
   var vesselLine=[j.vessel&&('Vessel: <strong>'+j.vessel+'</strong>'),j.port&&('Port: <strong>'+j.port+'</strong>'),j.equip&&('Equip: <strong>'+j.equip+'</strong>')].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
@@ -2858,7 +2880,7 @@ window.generateCIPL = function() {
     +'</body></html>';
   rcOpenBlob(html,j.ref);
   // ── Save CIPL draft so fields persist next time ──
-  try{if(window._dbUpdate&&window._dbRef&&window._db)window._dbUpdate(window._dbRef(window._db,'jobs/'+id),{ciplDraft:{consignee:consignee,addr:document.getElementById('cipl_addr').value.trim(),marks:marks,remarks:remarks,shipName:shipName,shipAddr:document.getElementById('cipl_ship_addr').value.trim(),pkgs:pkgs,l:cl,w:cw,h:ch2,gw:cgw,nw:cnw}});}catch(e){}
+  try{if(window._dbUpdate&&window._dbRef&&window._db)window._dbUpdate(window._dbRef(window._db,'jobs/'+id),{ciplDraft:{consignee:consignee,addr:document.getElementById('cipl_addr').value.trim(),marks:marks,remarks:remarks,shipName:shipName,shipAddr:document.getElementById('cipl_ship_addr').value.trim(),packLines:packLines}});}catch(e){}
   document.getElementById('ciplModal').classList.remove('show');
 };
 
