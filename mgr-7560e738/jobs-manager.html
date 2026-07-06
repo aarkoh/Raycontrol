@@ -1362,13 +1362,13 @@ window.openCNModal = function(id) {
     if (it.children && it.children.length) {
       // Parent: description only, no price
       var prow = document.createElement('tr');
-      prow.innerHTML = '<td></td><td colspan="4" style="padding:4px 8px;font-size:11px;font-weight:600;color:#888;text-transform:uppercase">'+it.description+'</td>';
+      prow.innerHTML = '<td></td><td colspan="4" style="padding:4px 8px;font-size:11px;font-weight:600;color:#888;text-transform:uppercase">'+(it.desc||it.description||'(no description)')+'</td>';
       tbody.appendChild(prow);
       it.children.forEach(function(c, ci) {
-        addCNRow(c.description, c.qty || 1, c.unitPrice || 0, i+'_'+ci);
+        addCNRow(c.desc||c.description||'(no description)', c.qty || 1, c.unitPrice || 0, i+'_'+ci);
       });
     } else {
-      addCNRow(it.description, it.qty || 1, it.unitPrice || 0, i);
+      addCNRow(it.desc||it.description||'(no description)', it.qty || 1, it.unitPrice || 0, i);
     }
   });
 
