@@ -716,6 +716,43 @@ window.setPipeBtn=function(btn){
   window.setStatus(btn.dataset.jid,btn.dataset.st).finally(function(){btn.disabled=false;btn.style.opacity='';});
 };
 
+// ── Shared: deduct stock for line items linked to the stock catalog ──
+// Compares each stock-linked line item's current qty against how much has
+// already been deducted for it (it.stockDeductedQty) and deducts only the
+// positive difference. Safe to call repeatedly (e.g. on every save once a
+// job is at/after DO-WCC) — no-ops for items that haven't changed, and
+// picks up items added or increased after the initial DO/WCC transition.
+// Mutates lineItems in place (updates stockDeductedQty) and returns how
+// many items had a new deduction applied.
+async function reconcileStockDeductions(jobId,jobRefLabel,lineItems,sourceLabel){
+  var stockItems=window._stockItems||{};
+  var now=new Date().toISOString();
+  var deductedCount=0;
+  for(var di=0;di<lineItems.length;di++){
+    var it=lineItems[di];
+    if(!it||!it.stockItemId)continue;
+    var curQty=parseFloat(it.qty)||0;
+    if(curQty<=0)continue;
+    var prevDeducted=parseFloat(it.stockDeductedQty)||0;
+    var delta=curQty-prevDeducted;
+    if(delta<=1e-9)continue; // nothing new to deduct (qty unchanged or reduced)
+    var sid=it.stockItemId;
+    var sItem=stockItems[sid];
+    if(!sItem)continue;
+    var qtyBefore=parseFloat(sItem.qty)||0;
+    var qtyAfter=Math.max(0,qtyBefore-delta);
+    var entry={itemId:sid,itemName:sItem.name||it.desc,sku:sItem.sku||'',worker:'System (DO)',type:'out',qty:delta,unit:sItem.unit||it.unit||'pcs',qtyBefore:qtyBefore,qtyAfter:qtyAfter,job:jobRefLabel,notes:'Auto-deducted — '+(sourceLabel||'DO issued')+' for job '+jobRefLabel,time:now,localTime:new Date().toLocaleString('en-GB',{timeZone:'Asia/Singapore',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),tz:'Asia/Singapore'};
+    try{
+      await push(ref(db,'stock/movements'),entry);
+      await update(ref(db,'stock/items/'+sid),{qty:qtyAfter,lastUpdated:now,lastWorker:'System (DO '+jobRefLabel+')'});
+      if(window._stockItems&&window._stockItems[sid])window._stockItems[sid].qty=qtyAfter;
+      it.stockDeductedQty=curQty;
+      deductedCount++;
+    }catch(se){console.warn('Stock deduct failed for '+sid,se);}
+  }
+  return deductedCount;
+}
+
 window.setStatus=async function(id,s){
   try{
     var prevStatus=(jobs[id]||{}).status||'';
@@ -736,33 +773,16 @@ window.setStatus=async function(id,s){
     exposeGlobals();
     // ── Auto-deduct stock when DO is issued ──
     if(s==='do_wcc'){
-      // Re-fetch job fresh from Firebase to ensure stockItemId is current (not stale local cache)
+      // Re-fetch job fresh from Firebase to ensure stockItemId/qty are current (not stale local cache)
       var freshSnap=await get(ref(db,'jobs/'+id));
       var j=freshSnap.exists()?freshSnap.val():(jobs[id]||{});
-      // Idempotency guard — skip deduction if job was already at do_wcc before this click
-      if(prevStatus==='do_wcc'){console.log('Stock deduction skipped — already at DO/WCC');return;}
       var lineItems=j.lineItems||[];
-      var stockItems=window._stockItems||{};
-      var now=new Date().toISOString();
-      var deductions=lineItems.filter(function(it){return it.stockItemId&&parseFloat(it.qty)>0;});
-      if(deductions.length){
-        for(var di=0;di<deductions.length;di++){
-          var it=deductions[di];
-          var sid=it.stockItemId;
-          var sItem=stockItems[sid];
-          if(!sItem)continue;
-          var qty=parseFloat(it.qty)||0;
-          var qtyBefore=parseFloat(sItem.qty)||0;
-          var qtyAfter=Math.max(0,qtyBefore-qty);
-          var entry={itemId:sid,itemName:sItem.name||it.desc,sku:sItem.sku||'',worker:'System (DO)',type:'out',qty:qty,unit:sItem.unit||it.unit||'pcs',qtyBefore:qtyBefore,qtyAfter:qtyAfter,job:j.ref||id,notes:'Auto-deducted — DO issued for job '+( j.ref||id),time:now,localTime:new Date().toLocaleString('en-GB',{timeZone:'Asia/Singapore',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),tz:'Asia/Singapore'};
-          try{
-            await push(ref(db,'stock/movements'),entry);
-            await update(ref(db,'stock/items/'+sid),{qty:qtyAfter,lastUpdated:now,lastWorker:'System (DO '+( j.ref||id)+')'});
-            // Update local cache
-            if(window._stockItems&&window._stockItems[sid])window._stockItems[sid].qty=qtyAfter;
-          }catch(se){console.warn('Stock deduct failed for '+sid,se);}
-        }
-        toast('Stock deducted for '+deductions.length+' item'+(deductions.length>1?'s':'')+' ✓');
+      var deductedCount=await reconcileStockDeductions(id,j.ref||id,lineItems,'DO issued');
+      if(deductedCount){
+        await update(ref(db,'jobs/'+id),{lineItems:lineItems});
+        jobs[id]=Object.assign({},jobs[id],{lineItems:lineItems});
+        exposeGlobals();
+        toast('Stock deducted for '+deductedCount+' item'+(deductedCount>1?'s':'')+' ✓');
       }
     }
     toast("Status → "+SL[s]);
@@ -795,9 +815,9 @@ window.deleteJob=async function(id){
 };
 
 // Line items
-window.addLI=function(desc,qty,unit,price,vendor,cost,costCur,stockItemId){
+window.addLI=function(desc,qty,unit,price,vendor,cost,costCur,stockItemId,stockDeductedQty){
   desc=desc||"";qty=qty||"";unit=(unit===undefined||unit===null)?"JOB":unit;price=price||"";vendor=vendor||"";cost=cost||"";costCur=costCur||"SGD";
-  liCount++;var n=liCount;stockItemId=stockItemId||'';
+  liCount++;var n=liCount;stockItemId=stockItemId||'';stockDeductedQty=stockDeductedQty||0;
   var tr=document.createElement("tr");tr.id="li_"+n;
   var vopts=selVendors.map(function(v){return '<option value="'+v.id+'"'+(vendor===v.id?' selected':'')+'>'+v.name+'</option>';}).join('');
   tr.innerHTML='<td style="text-align:center;color:#888;font-size:11px;padding:2px 0">'
@@ -810,7 +830,7 @@ window.addLI=function(desc,qty,unit,price,vendor,cost,costCur,stockItemId){
     +'<td><input type="number" value="'+price+'" placeholder="0.00" min="0" step="0.01" id="lp_'+n+'" data-n="'+n+'" oninput="window.calcLI(this.dataset.n)" style="width:82px;text-align:right"></td>'
     +'<td><span class="lamt" id="la_'+n+'">0.00</span></td>'
     +'<td title="Customer discount %"><div style="display:flex;align-items:center"><input type="number" value="" placeholder="0" min="0" max="100" step="0.1" id="lcd_'+n+'" data-n="'+n+'" oninput="window.updateMarkup(this.dataset.n)" style="width:40px;text-align:right;padding:5px 3px;border:1px solid #B5D4F4;border-radius:6px 0 0 6px;font-size:12px;font-family:inherit;background:#E6F1FB"><span style="background:#E6F1FB;border:1px solid #B5D4F4;border-left:none;border-radius:0 6px 6px 0;padding:5px 3px;font-size:10px;color:#185FA5">%</span></div></td>'
-    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+n+'" data-n="'+n+'" oninput="window.updateMarkup(this.dataset.n)"'+(stockItemId?' data-stock-id="'+stockItemId+'" readonly title="Cost from stock catalog — read only" style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#f5f0e8;cursor:not-allowed"':' style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"')+'></td>'
+    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+n+'" data-n="'+n+'" oninput="window.updateMarkup(this.dataset.n)"'+(stockItemId?' data-stock-id="'+stockItemId+'" data-deducted-qty="'+stockDeductedQty+'" readonly title="Cost from stock catalog — read only" style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#f5f0e8;cursor:not-allowed"':' style="width:68px;text-align:right;padding:5px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"')+'></td>'
     +'<td><select id="lcc_'+n+'" data-n="'+n+'" onchange="window.updateMarkup(this.dataset.n)" style="width:48px;font-size:11px;padding:3px 2px;border:1px solid #f0c08a;border-radius:6px;font-family:inherit;background:#FAEEDA">'+'<option value="SGD"'+(costCur==="SGD"?' selected':'')+'>SGD</option>'+'<option value="USD"'+(costCur==="USD"?' selected':'')+'>USD</option>'+'<option value="EUR"'+(costCur==="EUR"?' selected':'')+'>EUR</option>'+'<option value="JPY"'+(costCur==="JPY"?' selected':'')+'>JPY</option>'+'<option value="SEK"'+(costCur==="SEK"?' selected':'')+'>SEK</option>'+'</select></td>'
     +'<td style="text-align:right"><span id="lmk_'+n+'" style="display:block;padding:5px 6px;background:#f0faf2;border:1px solid #b8e4c5;border-radius:6px;font-size:11px;font-weight:600;color:#1a6641;text-align:right;min-width:60px">—</span><div id="lmk_h35_'+n+'" style="font-size:10px;color:#854F0B;margin-top:3px;text-align:right;white-space:nowrap"></div></td>'
     +'<td><select id="lv_'+n+'" style="width:100%;font-size:11px;padding:3px 4px;border:1px solid #ddd;border-radius:6px;font-family:inherit;background:#f9f9f7"><option value="">—</option>'+vopts+'</select></td>'
@@ -1081,7 +1101,8 @@ function getLIs(){
       costCur:ccsel?ccsel.value:'SGD',
       vendorId:vsel?vsel.value:'',
       vendorName:vsel&&vsel.value?((selVendors.find(function(v){return v.id===vsel.value;})||{}).name||''):'',
-      stockItemId:(document.getElementById('lc_'+n)||{getAttribute:function(){return null;}}).getAttribute('data-stock-id')||''
+      stockItemId:(document.getElementById('lc_'+n)||{getAttribute:function(){return null;}}).getAttribute('data-stock-id')||'',
+      stockDeductedQty:parseFloat((document.getElementById('lc_'+n)||{getAttribute:function(){return null;}}).getAttribute('data-deducted-qty'))||0
     };
     // Collect sub-items
     var children=[];
@@ -1347,7 +1368,7 @@ window.openEditJob=function(id){
   document.getElementById("j_pay").value=j.payTerms||"30 Days Nett";
   if(j.customerId&&j.customerName){document.getElementById("j_cs_id").value=j.customerId;document.getElementById("j_cs_nm").textContent=j.customerName;document.getElementById("j_cs_sel").style.display="flex";document.getElementById("j_cs").style.display="none";if(window.populateAttnDrop)window.populateAttnDrop(j.customerId);}
   (j.lineItems||[]).forEach(function(it){
-    window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"",it.costCur||"SGD",it.stockItemId||'');
+    window.addLI(it.desc,it.qty,it.unit,it.unitPrice,it.vendorId||it.vendor||"",it.costPrice||"",it.costCur||"SGD",it.stockItemId||'',it.stockDeductedQty||0);
   if(it.custDisc){(function(idx,d){setTimeout(function(){var el=document.getElementById("lcd_"+idx);if(el){el.value=d;window.updateMarkup(idx);}},120);})(liCount,it.custDisc);}
     if(it.stockItemId){(function(idx,sid){setTimeout(function(){
       var curEl=document.getElementById('lcc_'+idx);
@@ -1388,10 +1409,21 @@ window.saveJob=async function(){
   try{
     if(editJobId){
       var sid=editJobId;
+      // If this job is already at or past DO/WCC, reconcile stock for any line
+      // items that are newly linked to stock or had their qty increased since
+      // the last deduction — covers items added/edited via Edit Job after the
+      // DO/WCC transition already fired (which the old code silently missed).
+      var curStatus=(jobs[sid]||{}).status||'';
+      var stockDeductedCount=0;
+      if(curStatus!=='cancelled'&&SO.indexOf(curStatus)>=SO.indexOf('do_wcc')){
+        stockDeductedCount=await reconcileStockDeductions(sid,data.ref||jref,data.lineItems,'items updated after DO/WCC');
+      }
       await update(ref(db,"jobs/"+sid),data);
       jobs[sid]=Object.assign({},jobs[sid],data);
       exposeGlobals();
-      toast("Job updated ✓");window.closeModal();window.openDetail(sid);
+      if(stockDeductedCount){toast("Job updated — stock deducted for "+stockDeductedCount+" item"+(stockDeductedCount>1?"s":"")+" ✓");}
+      else{toast("Job updated ✓");}
+      window.closeModal();window.openDetail(sid);
     } else {
       if(Object.values(jobs).find(function(j){return j.ref===jref;})){toast("Ref "+jref+" already exists");return;}
       data.status="quote";data.createdAt=new Date().toISOString();data.createdBy=rcStaff||"Manager";
@@ -2468,12 +2500,15 @@ window.printSOA = function() {
     <div class="cipl-fi"><label>Company / Consignee Name</label><input type="text" id="cipl_consignee"></div>
     <div class="cipl-fi"><label>Delivery Address</label><textarea id="cipl_addr" rows="3" placeholder="Full delivery address&hellip;"></textarea></div>
     <div class="cipl-fi"><label>Marks &amp; Numbers</label><input type="text" id="cipl_marks" placeholder="e.g. RC/2603001/C1-C3"></div>
-    <div class="cipl-sec">Packing Details</div>
-    <table class="cipl-pack-tbl" id="cipl_pack_tbl">
-      <thead><tr><th style="width:14%">Pkgs</th><th style="width:16%">L (cm)</th><th style="width:16%">W (cm)</th><th style="width:16%">H (cm)</th><th style="width:18%">Gross Wt (kg)</th><th style="width:18%">Net Wt (kg)</th><th style="width:28px"></th></tr></thead>
-      <tbody id="cipl_pack_rows"></tbody>
-    </table>
-    <div style="margin-top:6px"><a href="#" onclick="window.ciplAddPackRow();return false" style="color:#185FA5;font-size:12px;font-weight:600">+ Add Line</a></div>
+    <div class="cipl-sec">Packing Details &mdash; combined for all selected items</div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end">
+      <div class="cipl-fi"><label>Pkgs</label><input type="number" id="cp_pkgs" min="1" step="1" value="1"></div>
+      <div class="cipl-fi"><label>L (cm)</label><input type="number" id="cp_l" step="0.1" placeholder="—"></div>
+      <div class="cipl-fi"><label>W (cm)</label><input type="number" id="cp_w" step="0.1" placeholder="—"></div>
+      <div class="cipl-fi"><label>H (cm)</label><input type="number" id="cp_h" step="0.1" placeholder="—"></div>
+      <div class="cipl-fi"><label>Gross Wt (kg)</label><input type="number" id="cp_gw" step="0.01" placeholder="0.00"></div>
+      <div class="cipl-fi"><label>Net Wt (kg)</label><input type="number" id="cp_nw" step="0.01" placeholder="0.00"></div>
+    </div>
     <div class="cipl-sec">Additional</div>
     <div class="cipl-fi"><label>Remarks</label><textarea id="cipl_remarks" rows="2" placeholder="Any special remarks&hellip;"></textarea></div>
     <div class="cipl-mfoot">
@@ -2691,8 +2726,13 @@ window.openCIPL = function(id) {
   document.getElementById('cipl_addr').value='';
   document.getElementById('cipl_marks').value='RC/'+(j.ref||'');
   document.getElementById('cipl_remarks').value='';
-  // Reset packing lines
-  document.getElementById('cipl_pack_rows').innerHTML='';
+  // Reset combined packing fields
+  document.getElementById('cp_pkgs').value='1';
+  document.getElementById('cp_l').value='';
+  document.getElementById('cp_w').value='';
+  document.getElementById('cp_h').value='';
+  document.getElementById('cp_gw').value='';
+  document.getElementById('cp_nw').value='';
   // ── Restore saved CIPL draft (overrides defaults above) ──
   var _ciplD=j.ciplDraft||null;
   if(_ciplD){
@@ -2702,14 +2742,12 @@ window.openCIPL = function(id) {
     if(_ciplD.remarks!==undefined)   document.getElementById('cipl_remarks').value=_ciplD.remarks;
     if(_ciplD.shipName)              document.getElementById('cipl_ship_name').value=_ciplD.shipName;
     if(_ciplD.shipAddr)              document.getElementById('cipl_ship_addr').value=_ciplD.shipAddr;
-  }
-  // Restore packing lines: new multi-line format, old single-line format, or default
-  if(_ciplD&&_ciplD.packLines&&_ciplD.packLines.length){
-    _ciplD.packLines.forEach(function(pl){window.ciplAddPackRow(pl);});
-  }else if(_ciplD&&(_ciplD.pkgs||_ciplD.l||_ciplD.w||_ciplD.h||_ciplD.gw||_ciplD.nw)){
-    window.ciplAddPackRow({pkgs:_ciplD.pkgs,l:_ciplD.l,w:_ciplD.w,h:_ciplD.h,gw:_ciplD.gw,nw:_ciplD.nw});
-  }else{
-    window.ciplAddPackRow();
+    if(_ciplD.pkgs)                  document.getElementById('cp_pkgs').value=_ciplD.pkgs;
+    if(_ciplD.l)                     document.getElementById('cp_l').value=_ciplD.l;
+    if(_ciplD.w)                     document.getElementById('cp_w').value=_ciplD.w;
+    if(_ciplD.h)                     document.getElementById('cp_h').value=_ciplD.h;
+    if(_ciplD.gw)                    document.getElementById('cp_gw').value=_ciplD.gw;
+    if(_ciplD.nw)                    document.getElementById('cp_nw').value=_ciplD.nw;
   }
   // Build item checkboxes (support parent/child)
   var list=document.getElementById('cipl_item_list');
@@ -2742,24 +2780,6 @@ window.openCIPL = function(id) {
 };
 window.ciplSelectAll=function(v){document.querySelectorAll('[id^="cipl_ic_"]').forEach(function(cb){cb.checked=v;});};
 window.ciplToggleParent=function(i,v){document.querySelectorAll('[data-parent="'+i+'"]').forEach(function(cb){cb.checked=v;});};
-window.ciplAddPackRow=function(d){
-  d=d||{};
-  var tbody=document.getElementById('cipl_pack_rows');
-  var tr=document.createElement('tr');
-  tr.innerHTML='<td><input type="number" class="cp-pkgs" min="1" step="1" value="'+(d.pkgs!=null&&d.pkgs!==''?d.pkgs:1)+'"></td>'
-    +'<td><input type="number" class="cp-l" step="0.1" placeholder="—" value="'+(d.l||'')+'"></td>'
-    +'<td><input type="number" class="cp-w" step="0.1" placeholder="—" value="'+(d.w||'')+'"></td>'
-    +'<td><input type="number" class="cp-h" step="0.1" placeholder="—" value="'+(d.h||'')+'"></td>'
-    +'<td><input type="number" class="cp-gw" step="0.01" placeholder="0.00" value="'+(d.gw||'')+'"></td>'
-    +'<td><input type="number" class="cp-nw" step="0.01" placeholder="0.00" value="'+(d.nw||'')+'"></td>'
-    +'<td style="text-align:center"><button type="button" onclick="window.ciplRemovePackRow(this)" style="border:none;background:none;color:#c0392b;cursor:pointer;font-size:15px;padding:2px 6px;line-height:1" title="Remove line">&times;</button></td>';
-  tbody.appendChild(tr);
-};
-window.ciplRemovePackRow=function(btn){
-  var tbody=document.getElementById('cipl_pack_rows');
-  if(tbody.children.length<=1){window.toast('At least one packing line is required');return;}
-  btn.closest('tr').remove();
-};
 
 window.generateCIPL = function() {
   var id=document.getElementById('cipl_jobid').value;
@@ -2802,21 +2822,13 @@ window.generateCIPL = function() {
   });
   if(!selected.length){window.toast('Select at least one item');return;}
 
-  // Packing lines (one or more)
-  var packRows=Array.prototype.slice.call(document.querySelectorAll('#cipl_pack_rows tr'));
-  var packLines=packRows.map(function(tr){
-    return {
-      pkgs:parseFloat(tr.querySelector('.cp-pkgs').value)||0,
-      l:parseFloat(tr.querySelector('.cp-l').value)||0,
-      w:parseFloat(tr.querySelector('.cp-w').value)||0,
-      h:parseFloat(tr.querySelector('.cp-h').value)||0,
-      gw:parseFloat(tr.querySelector('.cp-gw').value)||0,
-      nw:parseFloat(tr.querySelector('.cp-nw').value)||0
-    };
-  });
-  var pkgs=packLines.reduce(function(s,pl){return s+pl.pkgs;},0);
-  var cgw=packLines.reduce(function(s,pl){return s+pl.gw;},0);
-  var cnw=packLines.reduce(function(s,pl){return s+pl.nw;},0);
+  // Combined packing details
+  var pkgs=parseFloat(document.getElementById('cp_pkgs').value)||1;
+  var cl=parseFloat(document.getElementById('cp_l').value)||0;
+  var cw=parseFloat(document.getElementById('cp_w').value)||0;
+  var ch2=parseFloat(document.getElementById('cp_h').value)||0;
+  var cgw=parseFloat(document.getElementById('cp_gw').value)||0;
+  var cnw=parseFloat(document.getElementById('cp_nw').value)||0;
 
   function fmtN(n){return(parseFloat(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
   var fmt=window._fmt||fmtN;
@@ -2842,16 +2854,14 @@ window.generateCIPL = function() {
     +'</tr>';
   }).join('');
 
-  // One packing row per line entered
-  var plRow=packLines.map(function(pl){
-    var dims=(pl.l&&pl.w&&pl.h)?pl.l+'×'+pl.w+'×'+pl.h:'—';
-    return '<tr>'
-      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+pl.pkgs+'</td>'
-      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+dims+'</td>'
-      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(pl.gw)+'</td>'
-      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(pl.nw)+'</td>'
-    +'</tr>';
-  }).join('');
+  // Single combined packing row listing all item descriptions
+  var dims=(cl&&cw&&ch2)?cl+'×'+cw+'×'+ch2:'—';
+  var plRow='<tr>'
+    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+pkgs+'</td>'
+    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+dims+'</td>'
+    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(cgw)+'</td>'
+    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(cnw)+'</td>'
+  +'</tr>';
 
   var vesselLine=[j.vessel&&('Vessel: <strong>'+j.vessel+'</strong>'),j.port&&('Port: <strong>'+j.port+'</strong>'),j.equip&&('Equip: <strong>'+j.equip+'</strong>')].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
@@ -2880,7 +2890,7 @@ window.generateCIPL = function() {
     +'</body></html>';
   rcOpenBlob(html,j.ref);
   // ── Save CIPL draft so fields persist next time ──
-  try{if(window._dbUpdate&&window._dbRef&&window._db)window._dbUpdate(window._dbRef(window._db,'jobs/'+id),{ciplDraft:{consignee:consignee,addr:document.getElementById('cipl_addr').value.trim(),marks:marks,remarks:remarks,shipName:shipName,shipAddr:document.getElementById('cipl_ship_addr').value.trim(),packLines:packLines}});}catch(e){}
+  try{if(window._dbUpdate&&window._dbRef&&window._db)window._dbUpdate(window._dbRef(window._db,'jobs/'+id),{ciplDraft:{consignee:consignee,addr:document.getElementById('cipl_addr').value.trim(),marks:marks,remarks:remarks,shipName:shipName,shipAddr:document.getElementById('cipl_ship_addr').value.trim(),pkgs:pkgs,l:cl,w:cw,h:ch2,gw:cgw,nw:cnw}});}catch(e){}
   document.getElementById('ciplModal').classList.remove('show');
 };
 
@@ -3653,63 +3663,6 @@ window.printFeedback=function(id){
         <button id="gcTypeMSC"  onclick="window.gcSetType('MSC')"  style="flex:1;min-width:100px;padding:9px;border:2px solid #ddd;border-radius:7px;background:#f9fafb;color:#555;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">MSC<br><span style="font-size:10px;font-weight:400">MSC Vessel Gas Detection</span></button>
       </div>
       <!-- Header fields -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-        <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">VESSEL NAME</label><input id="gc_vessel" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">MODEL</label><input id="gc_model" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">REF NO (Job No)</label><input id="gc_ref" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">LOCATION</label><input id="gc_location" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">CALIBRATION DATE</label><input id="gc_caldate" type="date" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">EXPIRY DATE</label><input id="gc_expiry" type="date" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
-        <div style="grid-column:1/-1"><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">REPRESENTATIVE</label><input id="gc_rep" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
-      </div>
-      <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:#1e3a5f">Sensor Readings</div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead>
-            <tr style="background:#f0f4f8">
-              <th style="width:36px;padding:7px 6px;border:1px solid #ddd;text-align:center">No.</th>
-              <th style="min-width:220px;padding:7px 8px;border:1px solid #ddd;text-align:left">Sensor</th>
-              <th style="width:70px;padding:7px 6px;border:1px solid #ddd;text-align:center">Zero</th>
-              <th style="width:110px;padding:7px 6px;border:1px solid #ddd;text-align:center">Span</th>
-              <th style="width:90px;padding:7px 6px;border:1px solid #ddd;text-align:center">Test Result</th>
-              <th style="width:90px;padding:7px 6px;border:1px solid #ddd;text-align:center">Remarks</th>
-              <th style="width:30px;padding:7px 6px;border:1px solid #ddd"></th>
-            </tr>
-          </thead>
-          <tbody id="gcBody"></tbody>
-        </table>
-      </div>
-      <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
-        <button onclick="window.gcAddRow()" style="padding:7px 14px;background:#f0f4f8;border:1px solid #c5d2e0;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;color:#1e3a5f;font-weight:600">+ Add Row</button>
-        <span style="font-size:12px;color:#888">Starts with 5 rows; add as needed</span>
-      </div>
-    </div>
-    <div style="padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;background:#f9fafb;border-radius:0 0 12px 12px">
-      <button onclick="document.getElementById('gcOverlay').style.display='none'" style="padding:8px 18px;border:1px solid #ddd;border-radius:7px;background:#fff;font-family:inherit;font-size:13px;cursor:pointer">Cancel</button>
-      <button onclick="window.printGasCert()" style="padding:8px 20px;border:none;border-radius:7px;background:#1e3a5f;color:#fff;font-family:inherit;font-size:13px;cursor:pointer;font-weight:600">&#128424; Print Certificate</button>
-    </div>
-  </div>
-</div>
-
-
-
-
-
-/* GAS CALIBRATION CERT MODAL */
-<div id="gcOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;overflow-y:auto;padding:20px">
-  <div style="background:#fff;border-radius:12px;max-width:920px;margin:auto;padding:0;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-    <div style="background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
-      <span style="font-weight:700;font-size:15px" id="gcModalTitle">&#9881; Gas Calibration Certificate</span>
-      <button onclick="document.getElementById('gcOverlay').style.display='none'" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1">&times;</button>
-    </div>
-    <div style="padding:16px 20px 10px">
-      /* Type selector */
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
-        <button id="gcTypeFGDS" onclick="window.gcSetType('FGDS')" style="flex:1;min-width:100px;padding:9px;border:2px solid #1e3a5f;border-radius:7px;background:#1e3a5f;color:#fff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">FGDS<br><span style="font-size:10px;font-weight:400">Fixed Gas Detection System</span></button>
-        <button id="gcTypeVECS" onclick="window.gcSetType('VECS')" style="flex:1;min-width:100px;padding:9px;border:2px solid #ddd;border-radius:7px;background:#f9fafb;color:#555;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">VECS<br><span style="font-size:10px;font-weight:400">Vapour Emission Control System</span></button>
-        <button id="gcTypeMSC"  onclick="window.gcSetType('MSC')"  style="flex:1;min-width:100px;padding:9px;border:2px solid #ddd;border-radius:7px;background:#f9fafb;color:#555;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">MSC<br><span style="font-size:10px;font-weight:400">MSC Vessel Gas Detection</span></button>
-      </div>
-      /* Header fields */
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
         <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">VESSEL NAME</label><input id="gc_vessel" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
         <div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">MODEL</label><input id="gc_model" style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;box-sizing:border-box"></div>
