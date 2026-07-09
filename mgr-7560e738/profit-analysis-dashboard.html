@@ -807,7 +807,6 @@ function render(){
   const WIP_ST=['customer_po','vendor_po','do_wcc'];
 
   const revenueEntries=Object.entries(jobs).filter(([,j])=>{
-    if(j.archived) return false;
     const statuses=accountingMode==='statutory'?INVOICED:CONFIRMED;
     if(!statuses.includes(j.status)) return false;
     // Closed without invoice = lost quote (customer didn't award) — exclude from P&L
