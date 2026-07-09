@@ -2500,15 +2500,23 @@ window.printSOA = function() {
     <div class="cipl-fi"><label>Company / Consignee Name</label><input type="text" id="cipl_consignee"></div>
     <div class="cipl-fi"><label>Delivery Address</label><textarea id="cipl_addr" rows="3" placeholder="Full delivery address&hellip;"></textarea></div>
     <div class="cipl-fi"><label>Marks &amp; Numbers</label><input type="text" id="cipl_marks" placeholder="e.g. RC/2603001/C1-C3"></div>
-    <div class="cipl-sec">Packing Details &mdash; combined for all selected items</div>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end">
-      <div class="cipl-fi"><label>Pkgs</label><input type="number" id="cp_pkgs" min="1" step="1" value="1"></div>
-      <div class="cipl-fi"><label>L (cm)</label><input type="number" id="cp_l" step="0.1" placeholder="—"></div>
-      <div class="cipl-fi"><label>W (cm)</label><input type="number" id="cp_w" step="0.1" placeholder="—"></div>
-      <div class="cipl-fi"><label>H (cm)</label><input type="number" id="cp_h" step="0.1" placeholder="—"></div>
-      <div class="cipl-fi"><label>Gross Wt (kg)</label><input type="number" id="cp_gw" step="0.01" placeholder="0.00"></div>
-      <div class="cipl-fi"><label>Net Wt (kg)</label><input type="number" id="cp_nw" step="0.01" placeholder="0.00"></div>
+    <div class="cipl-sec" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Packing Details</span>
+      <button type="button" onclick="window.ciplAddPackRow()" style="font-size:11px;padding:3px 10px;border:1px solid #185FA5;color:#185FA5;background:#EAF1FB;font-weight:600;border-radius:6px;cursor:pointer">+ Add Row</button>
     </div>
+    <table class="cipl-pack-tbl">
+      <thead><tr>
+        <th style="width:50px">Pkgs</th>
+        <th>Description</th>
+        <th style="width:55px">L (cm)</th>
+        <th style="width:55px">W (cm)</th>
+        <th style="width:55px">H (cm)</th>
+        <th style="width:72px">Gross Wt (kg)</th>
+        <th style="width:72px">Net Wt (kg)</th>
+        <th style="width:24px"></th>
+      </tr></thead>
+      <tbody id="cipl_pack_rows"></tbody>
+    </table>
     <div class="cipl-sec">Additional</div>
     <div class="cipl-fi"><label>Remarks</label><textarea id="cipl_remarks" rows="2" placeholder="Any special remarks&hellip;"></textarea></div>
     <div class="cipl-mfoot">
@@ -2713,6 +2721,54 @@ function rcHeader(docTitle) {
 }
 
 // ═══════════════════════════ CIPL FUNCTIONS ═══════════════════════════
+// ── CIPL Packing List: dynamic multi-row helpers ──
+window._ciplPackRowSeq = 0;
+window.ciplAddPackRow = function(data) {
+  data = data || {};
+  var idx = window._ciplPackRowSeq++;
+  var tbody = document.getElementById('cipl_pack_rows');
+  var tr = document.createElement('tr');
+  tr.dataset.rowIdx = idx;
+  var esc = function(s){return (s==null?'':String(s)).replace(/"/g,'&quot;');};
+  tr.innerHTML =
+      '<td><input type="number" data-field="pkgs" min="1" step="1" value="'+(data.pkgs!=null?data.pkgs:1)+'"></td>'
+    + '<td><input type="text" data-field="desc" value="'+esc(data.desc)+'" placeholder="Package description"></td>'
+    + '<td><input type="number" data-field="l" step="0.1" value="'+(data.l!=null&&data.l!==0?data.l:'')+'" placeholder="—"></td>'
+    + '<td><input type="number" data-field="w" step="0.1" value="'+(data.w!=null&&data.w!==0?data.w:'')+'" placeholder="—"></td>'
+    + '<td><input type="number" data-field="h" step="0.1" value="'+(data.h!=null&&data.h!==0?data.h:'')+'" placeholder="—"></td>'
+    + '<td><input type="number" data-field="gw" step="0.01" value="'+(data.gw!=null&&data.gw!==0?data.gw:'')+'" placeholder="0.00"></td>'
+    + '<td><input type="number" data-field="nw" step="0.01" value="'+(data.nw!=null&&data.nw!==0?data.nw:'')+'" placeholder="0.00"></td>'
+    + '<td><button type="button" onclick="window.ciplRemovePackRow(this)" title="Remove row" style="border:none;background:none;color:#c0392b;font-size:16px;cursor:pointer;padding:0;line-height:1">&times;</button></td>';
+  tbody.appendChild(tr);
+  return tr;
+};
+window.ciplRemovePackRow = function(btn) {
+  var tbody = document.getElementById('cipl_pack_rows');
+  if (tbody.children.length <= 1) { window.toast('At least one packing row is required'); return; }
+  btn.closest('tr').remove();
+};
+window.ciplResetPackRows = function(rows) {
+  var tbody = document.getElementById('cipl_pack_rows');
+  tbody.innerHTML = '';
+  window._ciplPackRowSeq = 0;
+  (rows && rows.length ? rows : [{}]).forEach(function(r){ window.ciplAddPackRow(r); });
+};
+window.ciplGetPackRows = function() {
+  var rows = [];
+  document.querySelectorAll('#cipl_pack_rows tr').forEach(function(tr){
+    rows.push({
+      pkgs: parseFloat(tr.querySelector('[data-field="pkgs"]').value) || 1,
+      desc: tr.querySelector('[data-field="desc"]').value.trim(),
+      l: parseFloat(tr.querySelector('[data-field="l"]').value) || 0,
+      w: parseFloat(tr.querySelector('[data-field="w"]').value) || 0,
+      h: parseFloat(tr.querySelector('[data-field="h"]').value) || 0,
+      gw: parseFloat(tr.querySelector('[data-field="gw"]').value) || 0,
+      nw: parseFloat(tr.querySelector('[data-field="nw"]').value) || 0
+    });
+  });
+  return rows;
+};
+
 window.openCIPL = function(id) {
   var j=(window._jobs||{})[id]||{};
   if(!j.lineItems||!j.lineItems.length){window.toast('No line items on this job');return;}
@@ -2726,13 +2782,8 @@ window.openCIPL = function(id) {
   document.getElementById('cipl_addr').value='';
   document.getElementById('cipl_marks').value='RC/'+(j.ref||'');
   document.getElementById('cipl_remarks').value='';
-  // Reset combined packing fields
-  document.getElementById('cp_pkgs').value='1';
-  document.getElementById('cp_l').value='';
-  document.getElementById('cp_w').value='';
-  document.getElementById('cp_h').value='';
-  document.getElementById('cp_gw').value='';
-  document.getElementById('cp_nw').value='';
+  // Reset packing rows to a single blank row
+  window.ciplResetPackRows();
   // ── Restore saved CIPL draft (overrides defaults above) ──
   var _ciplD=j.ciplDraft||null;
   if(_ciplD){
@@ -2742,12 +2793,12 @@ window.openCIPL = function(id) {
     if(_ciplD.remarks!==undefined)   document.getElementById('cipl_remarks').value=_ciplD.remarks;
     if(_ciplD.shipName)              document.getElementById('cipl_ship_name').value=_ciplD.shipName;
     if(_ciplD.shipAddr)              document.getElementById('cipl_ship_addr').value=_ciplD.shipAddr;
-    if(_ciplD.pkgs)                  document.getElementById('cp_pkgs').value=_ciplD.pkgs;
-    if(_ciplD.l)                     document.getElementById('cp_l').value=_ciplD.l;
-    if(_ciplD.w)                     document.getElementById('cp_w').value=_ciplD.w;
-    if(_ciplD.h)                     document.getElementById('cp_h').value=_ciplD.h;
-    if(_ciplD.gw)                    document.getElementById('cp_gw').value=_ciplD.gw;
-    if(_ciplD.nw)                    document.getElementById('cp_nw').value=_ciplD.nw;
+    if(_ciplD.packRows && _ciplD.packRows.length){
+      window.ciplResetPackRows(_ciplD.packRows);
+    } else if(_ciplD.pkgs!=null){
+      // backward compat: old drafts saved a single combined row
+      window.ciplResetPackRows([{pkgs:_ciplD.pkgs,l:_ciplD.l,w:_ciplD.w,h:_ciplD.h,gw:_ciplD.gw,nw:_ciplD.nw}]);
+    }
   }
   // Build item checkboxes (support parent/child)
   var list=document.getElementById('cipl_item_list');
@@ -2822,13 +2873,9 @@ window.generateCIPL = function() {
   });
   if(!selected.length){window.toast('Select at least one item');return;}
 
-  // Combined packing details
-  var pkgs=parseFloat(document.getElementById('cp_pkgs').value)||1;
-  var cl=parseFloat(document.getElementById('cp_l').value)||0;
-  var cw=parseFloat(document.getElementById('cp_w').value)||0;
-  var ch2=parseFloat(document.getElementById('cp_h').value)||0;
-  var cgw=parseFloat(document.getElementById('cp_gw').value)||0;
-  var cnw=parseFloat(document.getElementById('cp_nw').value)||0;
+  // Packing details (one or more rows)
+  var packRows=window.ciplGetPackRows();
+  if(!packRows.length){window.toast('Add at least one packing row');return;}
 
   function fmtN(n){return(parseFloat(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
   var fmt=window._fmt||fmtN;
@@ -2854,14 +2901,21 @@ window.generateCIPL = function() {
     +'</tr>';
   }).join('');
 
-  // Single combined packing row listing all item descriptions
-  var dims=(cl&&cw&&ch2)?cl+'×'+cw+'×'+ch2:'—';
-  var plRow='<tr>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+pkgs+'</td>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+dims+'</td>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(cgw)+'</td>'
-    +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(cnw)+'</td>'
-  +'</tr>';
+  // One row per packing entry, plus running totals
+  var totalPkgs=0, totalGw=0, totalNw=0;
+  var plRows=packRows.map(function(r){
+    totalPkgs+=parseFloat(r.pkgs)||0;
+    totalGw+=parseFloat(r.gw)||0;
+    totalNw+=parseFloat(r.nw)||0;
+    var dims=(r.l&&r.w&&r.h)?r.l+'×'+r.w+'×'+r.h:'—';
+    return '<tr>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+r.pkgs+'</td>'
+      +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:12px">'+(r.desc||'')+'</td>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:center">'+dims+'</td>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(r.gw)+'</td>'
+      +'<td style="padding:5px 6px;border-bottom:1px solid #eee;text-align:right">'+fmtN(r.nw)+'</td>'
+    +'</tr>';
+  }).join('');
 
   var vesselLine=[j.vessel&&('Vessel: <strong>'+j.vessel+'</strong>'),j.port&&('Port: <strong>'+j.port+'</strong>'),j.equip&&('Equip: <strong>'+j.equip+'</strong>')].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
@@ -2883,14 +2937,14 @@ window.generateCIPL = function() {
     +'<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr><th style="width:28px;text-align:center">#</th><th>Description of Goods</th><th class="nc" style="width:52px">Qty</th><th class="nc" style="width:52px">Unit</th><th class="r" style="width:90px">Unit Price ('+cur+')</th><th class="r" style="width:90px">Amount ('+cur+')</th></tr></thead><tbody>'+ciRows+'</tbody><tfoot><tr><td colspan="5" style="text-align:right;padding:7px 8px;font-size:12px;font-weight:700;border-top:2px solid #1a1a1a">TOTAL '+cur+'</td><td style="text-align:right;padding:7px 8px;font-size:13px;font-weight:700;border-top:2px solid #1a1a1a">'+fmtN(totalAmt)+'</td></tr></tfoot></table>'
     +'<div style="font-size:11px;font-weight:700;color:#1a1a1a;text-transform:uppercase;margin:16px 0 6px;padding-bottom:4px;border-bottom:2px solid #1a1a1a">Packing List</div>'
     +(marks?'<div style="border:1px solid #ddd;padding:8px 12px;font-size:11px;margin-bottom:8px"><strong>Marks &amp; Numbers:</strong> '+marks+'</div>':'')
-    +'<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr><th class="nc" style="width:80px">Pkgs</th><th class="nc" style="width:140px">Dimensions<br>(L×W×H cm)</th><th class="r" style="width:100px">Gross Wt<br>(kg)</th><th class="r" style="width:100px">Net Wt<br>(kg)</th></tr></thead><tbody>'+plRow+'</tbody><tfoot><tr><td style="text-align:center;padding:7px 8px;font-weight:700;border-top:2px solid #1a1a1a">'+pkgs+'</td><td style="border-top:2px solid #1a1a1a"></td><td style="text-align:right;padding:7px 8px;font-weight:700;border-top:2px solid #1a1a1a">'+fmtN(cgw)+'</td><td style="text-align:right;padding:7px 8px;font-weight:700;border-top:2px solid #1a1a1a">'+fmtN(cnw)+'</td></tr></tfoot></table>'
+    +'<table style="width:100%;border-collapse:collapse;margin-bottom:12px"><thead><tr><th class="nc" style="width:56px">Pkgs</th><th>Description</th><th class="nc" style="width:140px">Dimensions<br>(L×W×H cm)</th><th class="r" style="width:100px">Gross Wt<br>(kg)</th><th class="r" style="width:100px">Net Wt<br>(kg)</th></tr></thead><tbody>'+plRows+'</tbody><tfoot><tr><td style="text-align:center;padding:7px 8px;font-weight:700;border-top:2px solid #1a1a1a">'+totalPkgs+'</td><td style="border-top:2px solid #1a1a1a"></td><td style="border-top:2px solid #1a1a1a"></td><td style="text-align:right;padding:7px 8px;font-weight:700;border-top:2px solid #1a1a1a">'+fmtN(totalGw)+'</td><td style="text-align:right;padding:7px 8px;font-weight:700;border-top:2px solid #1a1a1a">'+fmtN(totalNw)+'</td></tr></tfoot></table>'
     +(remarks?'<div style="margin-top:12px;font-size:11px;color:#444"><strong>Remarks:</strong> '+remarks+'</div>':'')
     +'<div style="margin-top:16px;border:1px solid #e0ddd6;padding:10px 14px;background:#fffdf5"><p style="font-size:11px;line-height:1.7;color:#444"><strong>1. Commercial Value of Items: NONE</strong><br>&nbsp;&nbsp;&nbsp;(Value stated above only for customs clearance purpose)</p><p style="font-size:11px;margin-top:4px;color:#444"><strong>2.</strong> Weight and Value estimated.</p></div>'
     +'<div class="sr"><div style="text-align:center;font-size:9pt"><div style="height:40px"></div><div style="border-top:1px solid #000;padding-top:4px;min-width:180px">Prepared by / Date: '+dateFmt+'</div></div><div style="text-align:center;font-size:9pt">For and on behalf of <strong>Raycontrol Pte. Ltd.</strong><br><br><br><div style="border-top:1px solid #000;padding-top:4px;min-width:180px">Authorised Signature / Company Stamp</div></div></div>'
     +'</body></html>';
   rcOpenBlob(html,j.ref);
   // ── Save CIPL draft so fields persist next time ──
-  try{if(window._dbUpdate&&window._dbRef&&window._db)window._dbUpdate(window._dbRef(window._db,'jobs/'+id),{ciplDraft:{consignee:consignee,addr:document.getElementById('cipl_addr').value.trim(),marks:marks,remarks:remarks,shipName:shipName,shipAddr:document.getElementById('cipl_ship_addr').value.trim(),pkgs:pkgs,l:cl,w:cw,h:ch2,gw:cgw,nw:cnw}});}catch(e){}
+  try{if(window._dbUpdate&&window._dbRef&&window._db)window._dbUpdate(window._dbRef(window._db,'jobs/'+id),{ciplDraft:{consignee:consignee,addr:document.getElementById('cipl_addr').value.trim(),marks:marks,remarks:remarks,shipName:shipName,shipAddr:document.getElementById('cipl_ship_addr').value.trim(),packRows:packRows}});}catch(e){}
   document.getElementById('ciplModal').classList.remove('show');
 };
 
