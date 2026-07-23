@@ -1569,6 +1569,8 @@ function liSearchRender(q) {
       + '<span class="lisrch-job-date">' + dateStr + '</span>'
       + '<button class="lisrch-copy-all" data-jid="' + jobId + '" data-pidxs="' + matchedParentIdxs.join(",") + '" data-mode="all" onclick="window.liTriggerImport(this.dataset.jid,this.dataset.pidxs,this.dataset.mode)">'
       + 'Import All (' + matchedParentIdxs.length + ')</button>'
+      + '<button class="lisrch-copy-all" style="border-color:#185FA5;color:#185FA5;background:#EAF1FB" data-jid="' + jobId + '" data-mode="fulljob" onclick="window.liTriggerImport(this.dataset.jid,null,this.dataset.mode)">'
+      + 'Import Full Job (' + (j.lineItems || []).length + ')</button>'
       + '</div>';
 
     g.matches.forEach(function(r) {
@@ -1608,6 +1610,10 @@ window.liTriggerImport = function(srcJobId, pidxOrIdxs, mode, childIdx, isChild)
       : (j.lineItems || [])[+pidxOrIdxs];
     if (!it) { toast("Item not found"); return; }
     items = [{ desc: it.desc, qty: it.qty, unit: it.unit, unitPrice: it.unitPrice, costPrice: it.costPrice, costCur: it.costCur, children: [] }];
+  } else if (mode === 'fulljob') {
+    items = (j.lineItems || []).map(function(it) {
+      return { desc: it.desc, qty: it.qty, unit: it.unit, unitPrice: it.unitPrice, costPrice: it.costPrice, costCur: it.costCur, children: it.children || [] };
+    });
   } else {
     var idxs = String(pidxOrIdxs).split(",").map(Number).filter(function(n) { return !isNaN(n); });
     items = (j.lineItems || []).filter(function(_, i) { return idxs.includes(i); }).map(function(it) {
