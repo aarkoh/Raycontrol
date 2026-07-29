@@ -644,9 +644,10 @@ window.openDetail=function(id){
   })()
 +(function(){
   var sd=j.statusDates||{};
+  var su=j.statusUsers||{};
   // Collect all dated stages sorted by the date they were set
   var dated=SO.filter(function(st){return sd[st];}).map(function(st){
-    return {st:st,iso:sd[st]};
+    return {st:st,iso:sd[st],by:su[st]||''};
   }).sort(function(a,b){return new Date(a.iso)-new Date(b.iso);});
   if(!dated.length)return '';
   var rows=dated.map(function(item,i){
@@ -663,7 +664,7 @@ window.openDetail=function(id){
       +'</div>'
       +'<div style="padding-bottom:8px">'
         +'<div style="font-size:13px;font-weight:600;color:'+col+'">'+SL[item.st]+'</div>'
-        +'<div style="font-size:11px;color:#888;margin-top:1px">'+dateStr+' &nbsp;'+timeStr+'</div>'
+        +'<div style="font-size:11px;color:#888;margin-top:1px">'+dateStr+' &nbsp;'+timeStr+(item.by?' &nbsp;·&nbsp; '+item.by:'')+'</div>'
       +'</div>'
     +'</div>';
   }).join('');
@@ -758,18 +759,23 @@ window.setStatus=async function(id,s){
     var prevStatus=(jobs[id]||{}).status||'';
     var statusUpdate={status:s,updatedAt:new Date().toISOString()};
     if(s==="invoice"&&!jobs[id].invoiceDate){statusUpdate.invoiceDate=new Date().toISOString().slice(0,10);}
-    // Record first-time date for each stage
+    // Record first-time date (and who did it) for each stage
     var existingDates=jobs[id].statusDates||{};
     if(!existingDates[s]){
       statusUpdate['statusDates/'+s]=new Date().toISOString();
+      statusUpdate['statusUsers/'+s]=rcStaff||"Manager";
     }
     await update(ref(db,"jobs/"+id),statusUpdate);
     // Merge statusDates into local jobs object
     var mergedDates=Object.assign({},jobs[id].statusDates||{});
-    if(!mergedDates[s])mergedDates[s]=statusUpdate['statusDates/'+s]||new Date().toISOString();
-    jobs[id]=Object.assign({},jobs[id],statusUpdate,{statusDates:mergedDates});
-    // Clean up flat statusDates/x keys from local copy
-    SO.forEach(function(st){delete jobs[id]['statusDates/'+st];});
+    var mergedUsers=Object.assign({},jobs[id].statusUsers||{});
+    if(!mergedDates[s]){
+      mergedDates[s]=statusUpdate['statusDates/'+s]||new Date().toISOString();
+      mergedUsers[s]=statusUpdate['statusUsers/'+s]||(rcStaff||"Manager");
+    }
+    jobs[id]=Object.assign({},jobs[id],statusUpdate,{statusDates:mergedDates,statusUsers:mergedUsers});
+    // Clean up flat statusDates/x and statusUsers/x keys from local copy
+    SO.forEach(function(st){delete jobs[id]['statusDates/'+st];delete jobs[id]['statusUsers/'+st];});
     exposeGlobals();
     // ── Auto-deduct stock when DO is issued ──
     if(s==='do_wcc'){
