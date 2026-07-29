@@ -3505,30 +3505,30 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
   invPct=invPct||1;
   var isPro=(invType||'').includes('PROFORMA');
   var pctLabel=isPro&&invPct<1?'('+Math.round(invPct*100)+'% advance)':'';
-  var scaledItems=selectedItems.map(function(it){
+  // Item table always shows FULL (100%) unit prices/amounts — the advance % is only
+  // applied once, to the final payable total, so figures on the line items match the job record.
+  // scaledFull: full price, custDisc zeroed — used for row display & undiscounted subtotal
+  var scaledFull=selectedItems.map(function(it){
+    var ch=(it.children||[]).map(function(c){
+      return Object.assign({},c,{custDisc:0});
+    });
+    return Object.assign({},it,{custDisc:0},ch.length?{children:ch}:{});
+  });
+  // discItemsFull: full price with customer discount applied, no advance scaling
+  var discItemsFull=selectedItems.map(function(it){
     var d=parseFloat(it.custDisc)||0;
     var ch=(it.children||[]).map(function(c){
       var cd=parseFloat(c.custDisc)||0;
-      return Object.assign({},c,{custDisc:0,unitPrice:(parseFloat(c.unitPrice)||0)*invPct*(1-cd/100)});
+      return Object.assign({},c,{custDisc:0,unitPrice:(parseFloat(c.unitPrice)||0)*(1-cd/100)});
     });
-    return Object.assign({},it,{custDisc:0,unitPrice:(parseFloat(it.unitPrice)||0)*invPct*(1-d/100),children:ch.length?ch:undefined});
+    return Object.assign({},it,{custDisc:0,unitPrice:(parseFloat(it.unitPrice)||0)*(1-d/100),children:ch.length?ch:undefined});
   });
-  // scaledFull: invPct only, no custDisc — used to compute discount amount
-  var scaledFull=selectedItems.map(function(it){
-    var ch=(it.children||[]).map(function(c){
-      return Object.assign({},c,{custDisc:0,unitPrice:(parseFloat(c.unitPrice)||0)*invPct});
-    });
-    return Object.assign({},it,{custDisc:0,unitPrice:(parseFloat(it.unitPrice)||0)*invPct,children:ch.length?ch:undefined});
-  });
-  var jForTotals=Object.assign({},j,{lineItems:scaledItems,bankFee:(parseFloat(j.bankFee)||0)*invPct});
-  var t=totals(jForTotals);
-  var tFull=totals(Object.assign({},j,{lineItems:scaledFull,bankFee:(parseFloat(j.bankFee)||0)*invPct}));
-  var discAmt=Math.max(0,tFull.sub-t.sub);
-  var rawItemsForOrig=selectedItems.map(function(it){
-    var ch=(it.children||[]).map(function(c){return Object.assign({},c,{custDisc:0});});
-    return Object.assign({},it,{custDisc:0},ch.length?{children:ch}:{});
-  });
-  var tOrig=invPct<1?totals(Object.assign({},j,{lineItems:rawItemsForOrig})):null;
+  var tFullNoDisc=totals(Object.assign({},j,{lineItems:scaledFull,bankFee:parseFloat(j.bankFee)||0}));
+  var tFullDisc=totals(Object.assign({},j,{lineItems:discItemsFull,bankFee:parseFloat(j.bankFee)||0}));
+  var discAmt=Math.max(0,tFullNoDisc.sub-tFullDisc.sub);
+  // t: the actual payable amount — full discounted total scaled by the advance % (100% for tax invoices)
+  var t=Object.assign({},tFullDisc,{total:tFullDisc.total*invPct});
+  var tOrig=(isPro&&invPct<1)?tFullDisc:null;
   var cur=j.currency||'SGD';
   var rcvd=parseFloat(j.paymentReceived)||0;
   var bal=t.total-rcvd;
@@ -3605,8 +3605,8 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
       +(discAmt>0.005?'<div class="tr2" style="color:#3B6D11"><span>DISCOUNT</span><span>− '+fmt(discAmt)+'</span></div>':'')
       +gstRow
       +'<div class="tr2"><span>BANK FEE</span><span>'+fmt(t.bf)+'</span></div>'
-      +'<div class="tfin"><span>TOTAL '+cur+'</span><span>'+fmt(t.total)+'</span></div>'
-      +(tOrig?'<div class="tr2" style="font-size:9pt;color:#555"><span>Original Total '+cur+'</span><span>'+fmt(tOrig.total)+'</span></div>':'')
+      +(tOrig?'<div class="tr2" style="font-size:9.5pt;font-weight:700;border-top:1px solid #000;padding-top:2px;margin-top:2px"><span>TOTAL (100%) '+cur+'</span><span>'+fmt(tOrig.total)+'</span></div>':'')
+      +'<div class="tfin"><span>'+(tOrig?'ADVANCE ('+Math.round(invPct*100)+'%) PAYABLE':'TOTAL')+' '+cur+'</span><span>'+fmt(t.total)+'</span></div>'
       +(isPro?'':rcvd>0&&bal>0.005?'<div class="tr2" style="color:#1a6641"><span>PAYMENT RECEIVED</span><span>'+cur+' '+fmt(rcvd)+'</span></div><div class="tr2" style="font-weight:700;font-size:11pt;border-top:1px solid #ccc;margin-top:2px"><span>BALANCE DUE</span><span>'+cur+' '+fmt(bal)+'</span></div>':'')
     +'</div></div>'
     +'<div class="aw">['+amtWords(t.total,cur)+']</div>'
