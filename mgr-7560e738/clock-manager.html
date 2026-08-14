@@ -128,6 +128,12 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
 .ltime{font-size:12px;color:#888;margin-top:2px}
 .lloc{font-size:11px;color:#aaa;margin-top:2px}
 .lts{font-size:12px;color:#aaa;white-space:nowrap}
+.lday-group{margin-bottom:1.25rem}
+.lday-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding:0 2px}
+.lday-title{font-size:14px;font-weight:600}
+.lday-count{font-size:11px;color:#aaa}
+.lentry.hl{border-color:#185FA5;box-shadow:inset 3px 0 0 #185FA5}
+.lmore{width:100%;margin-top:4px}
 
 /* PIN modal */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:100;padding:1rem}
@@ -232,7 +238,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
         <button class="fbtn" onclick="setFilter('out',this)">Out</button>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <select id="logWFilter" onchange="renderLog()"><option value="all">All workers</option></select>
+        <select id="logWFilter" onchange="logDaysShown=LOG_DAYS_PAGE;renderLog()"><option value="all">Highlight worker...</option></select>
         <button class="btn-exp" onclick="exportExcel()">Export Excel</button>
         <button class="btn-exp" onclick="exportCSV()">Export CSV</button>
       </div>
@@ -289,6 +295,8 @@ const auth = getAuth(fbApp);
 const WORKERS = ['HS','TM','RG','MU','AY','IL','SA','AN'];
 let workerNames={};
 let sel=null, logTypeFilter='all', pinTarget=null, settingNew=false;
+let logDaysShown=7;
+const LOG_DAYS_PAGE=7;
 // Restore session: if manager was authenticated this session, all tabs are unlocked
 const _mgrAuth=(function(){var t=localStorage.getItem('rc_manager');return t&&(Date.now()-parseInt(t))<28800000;})();
 let unlocked=_mgrAuth?{clock:true,manager:true,summary:true,log:true}:{};
@@ -1059,22 +1067,64 @@ window.printWorkerSummary=function(workerName){
 }
 
 // ── Log ───────────────────────────────────────────────────────
-window.setFilter=function(f,el){logTypeFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderLog();};
+window.setFilter=function(f,el){logTypeFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));el.classList.add('active');logDaysShown=LOG_DAYS_PAGE;renderLog();};
+function splitLocalTime(str){
+  // Some devices/browsers render toLocaleString() date+time without a comma separator,
+  // which used to make time display as "undefined". Match up through the 4-digit year
+  // instead of splitting on a comma that might not be there.
+  if(!str)return null;
+  const m=str.match(/^(.*?\d{4})\s*,?\s*(.*)$/);
+  if(m)return {datePart:m[1].trim(), timePart:m[2].trim()};
+  return {datePart:str.trim(), timePart:''};
+}
+function logDayKey(e){
+  // Calendar-day bucket in the entry's own local time, so overseas entries group by the day they actually occurred there
+  const parsed=splitLocalTime(e.localTime);
+  if(parsed&&parsed.datePart)return parsed.datePart;
+  return fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric'});
+}
+function renderLogEntry(e,highlightWorker){
+  const tzLabel=e.regionOverride?(e.regionOverride==='sg'?` <span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:1px 5px;border-radius:8px;font-weight:600">SG (manually set)</span>`:` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">Overseas (manually set)</span>`):(e.tz&&e.tz!=='Asia/Singapore'?` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">${e.tz.split('/').pop().replace(/_/g,' ')}</span>`:'');
+  const loc=e.loc||(e.lat!=null?`${e.lat.toFixed(4)}, ${e.lon.toFixed(4)}`:'No location');
+  // Local time display: use saved localTime or convert UTC to worker's tz
+  const displayTime = e.localTime || fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  // Time-of-day only (with seconds) — the date is already shown once in the day-group header above
+  const parsedLT = splitLocalTime(e.localTime);
+  const timeOnly = (parsedLT&&parsedLT.timePart) ? parsedLT.timePart : fmtInTZ(e.time, e.tz||'Asia/Singapore', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const shortTime = (parsedLT&&parsedLT.timePart) ? parsedLT.timePart.slice(0,5) : fmtInTZ(e.time, e.tz||'Asia/Singapore');
+  const hl = highlightWorker && e.worker===highlightWorker ? ' hl' : '';
+  return `<div class="lentry${hl}"><span class="ltype ${e.type}">${e.type==='in'?'IN':'OUT'}</span><div><div class="lworker">${e.worker}${tzLabel}${e.edited?'<span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">Edited</span>':''}${e.otOverride!=null?'<span style="font-size:10px;background:#EAF3DE;color:#1a6641;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">OT: '+e.otOverride+'h override</span>':''}</div><div class="ltime">${timeOnly}</div><div class="lloc">${e.job?`<span style="background:#E6F1FB;color:#185FA5;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px">${e.job}${e.vessel?' · '+e.vessel:''}</span>`:''}${loc}${e.acc?' (±'+e.acc+'m)':''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="lts">${shortTime}</span><button onclick="openEditLog('${e.id}')" style="font-size:10px;padding:2px 8px;border:1px solid #185FA5;color:#185FA5;background:#E6F1FB;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#9998; Edit</button><button onclick="deleteLogEntry('${e.id}')" style="font-size:10px;padding:2px 8px;border:1px solid #A32D2D;color:#A32D2D;background:#FCEBEB;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#128465;</button></div></div>`;
+}
 function renderLog(){
   const wf=document.getElementById('logWFilter').value;
-  const entries=log.filter(e=>(logTypeFilter==='all'||e.type===logTypeFilter)&&(wf==='all'||e.worker===wf));
+  const highlightWorker = wf==='all' ? null : wf;
+  // Worker filter now highlights instead of hiding, so you can still see who else was clocked in around them
+  const entries=log.filter(e=>(logTypeFilter==='all'||e.type===logTypeFilter));
   const list=document.getElementById('logList');
   if(!entries.length){list.innerHTML='<div class="lempty">No entries found</div>';return;}
-  list.innerHTML=entries.slice(0,200).map(e=>{
-    const d=new Date(e.time);
-    const tzLabel=e.regionOverride?(e.regionOverride==='sg'?` <span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:1px 5px;border-radius:8px;font-weight:600">SG (manually set)</span>`:` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">Overseas (manually set)</span>`):(e.tz&&e.tz!=='Asia/Singapore'?` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">${e.tz.split('/').pop().replace(/_/g,' ')}</span>`:'');
-    const loc=e.loc||(e.lat!=null?`${e.lat.toFixed(4)}, ${e.lon.toFixed(4)}`:'No location');
-    // Local time display: use saved localTime or convert UTC to worker's tz
-    const displayTime = e.localTime || fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
-    const shortTime = e.localTime ? e.localTime.split(',')[1]?.trim().slice(0,5) : fmtInTZ(e.time, e.tz||'Asia/Singapore');
-    return `<div class="lentry"><span class="ltype ${e.type}">${e.type==='in'?'IN':'OUT'}</span><div><div class="lworker">${e.worker}${tzLabel}${e.edited?'<span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">Edited</span>':''}${e.otOverride!=null?'<span style="font-size:10px;background:#EAF3DE;color:#1a6641;padding:1px 6px;border-radius:8px;font-weight:600;margin-left:4px">OT: '+e.otOverride+'h override</span>':''}</div><div class="ltime">${displayTime}</div><div class="lloc">${e.job?`<span style="background:#E6F1FB;color:#185FA5;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px">${e.job}${e.vessel?' · '+e.vessel:''}</span>`:''}${loc}${e.acc?' (±'+e.acc+'m)':''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><span class="lts">${shortTime}</span><button onclick="openEditLog('${e.id}')" style="font-size:10px;padding:2px 8px;border:1px solid #185FA5;color:#185FA5;background:#E6F1FB;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#9998; Edit</button><button onclick="deleteLogEntry('${e.id}')" style="font-size:10px;padding:2px 8px;border:1px solid #A32D2D;color:#A32D2D;background:#FCEBEB;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap">&#128465;</button></div></div>`;
+
+  // Group into calendar-day buckets, preserving the existing newest-first order of `log`
+  const dayOrder=[], dayMap={};
+  entries.forEach(e=>{
+    const key=logDayKey(e);
+    if(!dayMap[key]){dayMap[key]=[];dayOrder.push(key);}
+    dayMap[key].push(e);
+  });
+
+  const daysToRender=dayOrder.slice(0,logDaysShown);
+  let html=daysToRender.map(key=>{
+    const dayEntries=dayMap[key];
+    const staffCount=new Set(dayEntries.map(e=>e.worker)).size;
+    const rows=dayEntries.map(e=>renderLogEntry(e,highlightWorker)).join('');
+    return `<div class="lday-group"><div class="lday-head"><span class="lday-title">${key}</span><span class="lday-count">${staffCount} staff</span></div>${rows}</div>`;
   }).join('');
+
+  if(dayOrder.length>daysToRender.length){
+    html+=`<button class="lmore" onclick="loadMoreLogDays()">Load ${LOG_DAYS_PAGE} more days</button>`;
+  }
+  list.innerHTML=html;
 }
+window.loadMoreLogDays=function(){logDaysShown+=LOG_DAYS_PAGE;renderLog();};
 
 // ── Fetch log via REST (bypasses SDK caching issue) ───────────
 async function fetchLog(){
