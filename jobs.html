@@ -354,7 +354,7 @@ const SL={quote:"Quote",customer_po:"Customer PO",proforma_invoice:"Proforma Inv
 const SO=["quote","customer_po","proforma_invoice","vendor_po","do_wcc","invoice","soa","closed","cancelled"];
 const SC={quote:"sq",customer_po:"scp",vendor_po:"svp",do_wcc:"sdw",invoice:"si",soa:"ss",closed:"sc",cancelled:"scx"};
 const BC={quote:"bq",customer_po:"bcp",vendor_po:"bvp",do_wcc:"bdw",invoice:"bi",soa:"bs",closed:"bc",cancelled:"bcx"};
-let jobs={},contacts={},currentJobId=null,editJobId=null,stockMovements=[],sFilter="all",sQ="",selVendors=[],liCount=0,subCounts={};
+let jobs={},contacts={},currentJobId=null,editJobId=null,stockMovements=[],sFilter="all",sQ="",selVendors=[],liCount=0,subCounts={},stockPickerTargetParent=null;
 
 const rcStaff=sessionStorage.getItem("rc_staff");
 // rc_manager uses localStorage with 8hr expiry
@@ -729,8 +729,17 @@ async function reconcileStockDeductions(jobId,jobRefLabel,lineItems,sourceLabel)
   var stockItems=window._stockItems||{};
   var now=new Date().toISOString();
   var deductedCount=0;
-  for(var di=0;di<lineItems.length;di++){
-    var it=lineItems[di];
+  // Flatten top-level items and their sub-items (children) into one list — stockDeductedQty
+  // is mutated on the actual object references, so this updates the nested lineItems in place.
+  var flatItems=[];
+  for(var fi=0;fi<lineItems.length;fi++){
+    var topIt=lineItems[fi];
+    if(!topIt)continue;
+    flatItems.push(topIt);
+    (topIt.children||[]).forEach(function(c){flatItems.push(c);});
+  }
+  for(var di=0;di<flatItems.length;di++){
+    var it=flatItems[di];
     if(!it||!it.stockItemId)continue;
     var curQty=parseFloat(it.qty)||0;
     if(curQty<=0)continue;
@@ -840,20 +849,20 @@ window.addLI=function(desc,qty,unit,price,vendor,cost,costCur,stockItemId,stockD
     +'<td><select id="lcc_'+n+'" data-n="'+n+'" onchange="window.updateMarkup(this.dataset.n)" style="width:48px;font-size:11px;padding:3px 2px;border:1px solid #f0c08a;border-radius:6px;font-family:inherit;background:#FAEEDA">'+'<option value="SGD"'+(costCur==="SGD"?' selected':'')+'>SGD</option>'+'<option value="USD"'+(costCur==="USD"?' selected':'')+'>USD</option>'+'<option value="EUR"'+(costCur==="EUR"?' selected':'')+'>EUR</option>'+'<option value="JPY"'+(costCur==="JPY"?' selected':'')+'>JPY</option>'+'<option value="SEK"'+(costCur==="SEK"?' selected':'')+'>SEK</option>'+'</select></td>'
     +'<td style="text-align:right"><span id="lmk_'+n+'" style="display:block;padding:5px 6px;background:#f0faf2;border:1px solid #b8e4c5;border-radius:6px;font-size:11px;font-weight:600;color:#1a6641;text-align:right;min-width:60px">—</span><div id="lmk_h35_'+n+'" style="font-size:10px;color:#854F0B;margin-top:3px;text-align:right;white-space:nowrap"></div></td>'
     +'<td><select id="lv_'+n+'" style="width:100%;font-size:11px;padding:3px 4px;border:1px solid #ddd;border-radius:6px;font-family:inherit;background:#f9f9f7"><option value="">—</option>'+vopts+'</select></td>'
-    +'<td style="text-align:center"><button data-n="'+n+'" onclick="window.addSubLI(this.dataset.n)" title="Add sub-item" style="font-size:11px;padding:2px 5px;border-color:#B5D4F4;color:#185FA5;background:#E6F1FB">&#8627;</button></td>'
+    +'<td style="text-align:center;white-space:nowrap"><button data-n="'+n+'" onclick="window.addSubLI(this.dataset.n)" title="Add sub-item" style="font-size:11px;padding:2px 5px;border-color:#B5D4F4;color:#185FA5;background:#E6F1FB">&#8627;</button> <button data-n="'+n+'" onclick="window.openStockPicker(this.dataset.n)" title="Add sub-item from stock" style="font-size:11px;padding:2px 5px;border-color:#B5D4F4;color:#185FA5;background:#E6F1FB">&#8627;&#128230;</button></td>'
     +'<td style="text-align:center"><button data-n="'+n+'" onclick="window.removeLI(this.dataset.n)" style="font-size:12px;padding:2px 6px;border-color:#ddd;color:#aaa">✕</button></td>';
   document.getElementById("liBody").appendChild(tr);
   if(qty||price)setTimeout(function(){window.calcLI(n);},50);
   if(cost&&price)setTimeout(function(){window.updateMarkup(n);},100);
   if(!desc){setTimeout(function(){var d=document.getElementById('ld_'+n);if(d)d.focus();},60);}
 };
-window.addSubLI=function(parentN,desc,qty,unit,price,vendor,cost,costCur){
+window.addSubLI=function(parentN,desc,qty,unit,price,vendor,cost,costCur,stockItemId,stockDeductedQty){
   parentN=String(parentN);
   if(!subCounts[parentN])subCounts[parentN]=0;
   subCounts[parentN]++;
   var s=subCounts[parentN];
   var id=parentN+'_'+s;
-  desc=desc||"";qty=qty||"";unit=(unit===undefined||unit===null)?"PC":unit;price=price||"";vendor=vendor||"";cost=cost||"";costCur=costCur||"SGD";
+  desc=desc||"";qty=qty||"";unit=(unit===undefined||unit===null)?"PC":unit;price=price||"";vendor=vendor||"";cost=cost||"";costCur=costCur||"SGD";stockItemId=stockItemId||'';stockDeductedQty=stockDeductedQty||0;
   var tr=document.createElement("tr");tr.id="li_"+id;
   tr.style.background="#f4f8fe";
   var vopts=selVendors.map(function(v){return '<option value="'+v.id+'"'+(vendor===v.id?' selected':'')+'>'+v.name+'</option>';}).join('');
@@ -864,7 +873,7 @@ window.addSubLI=function(parentN,desc,qty,unit,price,vendor,cost,costCur){
     +'<td><input type="number" value="'+price+'" placeholder="0.00" min="0" step="0.01" id="lp_'+id+'" data-n="'+id+'" oninput="window.calcLI(this.dataset.n)" style="width:82px;text-align:right"></td>'
     +'<td><span class="lamt" id="la_'+id+'">0.00</span></td>'
     +'<td title="Customer discount %"><div style="display:flex;align-items:center"><input type="number" value="" placeholder="0" min="0" max="100" step="0.1" id="lcd_'+id+'" data-n="'+id+'" oninput="window.updateMarkup(this.dataset.n)" style="width:40px;text-align:right;padding:4px 3px;border:1px solid #B5D4F4;border-radius:6px 0 0 6px;font-size:12px;font-family:inherit;background:#E6F1FB"><span style="background:#E6F1FB;border:1px solid #B5D4F4;border-left:none;border-radius:0 6px 6px 0;padding:4px 3px;font-size:10px;color:#185FA5">%</span></div></td>'
-    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+id+'" data-n="'+id+'" oninput="window.updateMarkup(this.dataset.n)" style="width:68px;text-align:right;padding:4px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"></td>'
+    +'<td><input type="number" value="'+(cost||'')+'" placeholder="0.00" min="0" step="0.01" id="lc_'+id+'" data-n="'+id+'" oninput="window.updateMarkup(this.dataset.n)"'+(stockItemId?' data-stock-id="'+stockItemId+'" data-deducted-qty="'+stockDeductedQty+'" readonly title="Cost from stock catalog — read only" style="width:68px;text-align:right;padding:4px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#f5f0e8;cursor:not-allowed"':' style="width:68px;text-align:right;padding:4px 6px;border:1px solid #f0c08a;border-radius:6px;font-size:12px;font-family:inherit;background:#FAEEDA"')+'></td>'
     +'<td><select id="lcc_'+id+'" data-n="'+id+'" onchange="window.updateMarkup(this.dataset.n)" style="width:48px;font-size:11px;padding:3px 2px;border:1px solid #f0c08a;border-radius:6px;font-family:inherit;background:#FAEEDA">'+'<option value="SGD"'+(costCur==="SGD"?' selected':'')+'>SGD</option>'+'<option value="USD"'+(costCur==="USD"?' selected':'')+'>USD</option>'+'<option value="EUR"'+(costCur==="EUR"?' selected':'')+'>EUR</option>'+'<option value="JPY"'+(costCur==="JPY"?' selected':'')+'>JPY</option>'+'<option value="SEK"'+(costCur==="SEK"?' selected':'')+'>SEK</option>'+'</select></td>'
     +'<td style="text-align:right"><span id="lmk_'+id+'" style="display:block;padding:4px 6px;background:#f0faf2;border:1px solid #b8e4c5;border-radius:6px;font-size:11px;font-weight:600;color:#1a6641;text-align:right;min-width:60px">—</span><div id="lmk_h35_'+id+'" style="font-size:10px;color:#854F0B;margin-top:3px;text-align:right;white-space:nowrap"></div></td>'
     +'<td><select id="lv_'+id+'" style="width:100%;font-size:11px;padding:3px 4px;border:1px solid #ddd;border-radius:6px;font-family:inherit;background:#f4f8fe"><option value="">—</option>'+vopts+'</select></td>'
@@ -1127,7 +1136,9 @@ function getLIs(){
         custDisc:parseFloat((document.getElementById('lcd_'+sid)||{value:''}).value)||0,
         costCur:sccsel?sccsel.value:'SGD',
         vendorId:svsel?svsel.value:'',
-        vendorName:svsel&&svsel.value?((selVendors.find(function(v){return v.id===svsel.value;})||{}).name||''):''
+        vendorName:svsel&&svsel.value?((selVendors.find(function(v){return v.id===svsel.value;})||{}).name||''):'',
+        stockItemId:(document.getElementById('lc_'+sid)||{getAttribute:function(){return null;}}).getAttribute('data-stock-id')||'',
+        stockDeductedQty:parseFloat((document.getElementById('lc_'+sid)||{getAttribute:function(){return null;}}).getAttribute('data-deducted-qty'))||0
       };
       if(sub.desc)children.push(sub);
     }
@@ -1234,9 +1245,12 @@ window.pickAttn=function(lbl){
 };
 
 /* ── Stock catalog picker ── */
-window.openStockPicker=function(){
+window.openStockPicker=function(parentN){
+  stockPickerTargetParent=parentN?String(parentN):null;
   document.getElementById('stockPickerSearch').value='';
   window.renderStockPickerBody('');
+  var titleEl=document.getElementById('stockPickerModal').querySelector('h2');
+  if(titleEl)titleEl.innerHTML=stockPickerTargetParent?('&#128230; Add from Stock Catalog — as sub-item of #'+stockPickerTargetParent):'&#128230; Add from Stock Catalog';
   document.getElementById('stockPickerModal').classList.add('show');
 };
 
@@ -1284,12 +1298,20 @@ window.addFromStock=function(itemId){
   var desc=it.name||'';
   var sell=parseFloat(it.sell)||0;
   var cost=parseFloat(it.cost)||0;
-  // Add the line item (cost pre-filled from stock, sell price as the unit price)
+  var parentN=stockPickerTargetParent;
+  // If a target parent row was set (via the row's ↳📦 button), add as a sub-item of that row.
+  // Otherwise add as a normal top-level line item.
   // Note: it.unit actually holds the stock WEIGHT unit (e.g. "0.9 KG"), not an order unit — always default to "No" here
-  window.addLI(desc,'1','No',sell>0?sell:'','',cost>0?cost:'','SGD',itemId);
+  var n;
+  if(parentN&&document.getElementById('li_'+parentN)){
+    window.addSubLI(parentN,desc,'1','No',sell>0?sell:'','',cost>0?cost:'','SGD',itemId);
+    n=parentN+'_'+subCounts[String(parentN)];
+  }else{
+    window.addLI(desc,'1','No',sell>0?sell:'','',cost>0?cost:'','SGD',itemId);
+    n=liCount;
+  }
   // Lock currency and add shortfall warning on the newly added row
   setTimeout(function(){
-    var n=liCount;
     var costCurEl=document.getElementById('lcc_'+n);
     if(costCurEl){costCurEl.setAttribute('disabled','disabled');costCurEl.style.background='#f5f0e8';}
     var qtyEl=document.getElementById('lq_'+n);
@@ -1304,7 +1326,8 @@ window.addFromStock=function(itemId){
     window.checkStockShortfall(n,itemId);
   },80);
   document.getElementById('stockPickerModal').classList.remove('show');
-  toast('Added: '+it.name);
+  stockPickerTargetParent=null;
+  toast('Added: '+it.name+(parentN?' (sub-item)':''));
 };
 
 window.checkStockShortfall=function(n,itemId){
@@ -1383,10 +1406,26 @@ window.openEditJob=function(id){
     },150);})(liCount,it.stockItemId);}
     var pN=liCount;
     (it.children||[]).forEach(function(c){
-      window.addSubLI(pN,c.desc,c.qty,c.unit,c.unitPrice,c.vendorId||c.vendor||"",c.costPrice||"",c.costCur||"SGD");
+      window.addSubLI(pN,c.desc,c.qty,c.unit,c.unitPrice,c.vendorId||c.vendor||"",c.costPrice||"",c.costCur||"SGD",c.stockItemId||'',c.stockDeductedQty||0);
       if(c.custDisc){(function(pid,sc,disc){
         setTimeout(function(){var el=document.getElementById("lcd_"+pid+"_"+sc);if(el){el.value=disc;window.updateMarkup(pid+"_"+sc);}},150);
       })(pN,subCounts[String(pN)],c.custDisc);}
+      if(c.stockItemId){(function(sid,itemId){setTimeout(function(){
+        var curEl=document.getElementById('lcc_'+sid);
+        if(curEl){curEl.setAttribute('disabled','disabled');curEl.style.background='#f5f0e8';}
+        if(!document.getElementById('sq_warn_'+sid)){
+          var qtyEl=document.getElementById('lq_'+sid);
+          if(qtyEl){
+            var warn=document.createElement('div');
+            warn.id='sq_warn_'+sid;
+            warn.style.cssText='font-size:10px;color:#854F0B;margin-top:2px;white-space:nowrap;display:none';
+            qtyEl.parentNode.appendChild(warn);
+            qtyEl.setAttribute('data-stock-id-warn',itemId);
+            qtyEl.addEventListener('input',function(){window.checkStockShortfall(sid,itemId);});
+          }
+        }
+        window.checkStockShortfall(sid,itemId);
+      },150);})(pN+'_'+subCounts[String(pN)],c.stockItemId);}
     });
   });
   if(!(j.lineItems||[]).length)window.addLI();
