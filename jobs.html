@@ -373,9 +373,13 @@ function totals(j){
   var its=j.lineItems||[];
   var iSub=its.reduce(function(s,it){
     var ch=it.children||[];
-    if(ch.length){return s+ch.reduce(function(cs,c){var cd=parseFloat(c.custDisc)||0;return cs+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0)*(1-cd/100);},0);}
     var d=parseFloat(it.custDisc)||0;
-    return s+(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0)*(1-d/100);
+    var ownAmt=(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0)*(1-d/100);
+    if(ch.length){
+      var childSum=ch.reduce(function(cs,c){var cd=parseFloat(c.custDisc)||0;return cs+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0)*(1-cd/100);},0);
+      return s+(childSum>0?childSum:ownAmt);
+    }
+    return s+ownAmt;
   },0);
   var sub=iSub;
   var gst=j.gst==="9"?sub*0.09:0;
@@ -488,14 +492,14 @@ window.openDetail=function(id){
     var rows=[];
     items.forEach(function(it,i){
       var ch=it.children||[];
-      // Compute parent amount: sum of children if any, else own qty*price
-      var parentAmt=ch.length
-        ?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0)
-        :(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+      // Compute parent amount: sum of children if they carry their own pricing, else own qty*price
+      var childSum=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):0;
+      var hasChildPricing=ch.length&&childSum>0;
+      var parentAmt=hasChildPricing?childSum:(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push("<tr>"
         +'<td style="text-align:center;color:#888;font-size:12px">'+(i+1)+"</td>"
         +"<td style='"+(ch.length?"font-weight:600;":"")+"'>"+(it.desc||"&mdash;")+"</td>"
-        +(ch.length
+        +(hasChildPricing
           ?"<td></td><td></td><td></td>"
             +'<td class="nr" style="color:#aaa;font-size:11px;font-style:italic">see sub-items</td>'
           :'<td class="nr">'+(it.qty||"")+"</td>"
@@ -1806,7 +1810,7 @@ window.openPrintQuo=function(id){
   items.forEach(function(it,i){
     var ch=it.children||[];
     // Compute parent display amount
-    var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+    var childSum=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):0;var hasChildPricing=ch.length&&childSum>0;var parentAmt=hasChildPricing?childSum:(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
     rows.push('<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0ede6">'
       +'<input type="checkbox" id="pqc_'+i+'" checked data-parent-idx="'+i+'" onchange="window.pqToggleParent(this.dataset.parentIdx,this.checked)" style="width:16px;height:16px;cursor:pointer">'
       +'<label for="pqc_'+i+'" style="flex:1;font-size:13px;font-weight:'+(ch.length?'600':'400')+';cursor:pointer">'+(it.desc||'(no description)')
@@ -3129,7 +3133,7 @@ window.openPrintOC=function(id){
   var rows=[];
   items.forEach(function(it,i){
     var ch=it.children||[];
-    var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+    var childSum=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):0;var hasChildPricing=ch.length&&childSum>0;var parentAmt=hasChildPricing?childSum:(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
     rows.push('<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0ede6">'
       +'<input type="checkbox" id="occ_'+i+'" checked data-parent-idx="'+i+'" onchange="window.ocToggleParent(this.dataset.parentIdx,this.checked)" style="width:16px;height:16px;cursor:pointer">'
       +'<label for="occ_'+i+'" style="flex:1;font-size:13px;font-weight:'+(ch.length?'600':'400')+';cursor:pointer">'+(it.desc||'(no description)')
@@ -3232,15 +3236,15 @@ window.printOCData=function(id,selectedItems){
     var rows=[];
     selectedItems.forEach(function(it,i){
       var ch=it.children||[];
-      var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+      var childSum=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):0;var hasChildPricing=ch.length&&childSum>0;var parentAmt=hasChildPricing?childSum:(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
         +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
-        +(ch.length?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
+        +(hasChildPricing?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
           +'<td style="padding:5px 6px">'+(it.unit||'')+'</td>'
           +'<td style="text-align:right;padding:5px 6px">'+fmt(it.unitPrice)+'</td>')
-        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(ch.length?'':fmt(parentAmt))+'</td>'
+        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(hasChildPricing?'':fmt(parentAmt))+'</td>'
         +'</tr>');
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f9f9f9">'
@@ -3356,15 +3360,15 @@ window.printQuoData = function(id, selectedItems, revNum){
     var rows=[];
     selectedItems.forEach(function(it,i){
       var ch=it.children||[];
-      var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+      var childSum=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):0;var hasChildPricing=ch.length&&childSum>0;var parentAmt=hasChildPricing?childSum:(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
         +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
-        +(ch.length?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
+        +(hasChildPricing?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
           +'<td style="padding:5px 6px">'+(it.unit||'')+'</td>'
           +'<td style="text-align:right;padding:5px 6px">'+fmt(it.unitPrice)+'</td>')
-        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(ch.length?'':fmt(parentAmt))+'</td>'
+        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(hasChildPricing?'':fmt(parentAmt))+'</td>'
         +'</tr>');
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f9f9f9">'
@@ -3465,7 +3469,7 @@ window.openPrintInv=function(id){
   var invRows=[];
   (j.lineItems||[]).forEach(function(it,i){
     var ch=it.children||[];
-    var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+    var childSum=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):0;var hasChildPricing=ch.length&&childSum>0;var parentAmt=hasChildPricing?childSum:(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
     invRows.push('<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'+(i>0?'border-top:1px solid #f0ede6':'')+'">'
       +'<input type="checkbox" id="inv_ic_'+i+'" data-jid="'+id+'" checked style="width:16px;height:16px;cursor:pointer;flex-shrink:0">'
       +'<label for="inv_ic_'+i+'" style="flex:1;font-size:13px;font-weight:'+(ch.length?'600':'400')+';cursor:pointer">'+(it.desc||'(no description)')+(it.qty&&it.unit&&!ch.length?'<span style="color:#aaa;font-size:11px;margin-left:8px">'+it.qty+' '+it.unit+'</span>':'')+'</label>'
@@ -3585,16 +3589,16 @@ window.printInvData=function(id,selectedItems,invType,invPct,payTermsOverride,bi
     var rows=[];
     scaledFull.forEach(function(it,i){
       var ch=it.children||[];
-      var parentAmt=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
+      var childSum=ch.length?ch.reduce(function(s,c){return s+(parseFloat(c.qty)||0)*(parseFloat(c.unitPrice)||0);},0):0;var hasChildPricing=ch.length&&childSum>0;var parentAmt=hasChildPricing?childSum:(parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0);
       rows.push('<tr>'
         +'<td style="text-align:center;padding:5px 6px">'+(i+1)+'</td>'
         +'<td style="padding:5px 6px;font-weight:700">'+((it.desc||'').replace(/\n/g,'<br>'))+'</td>'
-        +(ch.length
+        +(hasChildPricing
           ?'<td style="text-align:right;padding:5px 6px"></td><td style="padding:5px 6px"></td><td style="text-align:right;padding:5px 6px"></td>'
           :'<td style="text-align:right;padding:5px 6px">'+(it.qty||'')+'</td>'
            +'<td style="padding:5px 6px">'+(it.unit||'')+'</td>'
            +'<td style="text-align:right;padding:5px 6px">'+fmt(it.unitPrice)+'</td>')
-        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(ch.length?'':fmt(parentAmt))+'</td>'
+        +'<td style="text-align:right;padding:5px 6px;font-weight:500">'+(hasChildPricing?'':fmt(parentAmt))+'</td>'
       +'</tr>');
       ch.forEach(function(c,ci){
         rows.push('<tr style="background:#f4f8fe">'
