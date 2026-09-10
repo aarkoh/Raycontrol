@@ -144,6 +144,7 @@ button:hover{background:#f0f0ee}
     <div class="toolbar">
       <input type="text" id="srch" placeholder="Search ref, customer, vessel, PO&hellip;" oninput="render()">
     <button onclick="openSOA()" style="border-color:#185FA5;color:#185FA5;background:#E6F1FB;font-weight:600">&#128196; SOA</button>
+    <button onclick="openMatchModal()" style="border-color:#8B1A8B;color:#8B1A8B;background:#F5E6F5;font-weight:600">&#128269; Match Payment</button>
     <button onclick="openJobModal()" style="border-color:#1a6641;color:#fff;background:#1a6641;font-weight:600">+ New Job</button>
     </div>
     <div class="chips">
@@ -858,6 +859,148 @@ window.deletePayment=async function(id,idx){
     buildDetail(id);
     render();
     toast('Payment entry removed');
+  }catch(err){toast('Error: '+err.message);}
+};
+
+/* ── Unidentified Payment Matcher ── */
+function toSGD(amt,cur){
+  if(!cur||cur==='SGD')return amt;
+  const rate=window['_fx_'+cur+'_SGD']||(window.FX_FALLBACK||{})[cur]||1;
+  return amt*rate;
+}
+window.openMatchModal=function(){
+  const sel=document.getElementById('mm_cust');
+  const seen={};
+  let opts='<option value="">— Any customer —</option>';
+  Object.values(jobs).forEach(function(j){
+    if(j.customerId&&j.customerName&&!seen[j.customerId]){
+      seen[j.customerId]=true;
+      opts+='<option value="'+j.customerId+'">'+j.customerName+'</option>';
+    }
+  });
+  sel.innerHTML=opts;
+  document.getElementById('mm_amt').value='';
+  document.getElementById('matchResults').innerHTML='';
+  document.getElementById('matchModalBg').classList.add('show');
+};
+window.runPaymentMatch=function(){
+  const amtIn=parseFloat(document.getElementById('mm_amt').value);
+  if(isNaN(amtIn)||amtIn<=0){toast('Enter a valid amount greater than 0');return;}
+  const curIn=document.getElementById('mm_cur').value||'SGD';
+  const custFilter=document.getElementById('mm_cust').value||'';
+  const tolPct=parseFloat(document.getElementById('mm_tol').value)||5;
+  const amtSGD=toSGD(amtIn,curIn);
+  // Received amount is typically <= invoice amount (FX spread + bank charges eat into it),
+  // but allow a small buffer above too in case of favorable rate movement or rounding.
+  const lo=amtSGD*(1-tolPct/100);
+  const hi=amtSGD*1.015;
+
+  const candidates=Object.entries(jobs)
+    .filter(function(e){return ['invoice','soa','closed'].includes(e[1].status);})
+    .map(function(e){
+      const id=e[0],j=e[1];
+      const t=totals(j);
+      const rcvd=parseFloat(j.paymentReceived)||0;
+      const bal=t.total-rcvd;
+      return {id:id,j:j,balJobCur:bal,balSGD:toSGD(bal,j.currency||'SGD')};
+    })
+    .filter(function(c){return c.balSGD>0.5;});
+
+  const filtered=custFilter?candidates.filter(function(c){return c.j.customerId===custFilter;}):candidates;
+
+  const singles=filtered.filter(function(c){return c.balSGD>=lo&&c.balSGD<=hi;});
+
+  const byCust={};
+  filtered.forEach(function(c){
+    const k=c.j.customerId||c.j.customerName||'unknown';
+    (byCust[k]=byCust[k]||[]).push(c);
+  });
+  const combos=[];
+  Object.values(byCust).forEach(function(list){
+    if(list.length<2)return;
+    const arr=list.slice(0,8); // cap search space per customer
+    for(let mask=1;mask<(1<<arr.length);mask++){
+      const bits=[];
+      for(let i=0;i<arr.length;i++){if(mask&(1<<i))bits.push(arr[i]);}
+      if(bits.length<2)continue;
+      const sum=bits.reduce(function(s,c){return s+c.balSGD;},0);
+      if(sum>=lo&&sum<=hi){combos.push({items:bits,sum:sum});}
+    }
+  });
+  combos.sort(function(a,b){return Math.abs(a.sum-amtSGD)-Math.abs(b.sum-amtSGD);});
+
+  window._matchCombos=combos;
+  window._matchAmtIn=amtIn;
+  window._matchCurIn=curIn;
+
+  renderMatchResults(singles,combos,amtIn,curIn,amtSGD);
+};
+function renderMatchResults(singles,combos,amtIn,curIn,amtSGD){
+  let html='';
+  if(!singles.length&&!combos.length){
+    html='<div style="padding:10px 4px;color:#888;font-size:13px">No open invoices matched within tolerance. Try a wider tolerance %, remove the customer filter, or check the amount/currency.</div>';
+  }
+  if(singles.length){
+    html+='<h4 style="margin:10px 0 6px;font-size:13px">Single Invoice Matches</h4>';
+    singles.forEach(function(c){
+      const diffPct=(((amtSGD-c.balSGD)/c.balSGD)*100).toFixed(1);
+      html+='<div style="border:1px solid #e0ddd6;border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px">'
+        +'<div style="font-size:12px"><b>'+(c.j.ref||c.id)+'</b> — '+(c.j.customerName||'—')
+        +'<br><span style="color:#888">Balance: '+(c.j.currency||'SGD')+' '+fmt(c.balJobCur)+' &nbsp;('+(diffPct>=0?'+':'')+diffPct+'% vs received)</span></div>'
+        +'<button class="bsm" style="border-color:#1a6641;color:#1a6641;white-space:nowrap" onclick="applyMatchSingle(\''+c.id+'\')">Use This</button>'
+        +'</div>';
+    });
+  }
+  if(combos.length){
+    html+='<h4 style="margin:10px 0 6px;font-size:13px">Multi-Invoice Combinations</h4>';
+    combos.slice(0,10).forEach(function(combo,idx){
+      const refs=combo.items.map(function(c){return c.j.ref||c.id;}).join(' + ');
+      const lines=combo.items.map(function(c){return (c.j.customerName||'—')+' — '+(c.j.currency||'SGD')+' '+fmt(c.balJobCur);}).join('<br>');
+      html+='<div style="border:1px solid #e0ddd6;border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:10px">'
+        +'<div style="font-size:12px"><b>'+refs+'</b><br><span style="color:#888">'+lines+'</span></div>'
+        +'<button class="bsm" style="border-color:#8B1A8B;color:#8B1A8B;white-space:nowrap" onclick="applyMatchCombo('+idx+')">Use These</button>'
+        +'</div>';
+    });
+  }
+  document.getElementById('matchResults').innerHTML=html;
+}
+window.applyMatchSingle=function(id){
+  document.getElementById('matchModalBg').classList.remove('show');
+  showDetail(id);
+  setTimeout(function(){
+    const j=jobs[id]||{};
+    const t=totals(j);
+    const rcvd=parseFloat(j.paymentReceived)||0;
+    const bal=t.total-rcvd;
+    const amtEl=document.getElementById('pmAmt');
+    const curEl=document.getElementById('pmCur');
+    const notesEl=document.getElementById('pmNotes');
+    if(amtEl)amtEl.value=bal>0.005?bal.toFixed(2):'';
+    if(curEl)curEl.value=window._matchCurIn||'SGD';
+    if(notesEl)notesEl.value='Matched via Payment Matcher (received '+(window._matchCurIn||'')+' '+fmt(window._matchAmtIn||0)+')';
+    toast('Payment form pre-filled — review and save');
+  },250);
+};
+window.applyMatchCombo=async function(idx){
+  const combo=(window._matchCombos||[])[idx];
+  if(!combo){toast('Match expired — please search again');return;}
+  const curIn=window._matchCurIn||'SGD';
+  const amtIn=window._matchAmtIn||0;
+  document.getElementById('matchModalBg').classList.remove('show');
+  if(!confirm('Record a payment against '+combo.items.length+' invoices for their full outstanding balances, based on this match? You can remove any entry afterwards if needed.'))return;
+  try{
+    for(const c of combo.items){
+      const j=jobs[c.id]||{};
+      const cur=j.currency||'SGD';
+      const hist=[...(j.paymentHistory||[])];
+      hist.push({amount:c.balJobCur,currency:cur,method:'',date:new Date().toISOString().slice(0,10),notes:'Batch-matched payment (received '+curIn+' '+fmt(amtIn)+' total)'});
+      const totalRcvd=hist.reduce(function(s,p){return s+pmtInJobCur(p,cur);},0);
+      await update(ref(db,'jobs/'+c.id),{paymentReceived:totalRcvd,paymentHistory:hist,updatedAt:new Date().toISOString()});
+      jobs[c.id]=Object.assign({},j,{paymentReceived:totalRcvd,paymentHistory:hist});
+    }
+    render();
+    if(curId&&combo.items.some(function(c){return c.id===curId;}))buildDetail(curId);
+    toast('Payments recorded across '+combo.items.length+' invoices');
   }catch(err){toast('Error: '+err.message);}
 };
 
@@ -1596,6 +1739,39 @@ function printCNData(id, items, billTo, reason, invRef, cnDate) {
     <div class="mfoot">
       <button onclick="document.getElementById('cnModal').classList.remove('show')">Cancel</button>
       <button onclick="doPrintCN()" style="background:#854F0B;color:#fff;border-color:#854F0B;font-weight:600">&#128424; Print Credit Note</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Matcher Modal -->
+<div class="mbg" id="matchModalBg">
+  <div class="modal" style="max-width:640px">
+    <h2 style="margin-bottom:.75rem">&#128269; Match Unidentified Payment</h2>
+    <p style="font-size:12px;color:#888;margin-bottom:1rem">Enter what you actually received. Matching allows for FX spread and bank charges, and checks combinations of open invoices for the same customer.</p>
+    <div style="display:grid;grid-template-columns:1fr 90px;gap:10px">
+      <div class="mfi"><label>Amount Received</label>
+        <input type="number" id="mm_amt" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="mfi"><label>Currency</label>
+        <select id="mm_cur">
+        <option value="SGD" selected>SGD</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option><option value="AUD">AUD</option><option value="CNY">CNY</option><option value="HKD">HKD</option><option value="SEK">SEK</option>
+        </select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <div class="mfi"><label>Customer (optional)</label>
+        <select id="mm_cust"><option value="">— Any customer —</option></select></div>
+      <div class="mfi"><label>Tolerance for FX/bank charges</label>
+        <select id="mm_tol">
+          <option value="2">Up to 2%</option>
+          <option value="5" selected>Up to 5%</option>
+          <option value="8">Up to 8%</option>
+        </select></div>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn-green" onclick="runPaymentMatch()">&#128269; Find Matching Invoices</button>
+    </div>
+    <div id="matchResults" style="margin-top:14px;max-height:340px;overflow-y:auto"></div>
+    <div class="mfoot">
+      <button onclick="document.getElementById('matchModalBg').classList.remove('show')">Close</button>
     </div>
   </div>
 </div>
