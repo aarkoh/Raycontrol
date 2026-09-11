@@ -194,6 +194,7 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
     <div class="mgrid" id="managerGrid"></div>
     <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e0ddd6;display:flex;gap:8px;flex-wrap:wrap">
       <button onclick="openPin('change')">Change PIN</button>
+      <button onclick="openStaffModal()">Manage staff</button>
       <button class="btn-danger" id="clearLogBtn" onclick="clearAndRebuildLog()">Clear duplicate logs</button>
     </div>
   </div>
@@ -247,6 +248,22 @@ select{font-family:inherit;font-size:13px;padding:6px 10px;border-radius:8px;bor
   </div>
 </div>
 
+<!-- STAFF MODAL -->
+<div class="modal-bg" id="staffModal">
+  <div class="modal" style="max-width:380px">
+    <h2>Manage staff</h2>
+    <p class="sub" style="margin-bottom:12px">Remove staff who've left, or add new hires. Past clock records are kept either way — this only controls who shows up to clock in.</p>
+    <div id="staffList" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;margin-bottom:12px"></div>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="newStaffInitials" maxlength="4" placeholder="Initials (e.g. JD)" style="flex:1;text-transform:uppercase;padding:8px;border:1px solid #ccc;border-radius:8px;font-family:inherit">
+      <button onclick="addStaff()">Add</button>
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+      <button onclick="closeStaffModal()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- PIN MODAL -->
 <div class="modal-bg" id="pinModal">
   <div class="modal">
@@ -292,7 +309,10 @@ const fbApp = initializeApp(firebaseConfig);
 const db = getDatabase(fbApp);
 const auth = getAuth(fbApp);
 
-const WORKERS = ['HS','TM','RG','MU','AY','IL','SA','AN'];
+// The staff roster now lives in Firebase (config/roster) instead of being hardcoded here,
+// so management can add/remove staff from the "Manage Staff" panel on the Manager tab
+// without needing a code change. This array is the local in-memory copy, kept in sync.
+let WORKERS = ['HS','RG','MU','AY','IL','SA'];
 let workerNames={};
 let sel=null, logTypeFilter='all', pinTarget=null, settingNew=false;
 let logDaysShown=7;
@@ -627,6 +647,70 @@ window.switchTab=function(tab,el){
   if(tab==='manager')renderManager();
   if(tab==='summary')renderSummary();
   if(tab==='log')renderLog();
+};
+
+// ── Staff roster management ─────────────────────────────────────
+// Lets management add/remove staff from the "Manage staff" panel instead of editing code.
+// Removing someone only takes them off the active roster (workerGrid/managerGrid/log filter) —
+// their historical clock records, rates, etc. stay in Firebase untouched.
+function saveRoster(){
+  return set(ref(db,'config/roster'),WORKERS).catch(e=>{toast('Error saving roster: '+e.message);});
+}
+// Re-render anything that lists the active roster, after WORKERS changes (add/remove/sync from another device).
+function refreshRosterUI(){
+  renderWorkers();
+  const sel=document.getElementById('logWFilter');
+  if(sel){
+    const prev=sel.value;
+    sel.innerHTML='<option value="all">Highlight worker...</option>';
+    WORKERS.forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w;sel.appendChild(o);});
+    if(WORKERS.includes(prev))sel.value=prev;
+  }
+  if(document.getElementById('tab-manager')?.classList.contains('active'))renderManager();
+  if(document.getElementById('tab-summary')?.classList.contains('active'))renderSummary();
+  if(document.getElementById('staffModal')?.classList.contains('show'))renderStaffList();
+}
+function renderStaffList(){
+  const list=document.getElementById('staffList');
+  if(!list)return;
+  list.innerHTML=WORKERS.map(w=>{
+    const name=workerNames[w]?` — ${workerNames[w]}`:'';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f5f5f3;border-radius:8px">
+      <span style="font-weight:600">${w}${name}</span>
+      <button class="btn-danger" style="padding:4px 10px;font-size:12px" onclick="removeStaff('${w}')">Remove</button>
+    </div>`;
+  }).join('')||'<div style="color:#888;font-size:13px">No staff on the roster yet.</div>';
+}
+window.openStaffModal=function(){
+  renderStaffList();
+  document.getElementById('staffModal').classList.add('show');
+};
+window.closeStaffModal=function(){
+  document.getElementById('staffModal').classList.remove('show');
+};
+window.addStaff=async function(){
+  const input=document.getElementById('newStaffInitials');
+  const w=(input.value||'').trim().toUpperCase();
+  if(!w){toast('Enter initials first');return;}
+  if(WORKERS.includes(w)){toast(w+' is already on the roster');return;}
+  WORKERS=[...WORKERS,w];
+  input.value='';
+  await saveRoster();
+  const s=await get(ref(db,'workers/'+w));
+  if(!s.exists())await set(ref(db,'workers/'+w),{status:'out',since:null,loc:'',lastTime:null});
+  refreshRosterUI();
+  toast(w+' added');
+};
+window.removeStaff=async function(w){
+  const isIn=(workers[w]||{}).status==='in';
+  const msg=isIn
+    ? `${w} is currently clocked in. Remove them from the roster anyway? Their history is kept.`
+    : `Remove ${w} from the roster? Their history is kept, they just won't show up to clock in anymore.`;
+  if(!confirm(msg))return;
+  WORKERS=WORKERS.filter(x=>x!==w);
+  await saveRoster();
+  refreshRosterUI();
+  toast(w+' removed');
 };
 
 // ── Manager ───────────────────────────────────────────────────
@@ -1337,6 +1421,21 @@ onAuthStateChanged(auth,async user=>{
     b.className='conn '+(online?'online':'offline');
   });
 
+  // Load the staff roster from Firebase (falls back to the default list above on first run,
+  // and immediately saves that default so every device converges on the same roster).
+  const rosterSnap=await get(ref(db,'config/roster'));
+  if(rosterSnap.exists()&&Array.isArray(rosterSnap.val())&&rosterSnap.val().length){
+    WORKERS=rosterSnap.val();
+  } else {
+    await set(ref(db,'config/roster'),WORKERS);
+  }
+  onValue(ref(db,'config/roster'),snap=>{
+    if(snap.exists()&&Array.isArray(snap.val())&&snap.val().length){
+      WORKERS=snap.val();
+      refreshRosterUI();
+    }
+  });
+
   // Init worker nodes
   for(const w of WORKERS){const s=await get(ref(db,'workers/'+w));if(!s.exists())await set(ref(db,'workers/'+w),{status:'out',since:null,loc:'',lastTime:null});}
   const pinSnap=await get(ref(db,'config/pin'));
@@ -1407,8 +1506,8 @@ onAuthStateChanged(auth,async user=>{
   await fetchLog();
   setInterval(fetchLog,15000);
 
-  // Init log worker filter
-  WORKERS.forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w;document.getElementById('logWFilter').appendChild(o);});
+  // Log worker filter dropdown is populated by refreshRosterUI() (triggered by the
+  // config/roster listener above), so no separate init step is needed here.
   renderWorkers();
   setGeoUI('','Geolocation ready');
   liveClock();setInterval(liveClock,1000);
