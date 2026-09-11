@@ -1077,11 +1077,37 @@ function splitLocalTime(str){
   if(m)return {datePart:m[1].trim(), timePart:m[2].trim()};
   return {datePart:str.trim(), timePart:''};
 }
+// Fixed month table used for both parsing and (re)formatting log day-group labels.
+// We must NOT use the browser's locale-formatted string as a grouping key: different code paths
+// format the same calendar day with different Intl locales ('en-SG' for saved e.localTime vs
+// 'en-GB' inside fmtInTZ), and browser/ICU updates have changed some locales' abbreviated month
+// names (e.g. September rendering as "Sep" in one locale/version and "Sept" in another). That made
+// two strings for the same day compare as different keys and split one day into two groups.
+const LOG_MONTH_ABBR=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const LOG_MONTH_LOOKUP={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function logPad2(n){return String(n).padStart(2,'0');}
+// Parse a formatted date string like "11 Sep 2026" / "11 Sept 2026" / "Sep 11, 2026" into {y,m,d},
+// regardless of month-name length or word order.
+function parseLogDateLabel(str){
+  if(!str)return null;
+  const m=str.match(/(\d{1,2}).*?([A-Za-z]{3,9}).*?(\d{4})/);
+  if(!m)return null;
+  const mon=LOG_MONTH_LOOKUP[m[2].toLowerCase().slice(0,3)];
+  if(mon==null)return null;
+  return {y:parseInt(m[3],10), m:mon, d:parseInt(m[1],10)};
+}
+function fmtLogDateLabel(p){return `${logPad2(p.d)} ${LOG_MONTH_ABBR[p.m]} ${p.y}`;}
 function logDayKey(e){
-  // Calendar-day bucket in the entry's own local time, so overseas entries group by the day they actually occurred there
+  // Calendar-day bucket in the entry's own local time, so overseas entries group by the day they actually occurred there.
+  // Returns {key, label}: `key` is a locale-independent "YYYY-MM-DD" string used only for bucketing,
+  // and `label` is a consistently-formatted string (always our own fixed month abbreviations) used for display.
   const parsed=splitLocalTime(e.localTime);
-  if(parsed&&parsed.datePart)return parsed.datePart;
-  return fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric'});
+  const dp=parsed&&parsed.datePart?parseLogDateLabel(parsed.datePart):null;
+  if(dp)return {key:`${dp.y}-${logPad2(dp.m+1)}-${logPad2(dp.d)}`, label:fmtLogDateLabel(dp)};
+  const fallbackStr=fmtInTZ(e.time, e.tz||'Asia/Singapore', {day:'2-digit',month:'short',year:'numeric'});
+  const fp=parseLogDateLabel(fallbackStr);
+  if(fp)return {key:`${fp.y}-${logPad2(fp.m+1)}-${logPad2(fp.d)}`, label:fmtLogDateLabel(fp)};
+  return {key:fallbackStr, label:fallbackStr};
 }
 function renderLogEntry(e,highlightWorker){
   const tzLabel=e.regionOverride?(e.regionOverride==='sg'?` <span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:1px 5px;border-radius:8px;font-weight:600">SG (manually set)</span>`:` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">Overseas (manually set)</span>`):(e.tz&&e.tz!=='Asia/Singapore'?` <span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:1px 5px;border-radius:8px;font-weight:600">${e.tz.split('/').pop().replace(/_/g,' ')}</span>`:'');
@@ -1104,10 +1130,10 @@ function renderLog(){
   if(!entries.length){list.innerHTML='<div class="lempty">No entries found</div>';return;}
 
   // Group into calendar-day buckets, preserving the existing newest-first order of `log`
-  const dayOrder=[], dayMap={};
+  const dayOrder=[], dayMap={}, dayLabels={};
   entries.forEach(e=>{
-    const key=logDayKey(e);
-    if(!dayMap[key]){dayMap[key]=[];dayOrder.push(key);}
+    const {key,label}=logDayKey(e);
+    if(!dayMap[key]){dayMap[key]=[];dayOrder.push(key);dayLabels[key]=label;}
     dayMap[key].push(e);
   });
 
@@ -1116,7 +1142,7 @@ function renderLog(){
     const dayEntries=dayMap[key];
     const staffCount=new Set(dayEntries.map(e=>e.worker)).size;
     const rows=dayEntries.map(e=>renderLogEntry(e,highlightWorker)).join('');
-    return `<div class="lday-group"><div class="lday-head"><span class="lday-title">${key}</span><span class="lday-count">${staffCount} staff</span></div>${rows}</div>`;
+    return `<div class="lday-group"><div class="lday-head"><span class="lday-title">${dayLabels[key]}</span><span class="lday-count">${staffCount} staff</span></div>${rows}</div>`;
   }).join('');
 
   if(dayOrder.length>daysToRender.length){
