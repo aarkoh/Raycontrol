@@ -68,6 +68,10 @@ input[readonly]{background:#f9fafb;color:#6b7280}
 .totals-row{display:flex;justify-content:flex-end;margin-top:10px;gap:24px}
 .totals-row span{font-size:13px;color:#374151}
 .totals-row strong{color:#1e3a5f}
+.totals-row input{width:110px;text-align:right;padding:5px 8px;font-weight:600;color:#1e3a5f}
+.ov{border-color:#dc2626!important;background:#fef2f2!important}
+.cell-in{width:80px;text-align:right;padding:3px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;font-family:inherit}
+.cell-in.bold{font-weight:600}
 .toast{position:fixed;bottom:24px;right:24px;background:#1e3a5f;color:#fff;padding:12px 20px;border-radius:10px;z-index:999;opacity:0;transition:opacity .3s;font-size:13px;pointer-events:none}
 .toast.show{opacity:1}
 .action-btns{display:flex;gap:6px}
@@ -198,9 +202,11 @@ input[readonly]{background:#f9fafb;color:#6b7280}
       </div>
 
       <div class="totals-row">
-        <span>Sub Total: <strong id="tot_sub">S$ 0.00</strong></span>
-        <span>GST: <strong id="tot_gst">S$ 0.00</strong></span>
-        <span>Cheque Amount: <strong id="tot_total">S$ 0.00</strong></span>
+        <span>Sub Total (S$): <input type="number" step="0.01" id="tot_sub" oninput="window.totChange('sub',this.value)" title="Leave blank to auto-calculate"></span>
+        <span>GST (S$): <input type="number" step="0.01" id="tot_gst" oninput="window.totChange('gst',this.value)" title="Leave blank to auto-calculate"></span>
+        <span>Cheque Amount (S$): <input type="number" step="0.01" id="tot_total" oninput="window.totChange('chq',this.value)" title="Leave blank to auto-calculate"></span>
+      </div>
+      <div class="bal-hint" style="text-align:right">Any total can be overwritten. Red = manual figure; clear the box to go back to the automatic calculation.
       </div>
     </div>
     <div class="modal-footer">
@@ -266,6 +272,8 @@ window.onMonthChange=function(){};
 window.saveMonthCarry=function(){};
 window.clearMonthCarry=function(){};
 window.saveAdjBal=function(){};
+window.saveField=function(){};
+window.totChange=function(){};
 window.saveSettings=function(){};
 </script>
 
@@ -292,6 +300,7 @@ signInAnonymously(auth).catch(console.error);
 /* ── State ── */
 let vouchers={}, staffList=[], editId=null, lineItems=[], pettyCfg={}, selMonth='';
 let jobsList=[], jobDropIndex=-1;
+let totOv={sub:null,gst:null,chq:null};
 
 /* ── Helpers ── */
 function todayStr(){return new Date().toISOString().slice(0,10);}
@@ -363,12 +372,16 @@ function computeLedger(){
     return (a.createdAt||0)-(b.createdAt||0);
   });
   let bf=openBal;
+  const ov=(x,auto)=>(x!=null&&x!==''&&!isNaN(parseFloat(x)))?parseFloat(x):auto;
   return arr.map(v=>{
-    const billTT=(v.lineItems||[]).reduce((s,r)=>s+(parseFloat(r.total)||0),0);
-    const ttAmt=bf+topUp;
-    const calBal=ttAmt-billTT;
-    const adjBal=v.adjBal!=null?(parseFloat(v.adjBal)||0):calBal;
-    const row={v,bf,amt:topUp,ttAmt,billTT,calBal,adjBal};
+    const autoBill=(v.lineItems||[]).reduce((s,r)=>s+(parseFloat(r.total)||0),0);
+    const amt=ov(v.amtOverride,topUp);
+    bf=ov(v.bfOverride,bf);
+    const billTT=ov(v.chequeAmountOverride,autoBill);
+    const ttAmt=ov(v.ttAmtOverride,bf+amt);
+    const calBal=ov(v.calBalOverride,ttAmt-billTT);
+    const adjBal=ov(v.adjBal,calBal);
+    const row={v,bf,amt,ttAmt,billTT,calBal,adjBal};
     bf=adjBal;
     return row;
   });
@@ -494,19 +507,19 @@ window.renderList=function(){
     const v=row.v, vid=v.id;
     const d=new Date((v.voucherDate||dateStrFrom(v.createdAt))+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
     const staff=[...new Set((v.lineItems||[]).map(li=>li.staff||'').filter(Boolean))].join(', ')||'—';
-    const adjDiffers=Math.abs(row.adjBal-row.calBal)>0.004;
+    const isOv=x=>x!=null&&x!=='';
     const tr=document.createElement('tr');
     tr.innerHTML=''
       +'<td><span class="voucher-no" onclick="window.openEdit(\'' + vid + '\')">'+(v.voucherNo||'—')+'</span></td>'
       +'<td>'+d+'</td>'
       +'<td>'+(v.chequeNo||'—')+'</td>'
       +'<td>'+staff+'</td>'
-      +'<td style="text-align:right">'+fmt(row.amt)+'</td>'
-      +'<td style="text-align:right">'+fmt(row.bf)+'</td>'
-      +'<td style="text-align:right">'+fmt(row.ttAmt)+'</td>'
-      +'<td style="text-align:right;font-weight:600">'+fmt(row.billTT)+'</td>'
-      +'<td style="text-align:right'+(adjDiffers?';color:#9ca3af':'')+'">'+fmt(row.calBal)+'</td>'
-      +'<td style="text-align:right"><input type="number" step="0.01" value="'+row.adjBal.toFixed(2)+'" style="width:88px;text-align:right;padding:3px 6px;border:1px solid '+(adjDiffers?'#dc2626':'#d1d5db')+';border-radius:6px;font-size:12px;font-family:inherit" onchange="window.saveAdjBal(\''+vid+'\',this.value)"></td>'
+      +'<td style="text-align:right"><input type="number" step="0.01" class="cell-in'+(isOv(v.amtOverride)?' ov':'')+'" value="'+row.amt.toFixed(2)+'" onchange="window.saveField(\''+vid+'\',\'amtOverride\',this.value)" title="Clear to auto-calculate"></td>'
+      +'<td style="text-align:right"><input type="number" step="0.01" class="cell-in'+(isOv(v.bfOverride)?' ov':'')+'" value="'+row.bf.toFixed(2)+'" onchange="window.saveField(\''+vid+'\',\'bfOverride\',this.value)" title="Clear to auto-calculate"></td>'
+      +'<td style="text-align:right"><input type="number" step="0.01" class="cell-in'+(isOv(v.ttAmtOverride)?' ov':'')+'" value="'+row.ttAmt.toFixed(2)+'" onchange="window.saveField(\''+vid+'\',\'ttAmtOverride\',this.value)" title="Clear to auto-calculate"></td>'
+      +'<td style="text-align:right"><input type="number" step="0.01" class="cell-in bold'+(isOv(v.chequeAmountOverride)?' ov':'')+'" value="'+row.billTT.toFixed(2)+'" onchange="window.saveField(\''+vid+'\',\'chequeAmountOverride\',this.value)" title="Clear to auto-calculate"></td>'
+      +'<td style="text-align:right"><input type="number" step="0.01" class="cell-in'+(isOv(v.calBalOverride)?' ov':'')+'" value="'+row.calBal.toFixed(2)+'" onchange="window.saveField(\''+vid+'\',\'calBalOverride\',this.value)" title="Clear to auto-calculate"></td>'
+      +'<td style="text-align:right"><input type="number" step="0.01" class="cell-in'+(isOv(v.adjBal)?' ov':'')+'" value="'+row.adjBal.toFixed(2)+'" onchange="window.saveField(\''+vid+'\',\'adjBal\',this.value)" title="Clear to auto-calculate"></td>'
       +'<td><div class="action-btns">'
       +'<button class="btn btn-outline btn-sm" onclick="window.printVoucher(\'' + vid + '\')">&#x1F5A8; Print</button>'
       +'<button class="btn btn-outline btn-sm" onclick="window.openEdit(\'' + vid + '\')">&#x270F;</button>'
@@ -514,6 +527,11 @@ window.renderList=function(){
       +'</div></td>';
     tbody.appendChild(tr);
   });
+};
+window.saveField=function(id,field,val){
+  const v=parseFloat(val);
+  update(ref(db,'pettyVouchers/'+id),{[field]:(val===''||isNaN(v))?null:v})
+    .then(()=>{toast((val===''||isNaN(v))?'Reset to auto-calculated.':'Saved.');window.renderList();});
 };
 window.saveAdjBal=function(id,val){
   const v=parseFloat(val);
@@ -539,7 +557,7 @@ function renderLineItems(){
       +'<td><select class="li-staff-sel" onchange="window.liChange('+i+',\'staff\',this.value)">'+staffOptionsHTML(li.staff||'')+'</select></td>'
       +'<td><input type="number" step="0.01" min="0" value="'+(li.subAmount||'')+'" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',\'subAmount\',this.value)"></td>'
       +'<td><input type="number" step="0.01" min="0" value="'+(li.gst||'')+'" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',\'gst\',this.value)"></td>'
-      +'<td><input type="number" value="'+(li.total||'')+'" readonly style="text-align:right;background:#f9fafb;color:#374151"></td>'
+      +'<td><input type="number" value="'+(li.total||'')+'" step="0.01" placeholder="0.00" style="text-align:right" oninput="window.liChange('+i+',\'total\',this.value)"></td>'
       +'<td style="text-align:center"><button onclick="window.removeLI('+i+')" style="background:none;border:none;cursor:pointer;font-size:18px;color:#dc2626;line-height:1" title="Remove">×</button></td>';
     tb.appendChild(tr);
   });
@@ -625,18 +643,29 @@ window.jobDropKey=function(e,i){
   }
 };
 
+window.totChange=function(k,val){
+  const v=parseFloat(val);
+  totOv[k]=(val===''||isNaN(v))?null:v;
+  document.getElementById({sub:'tot_sub',gst:'tot_gst',chq:'tot_total'}[k]).classList.toggle('ov',totOv[k]!=null);
+};
 function updateTotals(){
   const sub=lineItems.reduce((s,r)=>s+(parseFloat(r.subAmount)||0),0);
   const gst=lineItems.reduce((s,r)=>s+(parseFloat(r.gst)||0),0);
-  document.getElementById('tot_sub').textContent='S$ '+fmt(sub);
-  document.getElementById('tot_gst').textContent='S$ '+fmt(gst);
-  document.getElementById('tot_total').textContent='S$ '+fmt(sub+gst);
+  const chq=lineItems.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
+  const auto={sub,gst,chq}, ids={sub:'tot_sub',gst:'tot_gst',chq:'tot_total'};
+  Object.keys(ids).forEach(k=>{
+    const el=document.getElementById(ids[k]);
+    el.placeholder=auto[k].toFixed(2);
+    el.classList.toggle('ov',totOv[k]!=null);
+    if(document.activeElement!==el) el.value=totOv[k]!=null?totOv[k]:auto[k].toFixed(2);
+  });
 }
 
 /* ── Open / Close modals ── */
 window.openAdd=function(){
   editId=null;
   lineItems=[{date:todayStr(),billNo:'',jobNo:'',company:'',staff:'',subAmount:'',gst:'',total:''}];
+  totOv={sub:null,gst:null,chq:null};
   document.getElementById('f_vno').value=nextVoucherNo();
   document.getElementById('f_chqno').value='';
   document.getElementById('f_vdate').value=todayStr();
@@ -650,6 +679,7 @@ window.openEdit=function(id){
   const v=vouchers[id];
   if(!v)return;
   lineItems=(v.lineItems||[]).map(li=>({...li}));
+  totOv={sub:v.subTotalOverride!=null?v.subTotalOverride:null,gst:v.gstOverride!=null?v.gstOverride:null,chq:v.chequeAmountOverride!=null?v.chequeAmountOverride:null};
   document.getElementById('f_vno').value=v.voucherNo||'';
   document.getElementById('f_chqno').value=v.chequeNo||'';
   document.getElementById('f_vdate').value=v.voucherDate||dateStrFrom(v.createdAt);
@@ -673,10 +703,11 @@ window.saveVoucher=function(){
   if(!lineItems.length){toast('Add at least one line item.');return;}
   const dup=Object.values(vouchers).some(v=>v.id!==editId&&(v.voucherNo||'').trim().toLowerCase()===vno.toLowerCase());
   if(dup&&!confirm('Voucher No "'+vno+'" is already used by another voucher. Save anyway?'))return;
-  const chequeAmount=lineItems.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
+  const chequeAmount=totOv.chq!=null?totOv.chq:lineItems.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
   const data={
     voucherNo:vno,chequeNo:chqno,voucherDate:vdate,
     chequeAmount:parseFloat(chequeAmount.toFixed(2)),
+    subTotalOverride:totOv.sub, gstOverride:totOv.gst, chequeAmountOverride:totOv.chq,
     lineItems:lineItems.map(li=>({
       date:li.date||'',billNo:li.billNo||'',jobNo:li.jobNo||'',company:li.company||'',staff:li.staff||'',
       subAmount:parseFloat(li.subAmount)||0,
@@ -703,9 +734,9 @@ window.deleteVoucher=function(id){
 window.printVoucher=function(id){
   const v=vouchers[id];if(!v)return;
   const li=v.lineItems||[];
-  const sub=li.reduce((s,r)=>s+(parseFloat(r.subAmount)||0),0);
-  const gst=li.reduce((s,r)=>s+(parseFloat(r.gst)||0),0);
-  const total=sub+gst;
+  const sub=v.subTotalOverride!=null?parseFloat(v.subTotalOverride):li.reduce((s,r)=>s+(parseFloat(r.subAmount)||0),0);
+  const gst=v.gstOverride!=null?parseFloat(v.gstOverride):li.reduce((s,r)=>s+(parseFloat(r.gst)||0),0);
+  const total=v.chequeAmountOverride!=null?parseFloat(v.chequeAmountOverride):li.reduce((s,r)=>s+(parseFloat(r.total)||0),0);
   const liRows=li.map((r,i)=>''
     +'<tr>'
     +'<td style="text-align:center">'+(i+1)+'</td>'
