@@ -35,6 +35,15 @@ button:hover{background:#f0f0ee}
 .jcard.svp{border-left-color:#8B1A8B}.jcard.sdw{border-left-color:#0E7490}.jcard.si{border-left-color:#A32D2D}
 .jcard.ss{border-left-color:#1a6641}.jcard.sc{border-left-color:#aaa}.jcard.scx{border-left-color:#CD5C5C}
 .jcard.archived{opacity:0.55;filter:grayscale(0.4)}
+.jcard .jsel{display:none;width:20px;height:20px;border:2px solid #bbb;border-radius:5px;flex-shrink:0;margin-top:3px;align-items:center;justify-content:center;font-size:13px;color:#fff;background:#fff}
+.selmode .jcard .jsel{display:flex}
+.jcard.picked{background:#F2F7FD;box-shadow:0 0 0 2px #185FA5 inset}
+.jcard.picked .jsel{background:#185FA5;border-color:#185FA5}
+#bulkBar{display:none;position:sticky;top:0;z-index:20;background:#1a1a1a;color:#fff;border-radius:10px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+#bulkBar.on{display:flex}
+#bulkBar button{font-size:12px;padding:5px 11px;border-radius:7px;border:1px solid #555;background:#2a2a2a;color:#fff;cursor:pointer;font-family:inherit}
+#bulkBar button:disabled{opacity:0.4;cursor:default}
+#bulkBar .bdel{border-color:#CD5C5C;color:#ffb3b3}
 .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px}
 .bq{background:#FAEEDA;color:#854F0B}.bcp{background:#E6F1FB;color:#185FA5}
 .bvp{background:#F3E6F3;color:#8B1A8B}.bdw{background:#CFFAFE;color:#0E7490}.bi{background:#FCEBEB;color:#A32D2D}
@@ -157,6 +166,7 @@ tr.li-drop-below>td{box-shadow:inset 0 -2px 0 #185FA5}
       <button class="bp" onclick="openNewJob()">+ New Job</button>
       <button onclick="window.openLISearch()" style="border-color:#0E7490;color:#0E7490;background:#CFFAFE;font-weight:600">&#128269; Search Items</button>
       <button onclick="openSOA()" style="border-color:#185FA5;color:#185FA5;background:#E6F1FB;font-weight:600">&#128196; SOA</button>
+      <button id="selModeBtn" onclick="window.toggleSelMode()" style="font-weight:600">&#9745; Select</button>
     </div>
     <div class="chips">
       <div class="chip on" onclick="setFilter('all',this)">All</div>
@@ -170,6 +180,14 @@ tr.li-drop-below>td{box-shadow:inset 0 -2px 0 #185FA5}
       <div class="chip" onclick="setFilter('closed',this)">Closed</div>
       <div class="chip" onclick="setFilter('cancelled',this)" style="border-color:#CD5C5C;color:#CD5C5C">&#10005; Cancelled</div>
       <div class="chip" onclick="setFilter('_archived',this)" style="border-color:#aaa;color:#aaa">&#128447; Archived</div>
+    </div>
+    <div id="bulkBar">
+      <span id="bulkCount" style="font-weight:600;margin-right:4px">0 selected</span>
+      <button onclick="window.bulkSelectAll()" id="bulkAllBtn">Select all</button>
+      <span style="flex:1"></span>
+      <button onclick="window.bulkArchive()" id="bulkArchBtn" disabled>&#128447; Archive</button>
+      <button onclick="window.bulkDelete()" id="bulkDelBtn" class="bdel" disabled>&#128465; Delete</button>
+      <button onclick="window.toggleSelMode(false)">Cancel</button>
     </div>
     <div class="jlist" id="jobList"></div>
   </div>
@@ -354,6 +372,7 @@ const SL={quote:"Quote",customer_po:"Customer PO",proforma_invoice:"Proforma Inv
 const SO=["quote","customer_po","proforma_invoice","vendor_po","do_wcc","invoice","soa","closed","cancelled"];
 const SC={quote:"sq",customer_po:"scp",vendor_po:"svp",do_wcc:"sdw",invoice:"si",soa:"ss",closed:"sc",cancelled:"scx"};
 const BC={quote:"bq",customer_po:"bcp",vendor_po:"bvp",do_wcc:"bdw",invoice:"bi",soa:"bs",closed:"bc",cancelled:"bcx"};
+let selMode=false,bulkSel={},visibleJobIds=[];
 let jobs={},contacts={},currentJobId=null,editJobId=null,stockMovements=[],sFilter="all",sQ="",selVendors=[],liCount=0,subCounts={},stockPickerTargetParent=null;
 
 const rcStaff=sessionStorage.getItem("rc_staff");
@@ -413,7 +432,7 @@ window.switchTab=function(tab,el){
 };
 
 window.setFilter=function(f,el){
-  sFilter=f;
+  sFilter=f;bulkSel={};
   document.querySelectorAll(".chips .chip").forEach(function(c){c.classList.remove("on");});
   el.classList.add("on");
   renderList();
@@ -435,6 +454,9 @@ function renderList(){
     return true;
   }).sort(function(a,b){return(b[1].createdAt||"").localeCompare(a[1].createdAt||"");});
   var el=document.getElementById("jobList");
+  visibleJobIds=list.map(function(e){return e[0];});
+  Object.keys(bulkSel).forEach(function(k){if(!jobs[k])delete bulkSel[k];});
+  updateBulkBar();
   if(!list.length){el.innerHTML='<div class="empty">No jobs found.<br>Tap + New Job to create one.</div>';return;}
   el.innerHTML=list.map(function(e){
     var id=e[0],j=e[1];
@@ -455,8 +477,9 @@ function renderList(){
     var tk=j.task?"<span>"+j.task+"</span>":"";
     var et=j.eta?"<span>ETA: "+fmtD(j.eta)+"</span>":"";
     var vs=j.vessel?('<span style="color:#aaa">&middot; '+j.vessel+'</span>'):'';
-    return '<div class="jcard '+sc+'" data-jid="'+id+'" onclick="window.openDetail(this.dataset.jid)">'
+    return '<div class="jcard '+sc+(bulkSel[id]?' picked':'')+'" data-jid="'+id+'" onclick="window.jcardClick(this.dataset.jid)">'
       +'<div style="display:flex;align-items:flex-start;gap:10px">'
+        +'<div class="jsel">'+(bulkSel[id]?'&#10003;':'')+'</div>'
         +'<div style="flex:1">'
           +'<div style="font-size:17px;font-weight:700">'+(j.ref||"&mdash;")+"</div>"
           +'<div style="font-size:13px;color:#555;margin-top:1px">'+(j.customerName||"No customer")+vs+"</div>"
@@ -835,6 +858,70 @@ window.unarchiveJob=async function(id){
     backToList();
   }catch(e){toast('Error: '+e.message);}
 };
+// ── Bulk select / archive / delete ──
+function updateBulkBar(){
+  var bar=document.getElementById('bulkBar');if(!bar)return;
+  var n=Object.keys(bulkSel).length;
+  document.getElementById('bulkCount').textContent=n+' selected';
+  var arch=document.getElementById('bulkArchBtn');
+  arch.innerHTML=sFilter==='_archived'?'&#9654; Restore':'&#128447; Archive';
+  arch.disabled=!n;
+  document.getElementById('bulkDelBtn').disabled=!n;
+  var allOn=visibleJobIds.length&&visibleJobIds.every(function(id){return bulkSel[id];});
+  document.getElementById('bulkAllBtn').textContent=allOn?'Clear all':'Select all ('+visibleJobIds.length+')';
+}
+window.toggleSelMode=function(on){
+  selMode=(on===undefined)?!selMode:!!on;
+  if(!selMode)bulkSel={};
+  document.getElementById('jobList').classList.toggle('selmode',selMode);
+  document.getElementById('bulkBar').classList.toggle('on',selMode);
+  var b=document.getElementById('selModeBtn');
+  b.style.background=selMode?'#1a1a1a':'';b.style.color=selMode?'#fff':'';
+  renderList();
+};
+window.jcardClick=function(id){
+  if(!selMode){window.openDetail(id);return;}
+  if(bulkSel[id])delete bulkSel[id];else bulkSel[id]=true;
+  var c=document.querySelector('.jcard[data-jid="'+id+'"]');
+  if(c){c.classList.toggle('picked',!!bulkSel[id]);c.querySelector('.jsel').innerHTML=bulkSel[id]?'&#10003;':'';}
+  updateBulkBar();
+};
+window.bulkSelectAll=function(){
+  var allOn=visibleJobIds.length&&visibleJobIds.every(function(id){return bulkSel[id];});
+  if(allOn)bulkSel={};else visibleJobIds.forEach(function(id){bulkSel[id]=true;});
+  renderList();
+};
+function bulkRefs(ids){
+  var r=ids.map(function(id){return (jobs[id]&&jobs[id].ref)||id;});
+  return r.slice(0,15).join(', ')+(r.length>15?' … +'+(r.length-15)+' more':'');
+}
+window.bulkArchive=async function(){
+  var ids=Object.keys(bulkSel);if(!ids.length)return;
+  var restore=sFilter==='_archived';
+  if(!confirm((restore?'Restore ':'Archive ')+ids.length+' job(s)?\n\n'+bulkRefs(ids)+(restore?'':'\n\nThey can be restored anytime from the Archived filter.')))return;
+  var now=new Date().toISOString(),upd={};
+  ids.forEach(function(id){upd['jobs/'+id+'/archived']=!restore;upd['jobs/'+id+'/updatedAt']=now;});
+  try{
+    await update(ref(db),upd);
+    toast(ids.length+' job(s) '+(restore?'restored':'archived'));
+    window.toggleSelMode(false);
+  }catch(e){toast('Error: '+e.message);}
+};
+window.bulkDelete=async function(){
+  var ids=Object.keys(bulkSel);if(!ids.length)return;
+  if(!confirm('PERMANENTLY delete '+ids.length+' job(s)? This cannot be undone.\n\n'+bulkRefs(ids)))return;
+  if(ids.length>1){
+    var typed=prompt('Type DELETE to confirm deleting '+ids.length+' jobs.');
+    if((typed||'').trim().toUpperCase()!=='DELETE'){toast('Delete cancelled');return;}
+  }
+  var upd={};ids.forEach(function(id){upd['jobs/'+id]=null;});
+  try{
+    await update(ref(db),upd);
+    toast(ids.length+' job(s) deleted');
+    window.toggleSelMode(false);
+  }catch(e){toast('Error: '+e.message);}
+};
+
 window.deleteJob=async function(id){
   if(!confirm("Delete this job?"))return;
   try{await remove(ref(db,"jobs/"+id));toast("Deleted");backToList();}
