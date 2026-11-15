@@ -143,6 +143,7 @@ button:hover{background:#f0f0ee}
     </div>
     <div class="toolbar">
       <input type="text" id="srch" placeholder="Search ref, customer, vessel, PO&hellip;" oninput="render()">
+    <button onclick="openBrandPerf()" style="border-color:#0E7490;color:#0E7490;background:#E6F6F8;font-weight:600">&#128202; Brands</button>
     <button onclick="openSOA()" style="border-color:#185FA5;color:#185FA5;background:#E6F1FB;font-weight:600">&#128196; SOA</button>
     <button onclick="openMatchModal()" style="border-color:#8B1A8B;color:#8B1A8B;background:#F5E6F5;font-weight:600">&#128269; Match Payment</button>
     <button onclick="openJobModal()" style="border-color:#1a6641;color:#fff;background:#1a6641;font-weight:600">+ New Job</button>
@@ -183,6 +184,68 @@ button:hover{background:#f0f0ee}
   <!-- ── DETAIL PANEL ── -->
   <div class="detail-panel" id="detailPanel">
     <div id="detailContent"></div>
+  </div>
+</div>
+
+
+<!-- ── BRAND PERFORMANCE MODAL ── -->
+<style>
+#bpModal .bp-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:.75rem;font-size:12px}
+#bpModal .bp-ctrl select,#bpModal .bp-ctrl input[type=date]{padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#f9f9f7}
+#bpModal .bp-ctrl label{display:flex;align-items:center;gap:4px;color:#555;cursor:pointer}
+#bpModal .bp-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:.75rem}
+#bpModal .bp-kpi div{background:#f5f5f3;border-radius:8px;padding:8px 10px}
+#bpModal .bp-kpi b{display:block;font-size:16px}
+#bpModal .bp-kpi span{font-size:11px;color:#888}
+#bpModal table{width:100%;border-collapse:collapse;font-size:12px}
+#bpModal th{text-align:left;font-size:11px;color:#888;font-weight:600;padding:6px 8px;border-bottom:1px solid #e0ddd6;background:#fafaf8;position:sticky;top:0;cursor:pointer;white-space:nowrap}
+#bpModal th.nr,#bpModal td.nr{text-align:right}
+#bpModal td{padding:7px 8px;border-bottom:1px solid #f0eee8;vertical-align:middle}
+#bpModal tr.bp-row{cursor:pointer}
+#bpModal tr.bp-row:hover td{background:#f7fbfc}
+#bpModal tr.bp-tot td{font-weight:700;border-top:2px solid #0E7490;background:#fafaf8}
+#bpModal .bp-bar{height:6px;background:#eee;border-radius:3px;overflow:hidden;margin-top:3px;min-width:60px}
+#bpModal .bp-bar i{display:block;height:100%;background:#0E7490}
+#bpModal tr.bp-sub td{background:#fbfbf9;font-size:11px;padding:5px 8px 5px 20px}
+#bpModal tr.bp-sub.bp-job{cursor:pointer}
+#bpModal tr.bp-sub.bp-job:hover td{background:#eef6f8}
+#bpModal .bp-src{font-size:9px;padding:1px 5px;border-radius:4px;background:#F5E6F5;color:#8B1A8B;margin-left:4px}
+@media(max-width:640px){#bpModal .bp-kpi{grid-template-columns:repeat(2,1fr)}#bpModal .bp-hsm{display:none}}
+</style>
+<div class="mbg" id="bpModal">
+  <div class="modal" style="max-width:900px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+      <h2>&#128202; Brand Performance &mdash; Quotes &rarr; Sales</h2>
+      <button class="bsm" onclick="closeBrandPerf()">&#10005;</button>
+    </div>
+    <div class="bp-ctrl">
+      <select id="bp_period">
+        <option value="ytd">This year</option>
+        <option value="12m" selected>Last 12 months</option>
+        <option value="ly">Last year</option>
+        <option value="all">All time</option>
+        <option value="custom">Custom&hellip;</option>
+      </select>
+      <span id="bp_customWrap" style="display:none">
+        <input type="date" id="bp_from"> to <input type="date" id="bp_to">
+      </span>
+      <label><input type="checkbox" id="bp_ren" checked> Include service renewal quotes</label>
+      <label><input type="checkbox" id="bp_arch" checked> Include archived jobs</label>
+      <span style="flex:1"></span>
+      <button class="bsm" id="bp_csv">&#11015; CSV</button>
+    </div>
+    <div class="bp-kpi" id="bp_kpi"></div>
+    <div style="border:1px solid #e0ddd6;border-radius:8px;max-height:460px;overflow:auto">
+      <table>
+        <thead><tr id="bp_head"></tr></thead>
+        <tbody id="bp_body"></tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:#999;margin-top:.6rem;line-height:1.5">
+      Brand comes from each job's <b>Make</b> field (renewals: matched from the System field). Values are SGD, before GST.
+      A job counts as <b>converted</b> once it reaches Customer PO or later. Quotes are dated by job date.
+      Renewals already linked to a job (same Job Ref) are skipped so they aren't counted twice. Click a brand to see its jobs.
+    </p>
   </div>
 </div>
 
@@ -1064,11 +1127,16 @@ onAuthStateChanged(auth,user=>{
     window._standaloneWorkerClaims=snap.val()||{};
     if(curId)buildDetail(curId);
   });
+  onValue(ref(db,'serviceRenewals'),snap=>{
+    window._serviceRenewals=snap.val()||{};
+    if(window.bpRefresh)window.bpRefresh();
+  });
   onValue(ref(db,'jobs'),snap=>{
     jobs=snap.val()||{};
     window._mgr_jobs=jobs;
     render();
     if(curId)buildDetail(curId);
+    if(window.bpRefresh)window.bpRefresh();
   });
 
   // ── Load OT/OVS rates from Firebase ──
@@ -2827,6 +2895,191 @@ if ('serviceWorker' in navigator) {
       .catch(function(err) { console.warn('MGR SW failed:', err); });
   });
 }
+</script>
+<script>
+/* ═══ BRAND PERFORMANCE (quotes → converted sales by Make) ═══ */
+(function(){
+  var SO_ORDER=["quote","customer_po","proforma_invoice","vendor_po","do_wcc","invoice","soa","closed"];
+  var SL_MAP={quote:'Quote',customer_po:'Customer PO',proforma_invoice:'Proforma Invoice',vendor_po:'Vendor PO',do_wcc:'DO / WCC',invoice:'Invoice',soa:'SOA',closed:'Closed',cancelled:'Cancelled'};
+  var sortKey='qVal', sortDir=-1, openBrand=null, lastRows=[];
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function f2(n){return(window._mgr_fmt?window._mgr_fmt(n):(Math.round(n*100)/100).toFixed(2));}
+  function f0(n){return Math.round(n||0).toLocaleString('en-SG');}
+  function pct(a,b){return b>0?(a/b*100):0;}
+  function toSGD(amt,cur){
+    cur=cur||'SGD'; if(cur==='SGD')return amt;
+    var r=window['_fx_'+cur+'_SGD']||(window.FX_FALLBACK||{})[cur]||1;
+    return amt*r;
+  }
+  function brandKey(s){
+    var c=String(s||'').toUpperCase().replace(/[^A-Z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+    return c?c.split(' ')[0]:'';
+  }
+  function dateOf(d){return d?String(d).slice(0,10):'';}
+
+  function periodRange(){
+    var p=document.getElementById('bp_period').value, now=new Date(), y=now.getFullYear();
+    var iso=function(d){return d.toISOString().slice(0,10);};
+    if(p==='ytd')return[y+'-01-01',iso(now)];
+    if(p==='ly')return[(y-1)+'-01-01',(y-1)+'-12-31'];
+    if(p==='12m'){var s=new Date(now);s.setFullYear(y-1);return[iso(s),iso(now)];}
+    if(p==='custom')return[document.getElementById('bp_from').value||'0000-01-01',document.getElementById('bp_to').value||'9999-12-31'];
+    return['0000-01-01','9999-12-31'];
+  }
+
+  function collect(){
+    var jobs=window._mgr_jobs||{}, ren=window._serviceRenewals||{};
+    var rng=periodRange(), incArch=document.getElementById('bp_arch').checked, incRen=document.getElementById('bp_ren').checked;
+    var brands={}, spell={};       // key -> agg ; key -> {spelling:count}
+    var jobRefs={};
+    function bucket(key,label){
+      if(!brands[key])brands[key]={key:key,label:label,q:0,qVal:0,c:0,cVal:0,o:0,oVal:0,items:[]};
+      if(label){spell[key]=spell[key]||{};spell[key][label]=(spell[key][label]||0)+1;}
+      return brands[key];
+    }
+    Object.keys(jobs).forEach(function(id){
+      var j=jobs[id]||{}; if(j.ref)jobRefs[String(j.ref).trim().toUpperCase()]=1;
+      if(j.archived&&!incArch)return;
+      var d=dateOf(j.date||j.createdAt); if(!d||d<rng[0]||d>rng[1])return;
+      var t=window._mgr_totals?window._mgr_totals(j):{sub:0};
+      var v=toSGD(t.sub||0,j.currency);
+      var st=j.status||'quote', idx=SO_ORDER.indexOf(st);
+      var key=brandKey(j.make)||'~', label=String(j.make||'').trim();
+      var b=bucket(key,label);
+      b.q++; b.qVal+=v;
+      var state=idx>=1?'c':(st==='quote'&&!j.archived?'o':'x');
+      if(state==='c'){b.c++;b.cVal+=v;}
+      else if(state==='o'){b.o++;b.oVal+=v;}
+      b.items.push({src:'job',id:id,ref:j.ref||'—',cust:j.customerName||'—',date:d,status:j.archived&&idx<1?'Archived':(SL_MAP[st]||st),state:state,val:v});
+    });
+    if(incRen){
+      var known=Object.keys(brands).filter(function(k){return k!=='~';});
+      Object.keys(ren).forEach(function(id){
+        var r=ren[id]||{}, qs=r.quoteStatus||'monitoring';
+        if(qs==='monitoring')return;                      // never quoted
+        if(r.jobRef&&jobRefs[String(r.jobRef).trim().toUpperCase()])return; // already counted via job
+        var d=dateOf(r.quoteSent||r.createdAt); if(!d||d<rng[0]||d>rng[1])return;
+        var sys=String(r.system||'').toUpperCase(), key='';
+        for(var i=0;i<known.length;i++){if(new RegExp('\\b'+known[i]+'\\b').test(sys)){key=known[i];break;}}
+        if(!key)key=brandKey(r.system)||'~';
+        var b=bucket(key,key==='~'?'':(spell[key]?'':String(r.system||'').trim().split(/\s+/)[0]));
+        var v=parseFloat(r.qValue)||0;
+        b.q++; b.qVal+=v;
+        var state=qs==='won'?'c':(qs==='quoted'||qs==='awaiting')?'o':'x';
+        if(state==='c'){b.c++;b.cVal+=v;} else if(state==='o'){b.o++;b.oVal+=v;}
+        b.items.push({src:'ren',id:id,ref:r.qRef||r.vessel||'Renewal',cust:r.client||'—',date:d,status:qs.charAt(0).toUpperCase()+qs.slice(1),state:state,val:v});
+      });
+    }
+    return Object.keys(brands).map(function(k){
+      var b=brands[k], sp=spell[k]||{}, best='', n=-1;
+      Object.keys(sp).forEach(function(s){if(sp[s]>n){n=sp[s];best=s;}});
+      b.label=k==='~'?'(No make entered)':(best||k);
+      b.rate=pct(b.c,b.q-b.o);           // decided quotes only
+      b.vRate=pct(b.cVal,b.qVal-b.oVal);
+      b.items.sort(function(a,c){return c.date.localeCompare(a.date);});
+      return b;
+    });
+  }
+
+  var COLS=[
+    ['label','Brand',''],['q','Quotes','nr'],['qVal','Quoted (SGD)','nr'],
+    ['c','Won','nr'],['cVal','Won (SGD)','nr'],['rate','Win rate','nr'],
+    ['vRate','Value win %','nr bp-hsm'],['oVal','Still open (SGD)','nr bp-hsm']
+  ];
+
+  function draw(){
+    var rows=collect();
+    rows.sort(function(a,b){
+      if(a.key==='~')return 1; if(b.key==='~')return -1;
+      var x=a[sortKey],y=b[sortKey];
+      if(typeof x==='string')return sortDir*x.localeCompare(y);
+      return sortDir*((x||0)-(y||0));
+    });
+    lastRows=rows;
+    var T={q:0,qVal:0,c:0,cVal:0,o:0,oVal:0};
+    rows.forEach(function(b){['q','qVal','c','cVal','o','oVal'].forEach(function(k){T[k]+=b[k];});});
+    var tRate=pct(T.c,T.q-T.o), tV=pct(T.cVal,T.qVal-T.oVal);
+
+    document.getElementById('bp_kpi').innerHTML=
+      '<div><b>'+f0(T.q)+'</b><span>Quotes issued</span></div>'+
+      '<div><b>SGD '+f0(T.qVal)+'</b><span>Total quoted</span></div>'+
+      '<div><b style="color:#1a6641">SGD '+f0(T.cVal)+'</b><span>Won ('+f0(T.c)+' jobs)</span></div>'+
+      '<div><b style="color:#0E7490">'+tRate.toFixed(0)+'%</b><span>Win rate (by count, decided only)</span></div>';
+
+    document.getElementById('bp_head').innerHTML=COLS.map(function(c){
+      var arrow=sortKey===c[0]?(sortDir<0?' &#9662;':' &#9652;'):'';
+      return '<th class="'+c[2]+'" data-sort="'+c[0]+'">'+c[1]+arrow+'</th>';
+    }).join('');
+
+    if(!rows.length){document.getElementById('bp_body').innerHTML='<tr><td colspan="8" style="text-align:center;color:#aaa;padding:2rem">No quotes in this period.</td></tr>';return;}
+
+    var html=rows.map(function(b){
+      var r='<tr class="bp-row" data-brand="'+esc(b.key)+'">'+
+        '<td><b>'+(openBrand===b.key?'&#9662; ':'&#9656; ')+esc(b.label)+'</b></td>'+
+        '<td class="nr">'+b.q+'</td>'+
+        '<td class="nr">'+f2(b.qVal)+'</td>'+
+        '<td class="nr">'+b.c+'</td>'+
+        '<td class="nr" style="color:#1a6641">'+f2(b.cVal)+'</td>'+
+        '<td class="nr">'+(b.q-b.o>0?b.rate.toFixed(0)+'%':'—')+'<div class="bp-bar"><i style="width:'+Math.min(100,b.rate).toFixed(0)+'%"></i></div></td>'+
+        '<td class="nr bp-hsm">'+(b.qVal-b.oVal>0?b.vRate.toFixed(0)+'%':'—')+'</td>'+
+        '<td class="nr bp-hsm" style="color:#854F0B">'+(b.o?f2(b.oVal)+' <span style="color:#aaa">('+b.o+')</span>':'—')+'</td>'+
+      '</tr>';
+      if(openBrand===b.key){
+        r+=b.items.map(function(it){
+          var col=it.state==='c'?'#1a6641':it.state==='o'?'#854F0B':'#A32D2D';
+          return '<tr class="bp-sub'+(it.src==='job'?' bp-job':'')+'" data-job="'+(it.src==='job'?esc(it.id):'')+'">'+
+            '<td colspan="2">'+esc(it.ref)+(it.src==='ren'?'<span class="bp-src">RENEWAL</span>':'')+' <span style="color:#888">&middot; '+esc(it.cust)+'</span></td>'+
+            '<td class="nr">'+f2(it.val)+'</td>'+
+            '<td colspan="2" class="nr" style="color:'+col+'">'+esc(it.status)+'</td>'+
+            '<td colspan="3" class="nr" style="color:#888">'+(window._mgr_fmtD?window._mgr_fmtD(it.date):it.date)+'</td>'+
+          '</tr>';
+        }).join('');
+      }
+      return r;
+    }).join('');
+    html+='<tr class="bp-tot"><td>Total</td><td class="nr">'+T.q+'</td><td class="nr">'+f2(T.qVal)+'</td><td class="nr">'+T.c+'</td><td class="nr">'+f2(T.cVal)+'</td><td class="nr">'+tRate.toFixed(0)+'%</td><td class="nr bp-hsm">'+tV.toFixed(0)+'%</td><td class="nr bp-hsm">'+f2(T.oVal)+'</td></tr>';
+    document.getElementById('bp_body').innerHTML=html;
+  }
+
+  function exportCSV(){
+    var lines=[['Brand','Quotes','Quoted SGD','Won','Won SGD','Win rate %','Value win %','Open quotes','Open SGD']];
+    lastRows.forEach(function(b){
+      lines.push([b.label,b.q,b.qVal.toFixed(2),b.c,b.cVal.toFixed(2),(b.q-b.o>0?b.rate.toFixed(1):''),(b.qVal-b.oVal>0?b.vRate.toFixed(1):''),b.o,b.oVal.toFixed(2)]);
+    });
+    var csv=lines.map(function(r){return r.map(function(c){c=String(c);return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(',');}).join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='brand-performance-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a);a.click();a.remove();
+  }
+
+  window.openBrandPerf=function(){openBrand=null;document.getElementById('bpModal').classList.add('show');draw();};
+  window.closeBrandPerf=function(){document.getElementById('bpModal').classList.remove('show');};
+  window.bpRefresh=function(){var m=document.getElementById('bpModal');if(m&&m.classList.contains('show'))draw();};
+
+  document.addEventListener('DOMContentLoaded',function(){
+    var m=document.getElementById('bpModal'); if(!m)return;
+    document.getElementById('bp_period').addEventListener('change',function(){
+      document.getElementById('bp_customWrap').style.display=this.value==='custom'?'inline':'none';draw();
+    });
+    ['bp_from','bp_to','bp_ren','bp_arch'].forEach(function(id){document.getElementById(id).addEventListener('change',draw);});
+    document.getElementById('bp_csv').addEventListener('click',exportCSV);
+    document.getElementById('bp_head').addEventListener('click',function(e){
+      var th=e.target.closest('th'); if(!th)return;
+      var k=th.getAttribute('data-sort');
+      if(sortKey===k)sortDir=-sortDir; else{sortKey=k;sortDir=k==='label'?1:-1;}
+      draw();
+    });
+    document.getElementById('bp_body').addEventListener('click',function(e){
+      var job=e.target.closest('tr.bp-job');
+      if(job&&job.getAttribute('data-job')){closeBrandPerf();window.showDetail(job.getAttribute('data-job'));return;}
+      var row=e.target.closest('tr.bp-row'); if(!row)return;
+      var k=row.getAttribute('data-brand'); openBrand=openBrand===k?null:k; draw();
+    });
+    m.addEventListener('click',function(e){if(e.target===m)closeBrandPerf();});
+  });
+})();
 </script>
 </body>
 </html>
