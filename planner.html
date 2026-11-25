@@ -224,7 +224,9 @@ window.render=function(){
 // SERVICE TAB
 // ══════════════════════════════════════════════════════════
 function jobByRef(r){const f=Object.entries(jobs).find(([,j])=>j.ref===r);return f?{jid:f[0],j:f[1]}:null;}
-function isServiceJob(j){return !j.archived&&j.status!=='closed'&&!(j.task||'').toLowerCase().includes('supply');}
+const PO_STAGES=['customer_po','vendor_po','do_wcc','invoice','soa'];
+function hasPO(j){return !!(j.custPO&&String(j.custPO).trim())||PO_STAGES.includes(j.status);}
+function isServiceJob(j){return !j.archived&&j.status!=='closed'&&hasPO(j)&&!(j.task||'').toLowerCase().includes('supply');}
 function buildEntries(){
   const out={};const scheduledRefs=new Set();
   Object.entries(schedule).forEach(([id,e])=>{
