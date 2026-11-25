@@ -269,6 +269,14 @@ function renderService(){
           :`<button class="btn-attend" onclick="toggleAttend('${id}',true)">+ I'm Attending</button>`;
       }
       const editBtns=!isPast?`<button class="btn-edit" onclick="openModal('${id}')">✎ Edit</button><button class="btn-del" onclick="deleteEntry('${id}')">Delete</button>`:'';
+      // Live lookup of the linked job so ETA/vessel/customer edits in Jobs show here
+      const lj=Object.values(jobs).find(x=>x.ref===e.jobRef)||{};
+      const vessel=lj.vessel||e.vessel||'', customer=lj.customerName||e.customer||'';
+      let etaHtml='';
+      if(lj.eta){
+        const diff=lj.eta!==e.date;
+        etaHtml=`<div class="entry-loc" style="${diff?'color:#854F0B;font-weight:600':''}">🗓 Job ETA: ${fmtDate(lj.eta)}${diff?' (differs from scheduled date)':''}</div>`;
+      }
       const chips=ws.length?ws.map(w=>`<span class="worker-chip${w===me?' me':''}">${w}</span>`).join(''):`<span class="no-workers">No one signed up yet</span>`;
       html+=`<div class="entry-card">
         <div class="entry-header">
@@ -279,8 +287,9 @@ function renderService(){
           </div>
           <div>
             <div class="entry-ref">${e.jobRef||'—'}</div>
-            <div class="entry-vessel">${e.vessel||''}</div>
-            ${e.customer?`<div style="font-size:12px;color:#888">${e.customer}</div>`:''}
+            <div class="entry-vessel">${vessel}</div>
+            ${customer?`<div style="font-size:12px;color:#888">${customer}</div>`:''}
+            ${etaHtml}
             ${e.location?`<div class="entry-loc">📍 ${e.location}</div>`:''}
             ${e.notes?`<div class="entry-notes">${e.notes}</div>`:''}
           </div>
