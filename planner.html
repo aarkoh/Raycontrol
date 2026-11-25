@@ -223,12 +223,36 @@ window.render=function(){
 // ══════════════════════════════════════════════════════════
 // SERVICE TAB
 // ══════════════════════════════════════════════════════════
+function jobByRef(r){const f=Object.entries(jobs).find(([,j])=>j.ref===r);return f?{jid:f[0],j:f[1]}:null;}
+function isServiceJob(j){return !j.archived&&j.status!=='closed'&&!(j.task||'').toLowerCase().includes('supply');}
+function buildEntries(){
+  const out={};const scheduledRefs=new Set();
+  Object.entries(schedule).forEach(([id,e])=>{
+    const f=jobByRef(e.jobRef);const j=f?f.j:{};
+    scheduledRefs.add(e.jobRef);
+    // Follow the job ETA whenever it has changed since this entry was saved
+    const follow=!!(j.eta&&j.eta!==e.etaAtSave);
+    out[id]=Object.assign({},e,{
+      date:follow?j.eta:e.date,
+      fromEta:follow||(!!j.eta&&j.eta===e.date),
+      vessel:j.vessel||e.vessel||'',customer:j.customerName||e.customer||'',
+      location:e.location||j.port||''
+    });
+  });
+  Object.entries(jobs).forEach(([jid,j])=>{
+    if(!j.eta||!j.ref||scheduledRefs.has(j.ref)||!isServiceJob(j))return;
+    out['job:'+jid]={jobRef:j.ref,date:j.eta,vessel:j.vessel||'',customer:j.customerName||'',
+      location:j.port||'',workers:[],auto:true,fromEta:true,jid};
+  });
+  return out;
+}
 function filterEntries(){
+  const all=buildEntries();
   const q=(document.getElementById('searchInp').value||'').toLowerCase();
   const rf=document.getElementById('rangeFilter').value;
   const today=new Date();today.setHours(0,0,0,0);
   const todayStr=today.toISOString().slice(0,10);
-  return Object.entries(schedule).filter(([id,e])=>{
+  return Object.entries(all).filter(([id,e])=>{
     if(q&&![e.jobRef,e.vessel,e.location,e.customer].filter(Boolean).some(x=>x.toLowerCase().includes(q)))return false;
     const d=e.date||'';
     if(rf==='upcoming')return d>=todayStr;
@@ -236,7 +260,7 @@ function filterEntries(){
     if(rf==='week'){const end=new Date(today);end.setDate(today.getDate()+7);return d>=todayStr&&d<=end.toISOString().slice(0,10);}
     if(rf==='month'){const end=new Date(today);end.setDate(today.getDate()+30);return d>=todayStr&&d<=end.toISOString().slice(0,10);}
     return true;
-  }).sort((a,b)=>a[1].date.localeCompare(b[1].date));
+  }).sort((a,b)=>(a[1].date||'').localeCompare(b[1].date||''));
 }
 
 function renderService(){
@@ -268,15 +292,11 @@ function renderService(){
           ?`<button class="btn-attend leave" onclick="toggleAttend('${id}',false)">✓ Attending — Leave</button>`
           :`<button class="btn-attend" onclick="toggleAttend('${id}',true)">+ I'm Attending</button>`;
       }
-      const editBtns=!isPast?`<button class="btn-edit" onclick="openModal('${id}')">✎ Edit</button><button class="btn-del" onclick="deleteEntry('${id}')">Delete</button>`:'';
-      // Live lookup of the linked job so ETA/vessel/customer edits in Jobs show here
-      const lj=Object.values(jobs).find(x=>x.ref===e.jobRef)||{};
-      const vessel=lj.vessel||e.vessel||'', customer=lj.customerName||e.customer||'';
-      let etaHtml='';
-      if(lj.eta){
-        const diff=lj.eta!==e.date;
-        etaHtml=`<div class="entry-loc" style="${diff?'color:#854F0B;font-weight:600':''}">🗓 Job ETA: ${fmtDate(lj.eta)}${diff?' (differs from scheduled date)':''}</div>`;
-      }
+      const editBtns=isPast?'':(e.auto
+        ?`<button class="btn-edit" onclick="scheduleFromJob('${e.jid}')">✎ Schedule</button>`
+        :`<button class="btn-edit" onclick="openModal('${id}')">✎ Edit</button><button class="btn-del" onclick="deleteEntry('${id}')">Delete</button>`);
+      const tag=e.auto?'<span style="font-size:10px;background:#E6F1FB;color:#185FA5;border:1px solid #B5D4F4;border-radius:10px;padding:1px 7px;margin-left:6px;font-weight:600">From job ETA</span>'
+        :(e.fromEta?'<span style="font-size:10px;color:#888;margin-left:6px">· date = job ETA</span>':'');
       const chips=ws.length?ws.map(w=>`<span class="worker-chip${w===me?' me':''}">${w}</span>`).join(''):`<span class="no-workers">No one signed up yet</span>`;
       html+=`<div class="entry-card">
         <div class="entry-header">
@@ -286,10 +306,9 @@ function renderService(){
             <div class="entry-dow">${DAYS[dt.getDay()]}</div>
           </div>
           <div>
-            <div class="entry-ref">${e.jobRef||'—'}</div>
-            <div class="entry-vessel">${vessel}</div>
-            ${customer?`<div style="font-size:12px;color:#888">${customer}</div>`:''}
-            ${etaHtml}
+            <div class="entry-ref">${e.jobRef||'—'}${tag}</div>
+            <div class="entry-vessel">${e.vessel||''}</div>
+            ${e.customer?`<div style="font-size:12px;color:#888">${e.customer}</div>`:''}
             ${e.location?`<div class="entry-loc">📍 ${e.location}</div>`:''}
             ${e.notes?`<div class="entry-notes">${e.notes}</div>`:''}
           </div>
@@ -304,6 +323,13 @@ function renderService(){
 
 // ── Service actions ─────────────────────────────────────────
 window.toggleAttend=async function(id,join){
+  if(id.startsWith('job:')){
+    const j=jobs[id.slice(4)];if(!j||!join)return;
+    try{await push(ref(db,'schedule'),{jobRef:j.ref,date:j.eta,etaAtSave:j.eta,location:j.port||'',notes:'',workers:[me],
+      vessel:j.vessel||'',customer:j.customerName||'',createdBy:me||'staff',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+      toast('You\'re attending ✓');}catch(err){toast('Error: '+err.message);}
+    return;
+  }
   const e=schedule[id];if(!e)return;
   const ws=[...(e.workers||[])];
   if(join&&!ws.includes(me))ws.push(me);
@@ -429,7 +455,8 @@ window.openModal=function(id){
   const e=id?schedule[id]:{};
   document.getElementById('modalTitle').textContent=id?'Edit Schedule Entry':'Schedule a Job';
   document.getElementById('sJobRef').value=e.jobRef||'';
-  document.getElementById('sDate').value=e.date||new Date().toISOString().slice(0,10);
+  const eff=id?(buildEntries()[id]||e):e;
+  document.getElementById('sDate').value=eff.date||new Date().toISOString().slice(0,10);
   document.getElementById('sLoc').value=e.location||'';
   document.getElementById('sNotes').value=e.notes||'';
   if(id&&e.vessel){
@@ -448,6 +475,10 @@ window.openModal=function(id){
   document.getElementById('jobSugDrop').style.display='none';
   document.getElementById('schedModal').classList.add('show');
   setTimeout(()=>document.getElementById('sJobRef').focus(),80);
+};
+window.scheduleFromJob=function(jid){
+  openModal();selectJob(jid);
+  const j=jobs[jid];if(j&&j.eta)document.getElementById('sDate').value=j.eta;
 };
 window.closeModal=function(){document.getElementById('schedModal').classList.remove('show');editId=null;selJobId=null;};
 window.toggleWCheck=function(div){div.classList.toggle('checked');};
@@ -474,6 +505,7 @@ window.selectJob=function(jid){
   document.getElementById('jobInfoCustomer').textContent=j.customerName||'';
   document.getElementById('jobInfoRow').style.display='';
   if(!document.getElementById('sLoc').value&&j.port)document.getElementById('sLoc').value=j.port;
+  if(!editId&&j.eta)document.getElementById('sDate').value=j.eta;
   document.getElementById('jobSugDrop').style.display='none';
 };
 document.addEventListener('click',e=>{if(!e.target.closest('#sJobRef')&&!e.target.closest('#jobSugDrop'))document.getElementById('jobSugDrop').style.display='none';});
@@ -484,7 +516,7 @@ window.saveEntry=async function(){
   if(!date){toast('Date is required');return;}
   const j=selJobId?jobs[selJobId]:(Object.values(jobs).find(x=>x.ref===jobRef)||{});
   const ws=[...document.querySelectorAll('#workerCheckGrid .wcheck.checked')].map(d=>d.dataset.worker);
-  const data={jobRef,date,location:document.getElementById('sLoc').value.trim(),notes:document.getElementById('sNotes').value.trim(),workers:ws,vessel:j.vessel||'',customer:j.customerName||'',updatedAt:new Date().toISOString()};
+  const data={jobRef,date,location:document.getElementById('sLoc').value.trim(),notes:document.getElementById('sNotes').value.trim(),workers:ws,vessel:j.vessel||'',customer:j.customerName||'',etaAtSave:j.eta||'',updatedAt:new Date().toISOString()};
   try{
     if(editId){await update(ref(db,'schedule/'+editId),data);toast('Updated ✓');}
     else{data.createdBy=me||'staff';data.createdAt=new Date().toISOString();await push(ref(db,'schedule'),data);toast('Scheduled ✓');}
