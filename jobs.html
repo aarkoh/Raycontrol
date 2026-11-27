@@ -2874,11 +2874,42 @@ window.printSOA = function() {
 // iPhone/iPad (incl. iPadOS that reports as Mac): blob: tabs fail to print/save PDF because
 // Safari re-loads the URL for the print/share sheet after it's revoked. Write into about:blank instead.
 window.rcIsIOS=function(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);};
+// iPad/iPhone: add a "Save PDF" button that builds a real PDF file and opens the share sheet (Save to Files, Mail, WhatsApp…)
+window.rcAddIOSPdf=function(html){
+  var ui='<style>#rcsp{position:fixed;bottom:20px;left:20px;padding:12px 22px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;font-family:-apple-system,sans-serif;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.25)}@media print{#rcsp{display:none}}</style>'
+   +'<button id="rcsp" onclick="rcSavePdf()">&#11015; Save PDF</button>'
+   +'<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>'
+   +'<script>'
+   +'var rcPdfFile=null;'
+   +'function rcName(){return ((document.title||"document").replace(/[\\\\/:*?"<>|]+/g," ").trim()||"document")+".pdf";}'
+   +'function rcShare(){var f=rcPdfFile;'
+   +' if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:f.name}).catch(function(){});}'
+   +' else{var u=URL.createObjectURL(f);var a=document.createElement("a");a.href=u;a.download=f.name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(u);a.remove();},60000);}}'
+   +'function rcWrap(){var cs=getComputedStyle(document.body);var d=document.createElement("div");'
+   +' d.style.cssText="width:210mm;box-sizing:border-box;background:#fff;padding:"+cs.paddingTop+" "+cs.paddingRight+" "+cs.paddingBottom+" "+cs.paddingLeft;'
+   +' d.innerHTML=document.body.innerHTML;["pb","cb","gcb","rcsp"].forEach(function(id){var e=d.querySelector("#"+id);if(e)e.remove();});'
+   +' d.querySelectorAll("script").forEach(function(e){e.remove();});return d;}'
+   +'function rcSavePdf(){var b=document.getElementById("rcsp");'
+   +' if(rcPdfFile){rcShare();return;}'
+   +' if(!window.html2pdf){alert("PDF tool still loading (needs internet). Try again in a moment.");return;}'
+   +' b.disabled=true;b.textContent="Preparing PDF…";'
+   +' var hide=["pb","cb","gcb","rcsp"];'
+   +' html2pdf().set({margin:[6,0,6,0],filename:rcName(),image:{type:"jpeg",quality:0.98},'
+   +'  html2canvas:{scale:2,useCORS:true,ignoreElements:function(el){return hide.indexOf(el.id)>-1;}},'
+   +'  jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"],avoid:["tr","p","li","img"]}})'
+   +'  .from(rcWrap()).outputPdf("blob").then(function(blob){'
+   +'   rcPdfFile=new File([blob],rcName(),{type:"application/pdf"});'
+   +'   b.disabled=false;b.textContent="⬆ Share / Save PDF";b.style.background="#1a6641";'
+   +'  }).catch(function(e){b.disabled=false;b.textContent="⬇ Save PDF";alert("Could not create PDF: "+e.message);});'
+   +'}'
+   +'<\/script>';
+  return html.indexOf('</body>')>-1?html.replace('</body>',ui+'</body>'):html+ui;
+};
 window.rcShowHtml=function(html){
   if(window.rcIsIOS()){
     var w=window.open('','_blank');
     if(!w){alert('Pop-ups are blocked. On iPad go to Settings > Safari and turn off Block Pop-ups, then try again.');return null;}
-    w.document.open();w.document.write(html);w.document.close();
+    w.document.open();w.document.write(window.rcAddIOSPdf(html));w.document.close();
     return w;
   }
   var blob=new Blob([html],{type:'text/html'});
