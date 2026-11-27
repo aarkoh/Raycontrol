@@ -2673,12 +2673,7 @@ window.printSOA = function() {
     +'<div style="font-size:8pt;font-style:italic;color:#555;margin-top:6px">* Ageing based on invoice date. Please disregard if payment has already been made.</div>'
     +'<div style="border-top:1px solid #000;padding-top:6px;font-size:8pt;margin-top:14px;text-align:center">E.&amp; O.E. | <em>Thank you for your continued support</em><br><span style="font-size:7.5pt">Maker Specialist Service for Tank Gauging, Hose crane, Winch and Steering Gear Hydraulics systems since 1981.</span></div>';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SOA - '+custNm+'</title><style>'+css+'</style></head><body>'+bdy+'</body></html>';
-  var blob=new Blob([html],{type:'text/html'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url; a.target='_blank'; a.rel='noopener';
-  document.body.appendChild(a); a.click();
-  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  window.rcShowHtml(html);
 };
 </script>
 
@@ -2876,6 +2871,23 @@ window.printSOA = function() {
 
 <script>
 // ═══════════════════════════ SHARED HELPERS ═══════════════════════════
+// iPhone/iPad (incl. iPadOS that reports as Mac): blob: tabs fail to print/save PDF because
+// Safari re-loads the URL for the print/share sheet after it's revoked. Write into about:blank instead.
+window.rcIsIOS=function(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);};
+window.rcShowHtml=function(html){
+  if(window.rcIsIOS()){
+    var w=window.open('','_blank');
+    if(!w){alert('Pop-ups are blocked. On iPad go to Settings > Safari and turn off Block Pop-ups, then try again.');return null;}
+    w.document.open();w.document.write(html);w.document.close();
+    return w;
+  }
+  var blob=new Blob([html],{type:'text/html'});
+  var url=URL.createObjectURL(blob);
+  var w2=window.open(url,'_blank');
+  if(!w2){alert('Popups are blocked. Please allow popups for this page and try again.');return null;}
+  w2.addEventListener('load',function(){setTimeout(function(){URL.revokeObjectURL(url);},60000);},false);
+  return w2;
+};
 function rcOpenBlob(html, ref) {
   // Copy job ref to clipboard FIRST — must happen inside the user-gesture context,
   // before window.open() which can shift focus to the new tab
@@ -2888,12 +2900,8 @@ function rcOpenBlob(html, ref) {
   var backBtn='<button id="cb" onclick="window.close()" style="position:fixed;top:16px;left:16px;padding:10px 18px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:-apple-system,sans-serif;z-index:9999">&#8592; Back</button>';
   var backStyle='<style>@media print{#cb{display:none}}</style>';
   html=html.replace('<body>','<body>'+backStyle+backBtn);
-  // Use Blob URL so Chrome renders in standards mode → proper per-character PDF text selection
-  var blob=new Blob([html],{type:'text/html'});
-  var url=URL.createObjectURL(blob);
-  var w=window.open(url,'_blank');
-  if(!w){alert('Popups are blocked. Please allow popups for this page and try again.');return;}
-  if(w)w.addEventListener('load',function(){URL.revokeObjectURL(url);},false);
+  // Blob URL on desktop (standards mode → proper PDF text selection); about:blank on iPad/iPhone
+  window.rcShowHtml(html);
 }
 
 function rcBaseStyle(pbColor) {
@@ -4270,11 +4278,8 @@ window.printGasCert = function() {
 
   var gcBack='<button onclick="window.close()" style="position:fixed;top:16px;left:16px;padding:10px 18px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;z-index:9999">&#8592; Back</button>';
   var gcHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Calibration Cert (' + GC_TYPE + ') ' + ref + '</title>' + css + '<style>@media print{#gcb,#cb{display:none}}</style></head><body>' + gcBack + body + '</body></html>';
-  var gcBlob=new Blob([gcHtml],{type:'text/html'});
-  var gcUrl=URL.createObjectURL(gcBlob);
-  var win=window.open(gcUrl,'_blank');
-  if (!win) { alert('Pop-up blocked. Please allow pop-ups for this page.'); return; }
-  win.addEventListener('load',function(){URL.revokeObjectURL(gcUrl);},false);
+  var win=window.rcShowHtml(gcHtml);
+  if (!win) return;
   setTimeout(function() { win.focus(); }, 300);
 };
 </script>
